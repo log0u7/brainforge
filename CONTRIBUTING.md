@@ -66,6 +66,19 @@ docs: rewrite dataset contamination section
   by `BRAINFORCE_IT=1`.
 - The training smoke test runs only on a GPU runner (manual job).
 
+## Documentation and ADRs
+
+The docs follow the Diataxis split (tutorials, how-to, reference,
+explanation); put new content in the section that matches the reader's goal,
+and cross-link across sections.
+
+Architectural decisions are recorded as MADR 3.0 ADRs in `docs/adr/`: number
+never reused, rejected options included, confirmation section pointing at
+tests or CLI commands. The full rules and the workflow are in
+[docs/adr/index.md](docs/adr/index.md) and
+[docs/how-to/write-an-adr.md](docs/how-to/write-an-adr.md). Verify your
+changes with `uv run mkdocs build --strict`.
+
 ## Merge requests
 
 1. Rebase on `main`; CI must pass (lint, secrets, tests, config, build).

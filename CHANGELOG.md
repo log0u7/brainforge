@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Documentation restructured following Diataxis: guided tutorial, six how-to
+  guides, eight reference pages (including new quality-gates and
+  dataset-format references), and three explanation pages (architecture,
+  contamination, judge correlation).
+- Architecture Decision Records in `docs/adr/` (MADR 3.0): index, blank
+  template, and ten decision records covering configuration, ensemble and
+  judge independence, contamination controls, provider abstraction, RAG,
+  domain packs, dataset format, tooling, cache and training targets.
+- Coverage badge: GitLab coverage regex on the `test` job.
+
+### Changed
+
+- README rewritten: badges, 30-second quickstart with expected output,
+  feature table, principles, provider overview and Diataxis docs routing.
+- mkdocs navigation reorganized into Tutorials / How-to guides / Reference /
+  Explanation / Decision records; Pages job builds with `--strict`.
+
+### Removed
+
+- Legacy flat doc pages (`docs/architecture.md`, `docs/configuration.md`,
+  `docs/providers.md`, `docs/domain-packs.md`, `docs/rag.md`,
+  `docs/dataset.md`, `docs/training.md`, `docs/cli.md`, `docs/ci.md`)
+  migrated into the new structure.
+
 ## [0.0.0] - 2026-08-31
 
 Initial MVP release.

@@ -45,6 +45,7 @@ test:
   script:
     - uv sync
     - uv run pytest -m "not integration" --cov=brainforge --cov-report=term
+  coverage: '/^TOTAL.+?(\d+\.\d+%)$/'
 
 config:
   stage: test
@@ -70,7 +71,7 @@ pages:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   script:
     - uv sync
-    - uv run mkdocs build --site-dir public
+    - uv run mkdocs build --strict --site-dir public
   artifacts:
     paths:
       - public/

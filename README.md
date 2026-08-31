@@ -1,17 +1,50 @@
 # BrainForge
 
-Agentic tooling for building security & coding datasets from real data with
-multi-teacher LLM pipelines, and training small local language models on
-consumer GPUs.
+[![pipeline status](https://gitlab.com/6admin.io/brainforge/badges/main/pipeline.svg)](https://gitlab.com/6admin.io/brainforge/-/pipelines)
+[![coverage](https://gitlab.com/6admin.io/brainforge/badges/main/coverage.svg)](https://gitlab.com/6admin.io/brainforge/-/pipelines)
+[![python](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org)
+[![license](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
+[![code style](https://img.shields.io/badge/lint-ruff-261230)](https://docs.astral.sh/ruff/)
+[![docs](https://img.shields.io/badge/docs-mkdocs%20material-526CFE)](https://gitlab.com/6admin.io/brainforge/-/pages)
 
-BrainForge turns real-world material (vulnerable code, CVEs, patches, git
-history, documentation) into verified training examples, then measures whether
-that knowledge actually improves a small local student model (7-9B, QLoRA on a
-single RTX 3080 10GB).
+**Turn real-world data into verified training datasets with multi-teacher LLM
+pipelines, then train small local models on them.**
 
-Security is the first domain, coding the second. The engine is generic: any
-specialization (audit, pentest, code review, other trades) plugs in as a
-**domain pack**.
+BrainForge builds security and coding datasets from real material (vulnerable
+code, CVEs, patches, git history, documentation), verifies every example
+through independent LLM teachers and a judge, and fine-tunes a 7-9B student
+locally with QLoRA on a single RTX 3080 10GB. The engine is domain-agnostic:
+specializations plug in as *domain packs* (security and coding ship today).
+
+## Quickstart
+
+```bash
+git clone git@gitlab.com:6admin.io/brainforge.git && cd brainforge
+mise install && uv sync
+```
+
+Validate the shipped configuration, then generate a dataset at zero cost with
+the mock provider:
+
+```bash
+uv run brainforge config validate
+uv run brainforge pipeline run security_dataset --input examples/cases --provider mock
+```
+
+```text
+security_dataset: 3 accepted, 0 rejected (3 cases) -> datasets/security_dataset.jsonl
+```
+
+Inspect what was produced, then export training splits:
+
+```bash
+uv run brainforge dataset inspect datasets/security_dataset.jsonl
+uv run brainforge train prepare datasets/security_dataset.jsonl
+```
+
+Point the teachers at real providers by exporting `OPENROUTER_API_KEY` and
+`ZENCODE_API_KEY` and dropping `--provider mock`. Full walkthrough:
+[build your first dataset](docs/tutorials/first-dataset.md).
 
 ## How it works
 
@@ -35,7 +68,6 @@ specialization (audit, pentest, code review, other trades) plugs in as a
      │ OpenRouter│     │ OpenCode  │     │   MLGW    │
      │ security  │     │    Zen    │     │  general  │
      │  teacher  │     │  coding   │     │  critic   │
-     │           │     │  teacher  │     │           │
      └─────┬─────┘     └─────┬─────┘     └─────┬─────┘
            └─────────────────┼─────────────────┘
                              ▼
@@ -57,96 +89,66 @@ specialization (audit, pentest, code review, other trades) plugs in as a
                     └──────────────────┘
 ```
 
-## Core principles
+## What you get
 
-- **Provider ≠ Model ≠ Role ≠ Pipeline**: providers describe access, models are
-  declared once, roles assign a function, pipelines orchestrate roles. The
-  pipeline never knows about providers.
-- **Multi-teacher verification**: independent teachers analyze each case, a
-  judge (on a *different* provider and model family) produces the canonical
-  verdict, and a quality gate rejects weak records.
-- **Contamination awareness**: every case carries a source date; every teacher
-  declares a knowledge cutoff. Cases predating the cutoffs are tagged
-  `recitation_risk`, and evaluation is primarily run on the **post-cutoff
-  holdout**, so gains reflect analysis rather than memorized CVEs.
-- **Judge independence**: `config validate` enforces that the judge does not
-  share a provider or model family with any teacher, because erroneous
-  agreement is the dangerous failure mode, not disagreement.
-- **Provenance everywhere**: every record keeps its teachers, judge, RAG chunks
-  (source, hash, score) and quality-gate result.
-- **Quality over volume**: deduplication (exact + near-dup), confidence
-  thresholds, and rejected-case quarantine in `data/rejected/`.
+| Capability | Detail |
+|---|---|
+| Provider layer | OpenRouter, OpenCode Zen, MLGW, local servers, deterministic mock; sqlite cache, retries, usage logs with cost estimates |
+| Multi-teacher ensembles | Independent teachers, adversarial judge, cost modes (cheap / standard / maximum), teacher ablation by config |
+| Judge independence | Enforced at config load: distinct provider and model family from every teacher |
+| Contamination controls | Per-teacher `knowledge_cutoff`, source dates, `recitation_risk` tagging, post-cutoff holdout as the primary benchmark |
+| Local RAG | fastembed (ONNX, CPU) or hashing embeddings, sqlite + numpy store, full chunk provenance |
+| Quality gates | Per-domain rules (evidence, CWE format, confidence), rejected-case quarantine, exact + near-duplicate detection |
+| Datasets | JSONL with chat messages + separated provenance metadata, source-grouped splits, TRL-ready export |
+| Training prep | Validate / split / export; QLoRA 4-bit scaffolding for phase 2 on one RTX 3080 10GB |
+| Tooling | `brainforge` CLI (typer + rich), Makefile, 112 tests, GitLab CI with docs and a manual GPU smoke job |
 
-## Quickstart
+## Principles
 
-Requirements: Python 3.12+, [mise](https://mise.jdx.dev) (or uv directly).
+1. **Separation of concerns**: provider ≠ model ≠ role ≠ pipeline; the
+   pipeline never knows a vendor exists.
+2. **Independent verification**: the judge shares neither provider nor model
+   family with any teacher, because erroneous agreement is the dangerous
+   failure mode.
+3. **Contamination awareness**: the student is benchmarked on cases the
+   teachers cannot have memorized; gains must mean analysis, not recitation.
+4. **Provenance everywhere**: teachers, judge, RAG chunks and gate results
+   travel with every record.
+5. **Quality over volume**: verified, deduplicated, source-grouped data beats
+   mass-produced synthetic examples.
 
-```bash
-mise install                 # installs the pinned uv
-uv sync                      # install dependencies into .venv
+## Providers
 
-# validate the shipped example configuration
-uv run brainforge config validate
-
-# generate a dataset without spending a cent (mock provider)
-uv run brainforge pipeline run security_dataset --input examples/cases --provider mock
-
-# inspect it: contamination stats, teacher/judge agreement, duplicates
-uv run brainforge dataset inspect datasets/security_dataset.jsonl
-
-# validate, split (train/validation/test + post-cutoff holdout)
-uv run brainforge dataset validate datasets/security_dataset.jsonl
-uv run brainforge train prepare datasets/security_dataset.jsonl
-```
-
-Point the teachers at real providers:
-
-```bash
-export OPENROUTER_API_KEY="sk-or-..."     # security + coding teachers
-export ZENCODE_API_KEY="..."              # judge (OpenCode Zen)
-uv run brainforge pipeline run security_dataset --input examples/cases
-```
-
-MLGW (`http://localhost:8080/v1`) serves local models; its development API key
-is the intentionally fake `deadbeef`.
-
-## Configuration
-
-JSON only, validated against `config/schema.json` (generated from pydantic
-models). See [docs/configuration.md](docs/configuration.md). Secrets live in
-environment variables, never in git: `${VAR}` or `${VAR:default}` placeholders
-are expanded at load time.
+| Provider | Type | Role in the default config |
+|---|---|---|
+| [OpenRouter](https://openrouter.ai) | `openrouter` | security + coding teachers |
+| [OpenCode Zen](https://opencode.ai/docs/zen/) | `zen` | judge |
+| MLGW (local gateway) | `mlgw` | general critic |
+| Mock | `mock` | zero-cost demos and tests |
 
 ## Documentation
 
-Full docs live in [`docs/`](docs/) (mkdocs-material):
-
-- [Architecture](docs/architecture.md)
-- [Configuration reference](docs/configuration.md)
-- [Providers](docs/providers.md) - OpenRouter, OpenCode Zen, MLGW, mock, local
-- [Domain packs](docs/domain-packs.md) - security, coding, writing your own
-- [RAG](docs/rag.md)
-- [Dataset format & contamination](docs/dataset.md)
-- [Training](docs/training.md)
-- [CLI reference](docs/cli.md)
-- [CI](docs/ci.md)
-
-Build them locally with `uv run mkdocs serve`.
+| Section | Content |
+|---|---|
+| [Tutorial](docs/tutorials/first-dataset.md) | first dataset in 10 minutes, no keys |
+| [How-to guides](docs/how-to/configure-providers.md) | providers, RAG, generation, dataset management, domain packs, ADRs |
+| [Reference](docs/reference/configuration.md) | configuration, providers, CLI, dataset format, quality gates, RAG, training, CI |
+| [Explanation](docs/explanation/architecture.md) | architecture, contamination, judge correlation |
+| [Decision records](docs/adr/index.md) | 10 MADR ADRs behind the design |
 
 ## Development
 
 ```bash
-make install    # uv sync
-make test       # pytest (unit)
-make lint       # ruff check + format check
-make config     # validate config + schema check
-make docs-serve # local docs
+make install     # uv sync
+make test        # pytest (unit)
+make lint        # ruff check + format check
+make config      # config validate + schema check
+make docs-serve  # local documentation
 ```
 
 Contributions welcome: see [CONTRIBUTING.md](CONTRIBUTING.md) and the
-[ROADMAP](ROADMAP.md).
+[ROADMAP](ROADMAP.md) (phase 2: QLoRA training and the golden dataset).
 
-## Status
+## License
 
-`0.0.0` - MVP. Dataset generation pipeline is complete and tested; QLoRA
-training is scaffolded (see ROADMAP phase 2). Apache-2.0 licensed.
+[Apache-2.0](LICENSE).
