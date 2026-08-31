@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          version: "0.12.7"
+          python-version: "3.12"
+          enable-cache: true
+      - name: Sync dependencies
+        run: uv sync
+      - name: Run ruff
+        run: uv run ruff check .
+      - name: Check formatting
+        run: uv run ruff format --check .
+
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          version: "0.12.7"
+          python-version: "3.12"
+          enable-cache: true
+      - name: Sync dependencies
+        run: uv sync
+      - name: Run tests
+        run: uv run pytest -m "not integration" --cov=brainforge --cov-report=term
+
+  config:
+    name: Config validation + mock pipeline
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          version: "0.12.7"
+          python-version: "3.12"
+          enable-cache: true
+      - name: Sync dependencies
+        run: uv sync
+      - name: Validate config
+        run: |
+          uv run brainforge config validate
+          uv run brainforge config schema --check
+      - name: Mock pipeline run
+        run: uv run brainforge pipeline run security_dataset --input examples/cases --provider mock
+
+  build:
+    name: Build package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          version: "0.12.7"
+          python-version: "3.12"
+          enable-cache: true
+      - name: Sync dependencies
+        run: uv sync
+      - name: Build
+        run: uv build
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7

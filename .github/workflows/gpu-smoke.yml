@@ -1,0 +1,23 @@
+name: GPU smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  train-smoke:
+    name: Training smoke (self-hosted GPU)
+    runs-on: [self-hosted, gpu]
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          version: "0.12.7"
+          enable-cache: false
+      - name: Sync training dependencies
+        run: uv sync --extra training
+      - name: Run training smoke
+        run: uv run python -m brainforge.training.smoke

@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- GitHub Actions CI mirroring the GitLab pipeline: ruff lint, gitleaks secret
+  scan over full history, unit tests with coverage, config validation plus
+  mock pipeline run, and package build published as a 7-day artifact.
+- Manual `GPU smoke` workflow (`workflow_dispatch`) targeting a self-hosted
+  runner with the `gpu` label for the training smoke test.
 - Documentation restructured following Diataxis: guided tutorial, six how-to
   guides, eight reference pages (including new quality-gates and
   dataset-format references), and three explanation pages (architecture,
