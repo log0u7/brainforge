@@ -1,37 +1,47 @@
 # CI reference
 
-GitLab CI (`.gitlab-ci.yml`). Pipelines run on merge requests and on `main`
-(`CI_DEFAULT_BRANCH`).
+GitHub Actions. `ci.yml` runs on pushes to `main` and on pull requests
+targeting `main`; superseded runs on the same ref are cancelled
+(`concurrency`). `gpu-smoke.yml` runs on `workflow_dispatch` only.
 
-## Jobs
+## Workflows
 
-| Stage | Job | Content | Runs |
-|---|---|---|---|
-| lint | `lint` | `uv sync`, `ruff check .`, `ruff format --check .` | every pipeline |
-| lint | `secrets` | gitleaks over full history (`GIT_DEPTH: 0`), `--redact` | every pipeline |
-| test | `test` | `pytest -m "not integration"` with coverage (GitLab coverage regex for the badge) | every pipeline |
-| test | `config` | `brainforge config validate`, `config schema --check`, mock pipeline over `examples/cases` | every pipeline |
-| build | `build` | `uv build`, sdist+wheel artifacts (1 week) | every pipeline |
-| pages | `pages` | `mkdocs build --strict --site-dir public` | main only |
-| gpu | `train-smoke` | 1-step QLoRA smoke (`brainforge.training.smoke`) | manual, `tags: [gpu]`, `allow_failure: true` |
+### `.github/workflows/ci.yml` (automatic)
+
+| Job | Content | Runs |
+|---|---|---|
+| `lint` | `uv sync`, `ruff check .`, `ruff format --check .` | every run |
+| `secrets` | gitleaks over full history (`fetch-depth: 0`), SARIF report | every run |
+| `test` | `pytest -m "not integration"` with coverage | every run |
+| `config` | `brainforge config validate`, `config schema --check`, mock pipeline over `examples/cases` | every run |
+| `build` | `uv build`, sdist+wheel artifact (7 days) | every run |
+
+All five jobs run in parallel on `ubuntu-latest`.
+
+### `.github/workflows/gpu-smoke.yml` (manual)
+
+| Job | Content | Runs |
+|---|---|---|
+| `train-smoke` | 1-step QLoRA smoke (`brainforge.training.smoke`) | `workflow_dispatch`, self-hosted `[self-hosted, gpu]`, `continue-on-error: true` |
 
 ## Conventions
 
-- All Python jobs use the official `ghcr.io/astral-sh/uv:python3.12-bookworm`
-  image with `uv.lock`-keyed cache (`.uv-cache`).
-- `interruptible: true` on everything: new pushes cancel superseded runs.
+- All Python jobs use `astral-sh/setup-uv@v10.0.1` pinned to uv `0.12.7`
+  (mirroring `mise.toml`) with Python 3.12 and the `uv.lock`-keyed cache.
+- `permissions: contents: read` at workflow level; nothing else is granted.
 - Integration tests hitting real providers are excluded (`-m "not
   integration"`) and run locally with `BRAINFORCE_IT=1` plus real keys; CI
   never holds provider keys.
 - The `config` job is the end-to-end guard: it exercises config loading, schema
   sync, provider dry-build and the full mock pipeline (gate, provenance,
-  dataset write) on every push.
-- gitleaks also runs as a pre-commit hook; secrets belong in GitLab CI/CD
-  variables or a secrets manager, never in the repository.
+  dataset write) on every run.
+- gitleaks also runs as a pre-commit hook; secrets belong in GitHub Actions
+  secrets or a secrets manager, never in the repository.
 
 ## Enabling the GPU job
 
-1. Register a runner with the `gpu` tag on the host with the RTX 3080.
-2. `gitlab-runner exec` or trigger `train-smoke` manually from the pipeline
-   view; it syncs the `[training]` extra and runs the smoke module, which
-   skips itself cleanly when CUDA is unavailable.
+1. Register a self-hosted runner on the host with the RTX 3080 and give it the
+   `gpu` label (adjust `runs-on` in `gpu-smoke.yml` if your label differs).
+2. Trigger `GPU smoke` from the Actions tab; it syncs the `[training]` extra
+   and runs the smoke module, which skips itself cleanly when CUDA is
+   unavailable.

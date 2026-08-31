@@ -21,8 +21,8 @@ one file per decision, in [MADR 3.0](https://adr.github.io/madr/) format.
 
 1. Copy `template.md` to `NNNN-short-title.md` with the next free number.
 2. Fill every section; keep it under ~150 lines.
-3. Add the entry to the table below and to the `mkdocs.yml` nav.
-4. Open the merge request with the `docs` label.
+3. Add the entry to the table below.
+4. Open the pull request with the `docs` label.
 
 ## Index
 

@@ -1,11 +1,9 @@
 # BrainForge
 
-[![pipeline status](https://gitlab.com/6admin.io/brainforge/badges/main/pipeline.svg)](https://gitlab.com/6admin.io/brainforge/-/pipelines)
-[![coverage](https://gitlab.com/6admin.io/brainforge/badges/main/coverage.svg)](https://gitlab.com/6admin.io/brainforge/-/pipelines)
+[![CI](https://github.com/log0u7/brainforge/actions/workflows/ci.yml/badge.svg)](https://github.com/log0u7/brainforge/actions/workflows/ci.yml)
 [![python](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org)
 [![license](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
 [![code style](https://img.shields.io/badge/lint-ruff-261230)](https://docs.astral.sh/ruff/)
-[![docs](https://img.shields.io/badge/docs-mkdocs%20material-526CFE)](https://gitlab.com/6admin.io/brainforge/-/pages)
 
 **Turn real-world data into verified training datasets with multi-teacher LLM
 pipelines, then train small local models on them.**
@@ -19,7 +17,7 @@ specializations plug in as *domain packs* (security and coding ship today).
 ## Quickstart
 
 ```bash
-git clone git@gitlab.com:6admin.io/brainforge.git && cd brainforge
+git clone git@github.com:log0u7/brainforge.git && cd brainforge
 mise install && uv sync
 ```
 
@@ -101,7 +99,7 @@ Point the teachers at real providers by exporting `OPENROUTER_API_KEY` and
 | Quality gates | Per-domain rules (evidence, CWE format, confidence), rejected-case quarantine, exact + near-duplicate detection |
 | Datasets | JSONL with chat messages + separated provenance metadata, source-grouped splits, TRL-ready export |
 | Training prep | Validate / split / export; QLoRA 4-bit scaffolding for phase 2 on one RTX 3080 10GB |
-| Tooling | `brainforge` CLI (typer + rich), Makefile, 112 tests, GitLab CI with docs and a manual GPU smoke job |
+| Tooling | `brainforge` CLI (typer + rich), Makefile, 112 tests, GitHub Actions CI and a manual GPU smoke job |
 
 ## Principles
 

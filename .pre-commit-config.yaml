@@ -7,7 +7,6 @@ repos:
         exclude: "^\\.devcontainer/"
       - id: check-toml
       - id: check-yaml
-        exclude: "^mkdocs.yml$"
       - id: end-of-file-fixer
       - id: trailing-whitespace
   - repo: https://github.com/astral-sh/ruff-pre-commit

@@ -31,7 +31,7 @@ uv run brainforge config schema --check       # schema must stay in sync
 ```
 
 Branches: `feat/<topic>`, `fix/<topic>`, `docs/<topic>`. Keep changes small and
-focused; one topic per merge request.
+focused; one topic per pull request.
 
 ## Commits
 
@@ -76,10 +76,9 @@ Architectural decisions are recorded as MADR 3.0 ADRs in `docs/adr/`: number
 never reused, rejected options included, confirmation section pointing at
 tests or CLI commands. The full rules and the workflow are in
 [docs/adr/index.md](docs/adr/index.md) and
-[docs/how-to/write-an-adr.md](docs/how-to/write-an-adr.md). Verify your
-changes with `uv run mkdocs build --strict`.
+[docs/how-to/write-an-adr.md](docs/how-to/write-an-adr.md).
 
-## Merge requests
+## Pull requests
 
 1. Rebase on `main`; CI must pass (lint, secrets, tests, config, build).
 2. Describe what changed and why; link related issues.

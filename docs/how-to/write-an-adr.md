@@ -44,9 +44,7 @@ Style: English only, no em dashes, under ~150 lines.
 ## 4. Register it
 
 1. Add a row to the table in `docs/adr/index.md`.
-2. Add the page to the `Decision records` section of `mkdocs.yml` (or rely on
-   the nav entry pattern of the other ADRs).
-3. Link it from the affected reference or explanation pages.
+2. Link it from the affected reference or explanation pages.
 
 ## 5. Review and merge
 

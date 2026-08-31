@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- CI moved from GitLab to GitHub: badges and clone URL in the README now point
+  at `log0u7/brainforge`, CONTRIBUTING reworded for pull requests, and
+  `docs/reference/ci.md` documents the GitHub Actions workflows.
 - README rewritten: badges, 30-second quickstart with expected output,
   feature table, principles, provider overview and Diataxis docs routing.
 - mkdocs navigation reorganized into Tutorials / How-to guides / Reference /
@@ -33,6 +36,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- mkdocs site (`mkdocs.yml`) and `mkdocs-material` dev dependency; the
+  `docs/` tree stays as plain markdown rendered by GitHub.
+- GitLab remote: the repository lives on GitHub only.
 - Legacy flat doc pages (`docs/architecture.md`, `docs/configuration.md`,
   `docs/providers.md`, `docs/domain-packs.md`, `docs/rag.md`,
   `docs/dataset.md`, `docs/training.md`, `docs/cli.md`, `docs/ci.md`)
