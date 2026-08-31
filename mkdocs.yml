@@ -1,0 +1,41 @@
+site_name: BrainForge
+site_description: Agentic tooling for security & coding datasets and small local models.
+repo_url: https://gitlab.6admin.io/6admin.io/brainforge
+repo_name: brainforge
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - content.code.copy
+    - navigation.sections
+    - navigation.top
+
+nav:
+  - Home: index.md
+  - Architecture: architecture.md
+  - Configuration: configuration.md
+  - Providers: providers.md
+  - Domain packs: domain-packs.md
+  - RAG: rag.md
+  - Dataset: dataset.md
+  - Training: training.md
+  - CLI reference: cli.md
+  - CI: ci.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.tabbed
+  - tables

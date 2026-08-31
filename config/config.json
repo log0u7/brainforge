@@ -1,0 +1,94 @@
+{
+  "providers": {
+    "openrouter": {
+      "type": "openrouter",
+      "base_url": "https://openrouter.ai/api/v1",
+      "api_key": "${OPENROUTER_API_KEY:}"
+    },
+    "zen": {
+      "type": "zen",
+      "base_url": "${ZENCODE_BASE_URL:https://opencode.ai/zen/v1}",
+      "api_key": "${ZENCODE_API_KEY:}",
+      "api_style": "chat_completions"
+    },
+    "mlgw": {
+      "type": "mlgw",
+      "base_url": "${MLGW_BASE_URL:http://localhost:8080/v1}",
+      "api_key": "${MLGW_API_KEY:deadbeef}"
+    },
+    "mock": {
+      "type": "mock"
+    }
+  },
+
+  "models": {
+    "security": {
+      "provider": "openrouter",
+      "model": "deepseek-v4-pro",
+      "family": "deepseek",
+      "knowledge_cutoff": "2026-06"
+    },
+    "coding": {
+      "provider": "openrouter",
+      "model": "qwen3-coder-480b",
+      "family": "qwen",
+      "knowledge_cutoff": "2026-05"
+    },
+    "general": {
+      "provider": "mlgw",
+      "model": "qwen3.5-9b",
+      "family": "qwen"
+    },
+    "judge": {
+      "provider": "zen",
+      "model": "glm-5.2",
+      "family": "glm",
+      "knowledge_cutoff": "2026-07"
+    }
+  },
+
+  "roles": {
+    "security_teacher": {
+      "model": "security",
+      "temperature": 0.2
+    },
+    "coding_teacher": {
+      "model": "coding",
+      "temperature": 0.3
+    },
+    "general_teacher": {
+      "model": "general",
+      "temperature": 0.4
+    },
+    "judge": {
+      "model": "judge",
+      "temperature": 0.0
+    }
+  },
+
+  "pipelines": {
+    "security_dataset": {
+      "domain": "security",
+      "mode": "standard",
+      "min_confidence": 0.5
+    },
+    "security_dataset_maximum": {
+      "domain": "security",
+      "mode": "maximum"
+    },
+    "coding_dataset": {
+      "domain": "coding",
+      "steps": ["coding_teacher", "security_teacher", "judge"]
+    }
+  },
+
+  "judge_independence": "enforced",
+
+  "training": {
+    "base_model": "Qwen/Qwen3-8B",
+    "lora_rank": 16,
+    "lora_alpha": 32,
+    "quantization": "4bit",
+    "output_dir": "experiments"
+  }
+}

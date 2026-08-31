@@ -1,0 +1,17 @@
+{
+  "id": "case-xss-001",
+  "source": {
+    "type": "git",
+    "repository": "webapp-feedback",
+    "commit": "b7c8d9e",
+    "path": "src/comments.js",
+    "date": "2026-07-20"
+  },
+  "input": {
+    "code": "function renderComment(container, user, comment) {\n  container.innerHTML = `<div class=\"comment\"><b>${user}</b>: ${comment}</div>`;\n}\n",
+    "description": "Feedback widget rendering user comments directly into innerHTML."
+  },
+  "metadata": {
+    "language": "javascript"
+  }
+}

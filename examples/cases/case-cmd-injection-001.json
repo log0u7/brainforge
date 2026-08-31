@@ -1,0 +1,17 @@
+{
+  "id": "case-cmd-injection-001",
+  "source": {
+    "type": "git",
+    "repository": "example-tools",
+    "commit": "a1b2c3d",
+    "path": "tools/backup.py",
+    "date": "2026-08-10"
+  },
+  "input": {
+    "code": "import subprocess\n\n\ndef backup(destination: str) -> int:\n    \"\"\"Archive /etc to the requested destination.\"\"\"\n    command = f\"tar -czf {destination} /etc\"\n    return subprocess.run(command, shell=True).returncode\n",
+    "description": "A backup helper invoked from a web dashboard where destination is user-controlled."
+  },
+  "metadata": {
+    "language": "python"
+  }
+}

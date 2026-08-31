@@ -1,0 +1,17 @@
+{
+  "id": "case-sqli-001",
+  "source": {
+    "type": "git",
+    "repository": "legacy-shop",
+    "commit": "d4e5f6a",
+    "path": "api/search.php",
+    "date": "2026-04-01"
+  },
+  "input": {
+    "code": "<?php\nfunction search_products($pdo, $term) {\n    $query = \"SELECT * FROM products WHERE name LIKE '%\" . $term . \"%'\";\n    return $pdo->query($query)->fetchAll();\n}\n",
+    "description": "Product search endpoint receiving $term from $_GET without sanitization."
+  },
+  "metadata": {
+    "language": "php"
+  }
+}

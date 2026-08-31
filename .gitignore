@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# mkdocs
+site/
+
+# BrainForge artifacts
+data/*
+!data/.gitkeep
+rag/index/*
+!rag/index/.gitkeep
+datasets/*
+!datasets/.gitkeep
+experiments/*
+!experiments/.gitkeep
+golden/*
+!golden/.gitkeep
+
+# Secrets and env
+.env
+.env.*
+*.pem
+*.key
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store

@@ -1,0 +1,430 @@
+{
+  "$defs": {
+    "ApiStyle": {
+      "enum": [
+        "chat_completions",
+        "responses",
+        "anthropic"
+      ],
+      "title": "ApiStyle",
+      "type": "string"
+    },
+    "Mode": {
+      "enum": [
+        "cheap",
+        "standard",
+        "maximum"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "ModelDef": {
+      "additionalProperties": false,
+      "properties": {
+        "provider": {
+          "title": "Provider",
+          "type": "string"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "family": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Family"
+        },
+        "knowledge_cutoff": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Knowledge Cutoff"
+        },
+        "pricing": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PricingConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "provider",
+        "model"
+      ],
+      "title": "ModelDef",
+      "type": "object"
+    },
+    "PipelineDef": {
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "title": "Domain",
+          "type": "string"
+        },
+        "steps": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Steps"
+        },
+        "mode": {
+          "$ref": "#/$defs/Mode",
+          "default": "standard"
+        },
+        "min_confidence": {
+          "default": 0.5,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Min Confidence",
+          "type": "number"
+        },
+        "reject_unresolved": {
+          "default": true,
+          "title": "Reject Unresolved",
+          "type": "boolean"
+        },
+        "reject_recitation_risk": {
+          "default": false,
+          "title": "Reject Recitation Risk",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "domain"
+      ],
+      "title": "PipelineDef",
+      "type": "object"
+    },
+    "PricingConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "input_per_mtok": {
+          "minimum": 0,
+          "title": "Input Per Mtok",
+          "type": "number"
+        },
+        "output_per_mtok": {
+          "minimum": 0,
+          "title": "Output Per Mtok",
+          "type": "number"
+        }
+      },
+      "required": [
+        "input_per_mtok",
+        "output_per_mtok"
+      ],
+      "title": "PricingConfig",
+      "type": "object"
+    },
+    "ProviderConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/ProviderType"
+        },
+        "base_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Base Url"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Api Key"
+        },
+        "api_style": {
+          "$ref": "#/$defs/ApiStyle",
+          "default": "chat_completions"
+        },
+        "timeout": {
+          "default": 120.0,
+          "exclusiveMinimum": 0,
+          "title": "Timeout",
+          "type": "number"
+        },
+        "max_retries": {
+          "default": 3,
+          "minimum": 0,
+          "title": "Max Retries",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "ProviderConfig",
+      "type": "object"
+    },
+    "ProviderType": {
+      "enum": [
+        "openrouter",
+        "zen",
+        "mlgw",
+        "openai",
+        "local",
+        "mock"
+      ],
+      "title": "ProviderType",
+      "type": "string"
+    },
+    "RoleDef": {
+      "additionalProperties": false,
+      "properties": {
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RoleKind"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "temperature": {
+          "default": 0.7,
+          "maximum": 2,
+          "minimum": 0,
+          "title": "Temperature",
+          "type": "number"
+        },
+        "top_p": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Top P"
+        },
+        "max_tokens": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Tokens"
+        },
+        "system_prompt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "System Prompt"
+        }
+      },
+      "required": [
+        "model"
+      ],
+      "title": "RoleDef",
+      "type": "object"
+    },
+    "RoleKind": {
+      "enum": [
+        "teacher",
+        "critic",
+        "judge"
+      ],
+      "title": "RoleKind",
+      "type": "string"
+    },
+    "TrainingConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "base_model": {
+          "default": "Qwen/Qwen3-8B",
+          "title": "Base Model",
+          "type": "string"
+        },
+        "lora_rank": {
+          "default": 16,
+          "minimum": 1,
+          "title": "Lora Rank",
+          "type": "integer"
+        },
+        "lora_alpha": {
+          "default": 32,
+          "minimum": 1,
+          "title": "Lora Alpha",
+          "type": "integer"
+        },
+        "lora_dropout": {
+          "default": 0.05,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Lora Dropout",
+          "type": "number"
+        },
+        "learning_rate": {
+          "default": 0.0002,
+          "exclusiveMinimum": 0,
+          "title": "Learning Rate",
+          "type": "number"
+        },
+        "epochs": {
+          "default": 3,
+          "minimum": 1,
+          "title": "Epochs",
+          "type": "integer"
+        },
+        "batch_size": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Batch Size",
+          "type": "integer"
+        },
+        "gradient_accumulation": {
+          "default": 16,
+          "minimum": 1,
+          "title": "Gradient Accumulation",
+          "type": "integer"
+        },
+        "quantization": {
+          "default": "4bit",
+          "enum": [
+            "4bit",
+            "8bit",
+            "none"
+          ],
+          "title": "Quantization",
+          "type": "string"
+        },
+        "output_dir": {
+          "default": "experiments",
+          "title": "Output Dir",
+          "type": "string"
+        }
+      },
+      "title": "TrainingConfig",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "providers": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ProviderConfig"
+      },
+      "minProperties": 1,
+      "title": "Providers",
+      "type": "object"
+    },
+    "models": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ModelDef"
+      },
+      "minProperties": 1,
+      "title": "Models",
+      "type": "object"
+    },
+    "roles": {
+      "additionalProperties": {
+        "$ref": "#/$defs/RoleDef"
+      },
+      "minProperties": 1,
+      "title": "Roles",
+      "type": "object"
+    },
+    "pipelines": {
+      "additionalProperties": {
+        "$ref": "#/$defs/PipelineDef"
+      },
+      "minProperties": 1,
+      "title": "Pipelines",
+      "type": "object"
+    },
+    "judge_independence": {
+      "default": "enforced",
+      "enum": [
+        "enforced",
+        "warn",
+        "off"
+      ],
+      "title": "Judge Independence",
+      "type": "string"
+    },
+    "training": {
+      "$ref": "#/$defs/TrainingConfig",
+      "default": {
+        "base_model": "Qwen/Qwen3-8B",
+        "lora_rank": 16,
+        "lora_alpha": 32,
+        "lora_dropout": 0.05,
+        "learning_rate": 0.0002,
+        "epochs": 3,
+        "batch_size": 1,
+        "gradient_accumulation": 16,
+        "quantization": "4bit",
+        "output_dir": "experiments"
+      }
+    }
+  },
+  "required": [
+    "providers",
+    "models",
+    "roles",
+    "pipelines"
+  ],
+  "title": "Config",
+  "type": "object"
+}
