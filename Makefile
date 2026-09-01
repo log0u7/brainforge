@@ -1,4 +1,4 @@
-.PHONY: install test lint format config models rag dataset validate train evaluate clean docs-serve docs-build
+.PHONY: install test lint format secrets audit build ci config models rag dataset validate train evaluate clean
 
 install:
 	uv sync
@@ -13,6 +13,20 @@ lint:
 format:
 	uv run ruff format .
 	uv run ruff check --fix .
+
+secrets:
+	@command -v gitleaks >/dev/null 2>&1 || { echo "gitleaks not found: install v8.30.1 from https://github.com/gitleaks/gitleaks/releases"; exit 1; }
+	gitleaks git --redact -v .
+
+audit:
+	uv export --format requirements-txt --no-dev --no-hashes --no-emit-project -o requirements-audit.txt
+	uvx pip-audit -r requirements-audit.txt --strict
+
+build:
+	uv build
+
+# Local equivalent of the CI pipeline (GitHub Actions / GitLab CI / Forgejo).
+ci: lint secrets test config build audit
 
 config:
 	uv run brainforge config validate
@@ -42,9 +56,3 @@ evaluate:
 clean:
 	rm -rf .pytest_cache .ruff_cache .coverage htmlcov
 	find . -type d -name __pycache__ -exec rm -rf {} +
-
-docs-serve:
-	uv run mkdocs serve
-
-docs-build:
-	uv run mkdocs build

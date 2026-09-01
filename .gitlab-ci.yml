@@ -1,0 +1,84 @@
+stages:
+  - lint
+  - test
+  - build
+  - gpu
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+default:
+  image: python:3.12-bookworm
+  interruptible: true
+  cache:
+    key:
+      files:
+        - uv.lock
+    paths:
+      - .uv-cache
+
+variables:
+  UV_CACHE_DIR: .uv-cache
+
+before_script:
+  - pip install --no-cache-dir uv==0.12.7
+
+lint:
+  stage: lint
+  script:
+    - uv sync
+    - uv run ruff check .
+    - uv run ruff format --check .
+
+secrets:
+  stage: lint
+  image:
+    name: ghcr.io/gitleaks/gitleaks:v8.30.1
+    entrypoint: [""]
+  before_script: []
+  variables:
+    GIT_DEPTH: 0
+  script:
+    - gitleaks git --redact -v .
+
+test:
+  stage: test
+  script:
+    - uv sync
+    - uv run pytest -m "not integration" --cov=brainforge --cov-report=term
+
+config:
+  stage: test
+  script:
+    - uv sync
+    - uv run brainforge config validate
+    - uv run brainforge config schema --check
+    - uv run brainforge pipeline run security_dataset --input examples/cases --provider mock
+
+audit:
+  stage: test
+  script:
+    - uv sync
+    - uv export --format requirements-txt --no-dev --no-hashes --no-emit-project -o requirements-audit.txt
+    - uvx pip-audit -r requirements-audit.txt --strict
+
+build:
+  stage: build
+  script:
+    - uv sync
+    - uv build
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 1 week
+
+train-smoke:
+  stage: gpu
+  tags: [gpu]
+  when: manual
+  allow_failure: true
+  script:
+    - uv sync --extra training
+    - uv run python -m brainforge.training.smoke

@@ -1,8 +1,24 @@
 # CI reference
 
-GitHub Actions. `ci.yml` runs on pushes to `main` and on pull requests
-targeting `main`; superseded runs on the same ref are cancelled
-(`concurrency`). `gpu-smoke.yml` runs on `workflow_dispatch` only.
+The same six gates (lint, secrets, test, config, build, audit) run on every
+platform, each in its native syntax:
+
+| Platform | File | Status |
+|---|---|---|
+| GitHub Actions | `.github/workflows/ci.yml` | reference implementation; branch protection on `main` requires all six checks |
+| GitLab CI | `.gitlab-ci.yml` | parity port (pinned `uv==0.12.7` via pip, gitleaks image `v8.30.1`) |
+| Forgejo (act_runner) | `.forgejo/workflows/ci.yml` | written, not yet tested against a live runner (5 jobs: no build artifact, no GPU) |
+| Local | `make ci` | exact equivalent of the pipeline, no CI server needed (needs `mise`/`uv` and the `gitleaks` binary on PATH) |
+
+GitHub Actions also has `gpu-smoke.yml` (manual) and GitLab has a manual
+`train-smoke` job with `tags: [gpu]`; both only run where a self-hosted GPU
+runner with the `gpu` label is registered.
+
+## GitHub Actions
+
+`ci.yml` runs on pushes to `main` and on pull requests targeting `main`;
+superseded runs on the same ref are cancelled (`concurrency`).
+`gpu-smoke.yml` runs on `workflow_dispatch` only.
 
 ## Workflows
 
@@ -20,17 +36,13 @@ targeting `main`; superseded runs on the same ref are cancelled
 All six jobs run in parallel on `ubuntu-latest`. Dependabot opens weekly
 update PRs for pip and GitHub Actions dependencies.
 
-### `.github/workflows/gpu-smoke.yml` (manual)
-
-| Job | Content | Runs |
-|---|---|---|
-| `train-smoke` | 1-step QLoRA smoke (`brainforge.training.smoke`) | `workflow_dispatch`, self-hosted `[self-hosted, gpu]`, `continue-on-error: true` |
-
 ## Conventions
 
-- Toolchain managed by mise: jobs run `jdx/mise-action@v4`, which installs uv
-  `0.12.7` from `mise.toml` (single source of truth). Python projects sync
-  with `uv sync` against the `uv.lock`-keyed Actions cache.
+- Toolchain: GitHub and Forgejo install uv `0.12.7` through mise
+  (`jdx/mise-action@v4` reading `mise.toml`, single source of truth); GitLab
+  installs `uv==0.12.7` via pip inside a `python:3.12-bookworm` container
+  (runner-friendly, registry-pinned). Everywhere else `uv sync` uses the
+  `uv.lock`-keyed cache.
 - `permissions: contents: read` at workflow level; nothing else is granted.
 - Integration tests hitting real providers are excluded (`-m "not
   integration"`) and run locally with `BRAINFORCE_IT=1` plus real keys; CI

@@ -13,8 +13,9 @@ venv/
 .coverage
 htmlcov/
 .mypy_cache/
+requirements-audit.txt
 
-# mkdocs
+# mkdocs (removed)
 site/
 
 # BrainForge artifacts

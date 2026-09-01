@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Portable CI: the same six gates run on GitHub Actions (reference), GitLab
+  CI (`.gitlab-ci.yml`, pinned `uv==0.12.7` and gitleaks image `v8.30.1`),
+  Forgejo (`.forgejo/workflows/ci.yml`, act_runner, untested against a live
+  runner), and locally via `make ci` (new `secrets`, `build`, `audit` Make
+  targets).
 - Dependency CVE audit job (`pip-audit --strict` over exported runtime
   requirements) in the GitHub Actions CI.
 - Dependabot: weekly updates for pip and GitHub Actions dependencies.
