@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Dependency CVE audit job (`pip-audit --strict` over exported runtime
+  requirements) in the GitHub Actions CI.
+- Dependabot: weekly updates for pip and GitHub Actions dependencies.
+- Coverage artifact: `coverage.xml` uploaded by the `test` job (7-day
+  retention).
+- Branch protection on `main`: all CI status checks required before merge.
 - GitHub Actions CI mirroring the GitLab pipeline: ruff lint, gitleaks secret
   scan over full history, unit tests with coverage, config validation plus
   mock pipeline run, and package build published as a 7-day artifact.
@@ -26,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- CI workflows now install the toolchain through mise (`jdx/mise-action@v4`
+  reading `mise.toml`) instead of pinning uv separately.
 - CI moved from GitLab to GitHub: badges and clone URL in the README now point
   at `log0u7/brainforge`, CONTRIBUTING reworded for pull requests, and
   `docs/reference/ci.md` documents the GitHub Actions workflows.
@@ -36,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- Legacy `.gitlab-ci.yml`: the repository runs on GitHub Actions only.
 - mkdocs site (`mkdocs.yml`) and `mkdocs-material` dev dependency; the
   `docs/` tree stays as plain markdown rendered by GitHub.
 - GitLab remote: the repository lives on GitHub only.

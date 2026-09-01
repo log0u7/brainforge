@@ -12,11 +12,13 @@ targeting `main`; superseded runs on the same ref are cancelled
 |---|---|---|
 | `lint` | `uv sync`, `ruff check .`, `ruff format --check .` | every run |
 | `secrets` | gitleaks over full history (`fetch-depth: 0`), SARIF report | every run |
-| `test` | `pytest -m "not integration"` with coverage | every run |
+| `test` | `pytest -m "not integration"` with coverage; `coverage.xml` uploaded as a 7-day artifact | every run |
 | `config` | `brainforge config validate`, `config schema --check`, mock pipeline over `examples/cases` | every run |
 | `build` | `uv build`, sdist+wheel artifact (7 days) | every run |
+| `audit` | `uv export` of runtime requirements, `pip-audit --strict` | every run |
 
-All five jobs run in parallel on `ubuntu-latest`.
+All six jobs run in parallel on `ubuntu-latest`. Dependabot opens weekly
+update PRs for pip and GitHub Actions dependencies.
 
 ### `.github/workflows/gpu-smoke.yml` (manual)
 
@@ -26,8 +28,9 @@ All five jobs run in parallel on `ubuntu-latest`.
 
 ## Conventions
 
-- All Python jobs use `astral-sh/setup-uv@v10.0.1` pinned to uv `0.12.7`
-  (mirroring `mise.toml`) with Python 3.12 and the `uv.lock`-keyed cache.
+- Toolchain managed by mise: jobs run `jdx/mise-action@v4`, which installs uv
+  `0.12.7` from `mise.toml` (single source of truth). Python projects sync
+  with `uv sync` against the `uv.lock`-keyed Actions cache.
 - `permissions: contents: read` at workflow level; nothing else is granted.
 - Integration tests hitting real providers are excluded (`-m "not
   integration"`) and run locally with `BRAINFORCE_IT=1` plus real keys; CI
@@ -37,6 +40,7 @@ All five jobs run in parallel on `ubuntu-latest`.
   dataset write) on every run.
 - gitleaks also runs as a pre-commit hook; secrets belong in GitHub Actions
   secrets or a secrets manager, never in the repository.
+- `main` is protected: all six status checks must pass before merge.
 
 ## Enabling the GPU job
 
