@@ -13,7 +13,7 @@ jobs:
     name: QLoRA train -> evaluate
     runs-on: [self-hosted, gpu]
     env:
-      HF_HOME: ${{ runner.temp }}/hf-cache
+      HF_HOME: ${{ github.workspace }}/.hf-cache
       TRAIN_DATASET: ${{ vars.TRAIN_DATASET }}
     steps:
       - uses: https://github.com/actions/checkout@v7

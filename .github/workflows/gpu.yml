@@ -59,7 +59,7 @@ jobs:
       run:
         shell: bash
     env:
-      HF_HOME: ${{ runner.temp }}/hf-cache
+      HF_HOME: ${{ github.workspace }}/.hf-cache
     steps:
       - uses: actions/checkout@v7
       - uses: jdx/mise-action@v4
