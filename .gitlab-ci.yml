@@ -82,3 +82,26 @@ train-smoke:
   script:
     - uv sync --extra training
     - uv run python -m brainforge.training.smoke
+
+train:
+  stage: gpu
+  tags: [gpu]
+  when: manual
+  variables:
+    HF_HOME: "$CI_PROJECT_DIR/.hf-cache"
+  cache:
+    key: hf-models
+    paths:
+      - .hf-cache
+  script:
+    - uv sync --extra training
+    - if [ -n "$TRAIN_DATASET" ]; then uv run brainforge train prepare "$TRAIN_DATASET"; fi
+    - if [ -n "$TRAIN_DATASET" ]; then STEM=$(basename "$TRAIN_DATASET" .jsonl); DATASET_DIR="datasets/${STEM}_prepared"; else DATASET_DIR="datasets/prepared"; fi
+    - uv run brainforge train run --dataset-dir "$DATASET_DIR"
+    - LATEST=$(ls -td experiments/*/ | head -1)
+    - uv run brainforge train evaluate --model "$LATEST" --dataset "$DATASET_DIR/test_postcutoff.jsonl"
+  artifacts:
+    paths:
+      - experiments/
+    expire_in: 2 weeks
+  timeout: 12h

@@ -21,7 +21,7 @@ Phases are cumulative. The MVP (phase 1) is implemented in this repository.
       code), manual inspection of every accepted record
 - [ ] Scale to 500-2,000 examples once quality is validated
 - [ ] Golden dataset: 50-200 human-verified cases, including post-cutoff ones
-- [ ] QLoRA training on RTX 3080 10GB (4-bit, low/moderate LoRA rank, gradient
+- [x] QLoRA training on RTX 3080 10GB (4-bit, low/moderate LoRA rank, gradient
       checkpointing) via TRL; student base model configurable
       (default `Qwen/Qwen3-8B`)
 - [ ] Evaluation harness: vulnerability detection, CWE classification, severity,

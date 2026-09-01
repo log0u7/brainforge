@@ -10,9 +10,13 @@ platform, each in its native syntax:
 | Forgejo (act_runner) | `.forgejo/workflows/ci.yml` | written, not yet tested against a live runner (5 jobs: no build artifact, no GPU) |
 | Local | `make ci` | exact equivalent of the pipeline, no CI server needed (needs `mise`/`uv` and the `gitleaks` binary on PATH) |
 
-GitHub Actions also has `gpu-smoke.yml` (manual) and GitLab has a manual
-`train-smoke` job with `tags: [gpu]`; both only run where a self-hosted GPU
-runner with the `gpu` label is registered.
+GitHub Actions also has `gpu.yml` (manual: training smoke + QLoRA
+train -> evaluate on the self-hosted GPU runner) and `gpu-ssh.yml` (manual:
+same chain over SSH to the GPU host from a standard runner). GitLab has manual
+`train-smoke`/`train` jobs with `tags: [gpu]`; Forgejo has dedicated
+`gpu-*.yml` dispatch workflows. All GPU jobs only run where a self-hosted
+runner with the `gpu` label is registered
+(see docs/how-to/register-gpu-runner.md).
 
 ## GitHub Actions
 
@@ -54,10 +58,21 @@ update PRs for pip and GitHub Actions dependencies.
   secrets or a secrets manager, never in the repository.
 - `main` is protected: all six status checks must pass before merge.
 
-## Enabling the GPU job
+## GPU jobs
 
-1. Register a self-hosted runner on the host with the RTX 3080 and give it the
-   `gpu` label (adjust `runs-on` in `gpu-smoke.yml` if your label differs).
-2. Trigger `GPU smoke` from the Actions tab; it syncs the `[training]` extra
-   and runs the smoke module, which skips itself cleanly when CUDA is
-   unavailable.
+The GPU stage is the core of the tool: it trains the student. Two entry
+points on GitHub Actions (both `workflow_dispatch`, `runs-on: [self-hosted, gpu]`):
+
+- `GPU` workflow, input `job`:
+  - `smoke`: one QLoRA step on `Qwen/Qwen3-0.6B` (fast CUDA check,
+    `continue-on-error`).
+  - `train`: `train prepare` (optional input dataset) -> `train run`
+    (`--epochs`/`--base-model` overrides) -> `train evaluate`
+    (loss + perplexity on the post-cutoff split). Artifacts: adapter +
+    `train_summary.json` + `eval.json` (14 days).
+- `GPU train via SSH`: same chain, executed on the GPU host over SSH from a
+  standard runner (secrets `SSH_HOST`, `SSH_USER`, `SSH_KEY`).
+
+Training code: `brainforge.training.qlora` (TRL `SFTTrainer`, bitsandbytes
+NF4 quantization, gradient checkpointing). The GPU host setup is documented in
+docs/how-to/register-gpu-runner.md.

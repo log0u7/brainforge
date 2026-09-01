@@ -1,0 +1,39 @@
+name: GPU train
+
+on:
+  workflow_dispatch:
+
+# Untested against a live act_runner yet: needs a self-hosted runner with the
+# `gpu` label (see docs/how-to/register-gpu-runner.md). Runs the full chain
+# (prepare -> train -> evaluate) on the default prepared dataset; set the
+# repository variable TRAIN_DATASET to point at another raw JSONL.
+
+jobs:
+  train:
+    name: QLoRA train -> evaluate
+    runs-on: [self-hosted, gpu]
+    env:
+      HF_HOME: ${{ runner.temp }}/hf-cache
+      TRAIN_DATASET: ${{ vars.TRAIN_DATASET }}
+    steps:
+      - uses: https://github.com/actions/checkout@v7
+      - uses: https://github.com/jdx/mise-action@v4
+      - name: Sync training dependencies
+        run: uv sync --extra training
+      - name: Prepare dataset
+        if: ${{ env.TRAIN_DATASET != '' }}
+        run: uv run brainforge train prepare "$TRAIN_DATASET"
+      - name: Resolve dataset dir
+        run: |
+          if [ -n "$TRAIN_DATASET" ]; then
+            STEM=$(basename "$TRAIN_DATASET" .jsonl)
+            echo "DATASET_DIR=datasets/${STEM}_prepared" >> "$GITHUB_ENV"
+          else
+            echo "DATASET_DIR=datasets/prepared" >> "$GITHUB_ENV"
+          fi
+      - name: Train QLoRA
+        run: uv run brainforge train run --dataset-dir "$DATASET_DIR"
+      - name: Evaluate on post-cutoff split
+        run: |
+          LATEST=$(ls -td experiments/*/ | head -1)
+          uv run brainforge train evaluate --model "$LATEST" --dataset "$DATASET_DIR/test_postcutoff.jsonl"

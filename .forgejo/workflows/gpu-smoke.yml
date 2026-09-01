@@ -1,0 +1,22 @@
+name: GPU smoke
+
+on:
+  workflow_dispatch:
+
+# Untested against a live act_runner yet: needs a self-hosted runner with the
+# `gpu` label (see docs/how-to/register-gpu-runner.md).
+
+jobs:
+  train-smoke:
+    name: Training smoke (1 QLoRA step)
+    runs-on: [self-hosted, gpu]
+    continue-on-error: true
+    steps:
+      - uses: https://github.com/actions/checkout@v7
+      - uses: https://github.com/jdx/mise-action@v4
+      - name: Sync training dependencies
+        run: uv sync --extra training
+      - name: Run training smoke
+        run: uv run python -m brainforge.training.smoke
+        env:
+          HF_HOME: ${{ runner.temp }}/hf-cache

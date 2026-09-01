@@ -1,0 +1,66 @@
+name: GPU train via SSH
+
+on:
+  workflow_dispatch:
+    inputs:
+      dataset:
+        description: "Optional raw dataset JSONL (path on the GPU host, relative to the repo clone)"
+        type: string
+        default: ""
+        required: false
+      epochs:
+        description: "Override training epochs (0 = config default)"
+        type: number
+        default: 0
+        required: false
+      base_model:
+        description: "Override base model (empty = config default)"
+        type: string
+        default: ""
+        required: false
+
+permissions:
+  contents: read
+
+# Runs the training chain on the GPU host (RTX 3080, Windows) over SSH from a
+# standard runner. Required repository secrets:
+#   SSH_HOST - GPU host address (e.g. 192.168.1.50)
+#   SSH_USER - SSH user on the GPU host
+#   SSH_KEY  - private key authorized on the GPU host
+# The host must have the repo cloned, mise + Git for Windows installed and
+# OpenSSH Server running (see docs/how-to/register-gpu-runner.md).
+
+jobs:
+  train-ssh:
+    name: QLoRA train -> evaluate (SSH)
+    runs-on: ubuntu-latest
+    timeout-minutes: 720
+    env:
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+    steps:
+      - name: Write SSH key
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_KEY }}" > ~/.ssh/gpu_key
+          chmod 600 ~/.ssh/gpu_key
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Sync repo and dependencies on GPU host
+        run: |
+          ssh -i ~/.ssh/gpu_key "$SSH_USER@$SSH_HOST" "cd brainforge && git pull --ff-only && mise exec -- uv sync --extra training"
+      - name: Train + evaluate on GPU host
+        run: |
+          ARGS="run --dataset-dir datasets/prepared"
+          if [ -n "${{ inputs.dataset }}" ]; then
+            STEM=$(basename "${{ inputs.dataset }}" .jsonl)
+            ssh -i ~/.ssh/gpu_key "$SSH_USER@$SSH_HOST" "cd brainforge && mise exec -- uv run brainforge train prepare ${{ inputs.dataset }}"
+            ARGS="run --dataset-dir datasets/${STEM}_prepared"
+          fi
+          if [ -n "${{ inputs.epochs }}" ] && [ "${{ inputs.epochs }}" != "0" ]; then
+            ARGS="$ARGS --epochs ${{ inputs.epochs }}"
+          fi
+          if [ -n "${{ inputs.base_model }}" ]; then
+            ARGS="$ARGS --base-model '${{ inputs.base_model }}'"
+          fi
+          ssh -i ~/.ssh/gpu_key "$SSH_USER@$SSH_HOST" "cd brainforge && mise exec -- uv run brainforge train $ARGS"
+          ssh -i ~/.ssh/gpu_key "$SSH_USER@$SSH_HOST" "cd brainforge && LATEST=\$(ls -td experiments/*/ | head -1) && mise exec -- uv run brainforge train evaluate --model \$LATEST --dataset datasets/prepared/test_postcutoff.jsonl && cat \$LATEST/eval.json"

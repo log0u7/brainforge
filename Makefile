@@ -1,4 +1,4 @@
-.PHONY: install test lint format secrets audit build ci config models rag dataset validate train evaluate clean
+.PHONY: install test lint format secrets audit build ci train-smoke train-run config models rag dataset validate train evaluate clean
 
 install:
 	uv sync
@@ -27,6 +27,14 @@ build:
 
 # Local equivalent of the CI pipeline (GitHub Actions / GitLab CI / Forgejo).
 ci: lint secrets test config build audit
+
+# GPU targets: need the training extra and a CUDA GPU (RTX 3080).
+train-smoke:
+	uv sync --extra training
+	uv run python -m brainforge.training.smoke
+
+train-run:
+	uv run brainforge train run
 
 config:
 	uv run brainforge config validate

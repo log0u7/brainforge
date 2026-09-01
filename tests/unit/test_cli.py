@@ -1,29 +1,10 @@
 import json
-from pathlib import Path
 
-import pytest
 from typer.testing import CliRunner
 
 from brainforge.cli import app
 
 runner = CliRunner()
-
-
-@pytest.fixture
-def project_env(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    (tmp_path / "config").mkdir()
-    config = json.loads((Path(__file__).parents[2] / "config" / "config.json").read_text())
-    config["providers"]["mock_only"] = {"type": "mock"}
-    for model in config["models"].values():
-        model["provider"] = "mock_only"
-    config["judge_independence"] = "off"
-    (tmp_path / "config" / "config.json").write_text(json.dumps(config))
-    (tmp_path / "data" / "raw").mkdir(parents=True)
-    examples = Path(__file__).parents[2] / "examples" / "cases"
-    for case_file in examples.glob("*.json"):
-        (tmp_path / "data" / "raw" / case_file.name).write_text(case_file.read_text())
-    return tmp_path
 
 
 def test_config_validate_ok(project_env):
@@ -134,10 +115,10 @@ def test_train_prepare(project_env):
     ).is_file()
 
 
-def test_train_run_stub(project_env):
+def test_train_run_fails_without_gpu(project_env):
     result = runner.invoke(app, ["train", "run"])
     assert result.exit_code == 1
-    assert "phase 2" in result.output
+    assert "training failed" in result.output
 
 
 def test_rag_index_and_search_hashing(project_env):

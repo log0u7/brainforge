@@ -29,7 +29,7 @@ for sub_app, name, help_text in [
     (pipeline_cmd, "pipeline", "Run dataset generation pipelines."),
     (rag_cmd, "rag", "Local RAG index and search."),
     (dataset_cmd, "dataset", "Dataset utilities."),
-    (train_cmd, "train", "Training preparation and stubs."),
+    (train_cmd, "train", "Training: prepare datasets, run QLoRA, evaluate, export."),
 ]:
     app.add_typer(sub_app.app, name=name, help=help_text)
 

@@ -1,3 +1,4 @@
+from datetime import datetime
 from pathlib import Path
 
 import typer
@@ -5,7 +6,9 @@ import typer
 from brainforge.cli._common import console, err_console
 from brainforge.errors import BrainforgeError
 
-app = typer.Typer(help="Training preparation (QLoRA ships in phase 2).", no_args_is_help=True)
+app = typer.Typer(
+    help="Training: prepare datasets, run QLoRA, evaluate, export.", no_args_is_help=True
+)
 
 
 @app.command("prepare")
@@ -32,9 +35,25 @@ def prepare(
 
 @app.command("run")
 def run(
+    dataset_dir: Path = typer.Option(
+        Path("datasets/prepared"),
+        "--dataset-dir",
+        "-d",
+        help="Directory with train/validation splits",
+    ),
+    epochs: int = typer.Option(
+        0, "--epochs", "-e", help="Override config epochs (0 = keep config)"
+    ),
+    base_model: str = typer.Option("", "--base-model", "-b", help="Override config base model"),
+    output: Path = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Output dir (default: <config.output_dir>/<run name>)",
+    ),
     config: str = typer.Option(None, "--config", "-c"),
 ):
-    """Start QLoRA training (phase 2, not implemented yet)."""
+    """Run QLoRA training (requires a CUDA GPU and the training extra)."""
     from brainforge.config import load_config
     from brainforge.errors import ConfigError
     from brainforge.training.qlora import train_qlora
@@ -44,32 +63,66 @@ def run(
     except ConfigError as exc:
         err_console.print(f"[red]config error:[/red] {exc}")
         raise typer.Exit(code=1) from exc
+    training = cfg.training
+    updates = {}
+    if epochs:
+        updates["epochs"] = epochs
+    if base_model:
+        updates["base_model"] = base_model
+    if updates:
+        training = training.model_copy(update=updates)
+    run_name = datetime.now().strftime("run-%Y%m%d-%H%M%S")
+    output_dir = output or Path(training.output_dir) / run_name
     try:
-        train_qlora(cfg.training, "datasets/prepared", Path(cfg.training.output_dir))
+        summary = train_qlora(training, dataset_dir, output_dir)
     except BrainforgeError as exc:
-        err_console.print(f"[yellow]not available:[/yellow] {exc}")
+        err_console.print(f"[red]training failed:[/red] {exc}")
         raise typer.Exit(code=1) from exc
+    console.print(f"[green]training done[/green] -> {summary['output_dir']}")
+    for key, value in summary.items():
+        console.print(f"  {key}: {value}")
 
 
 @app.command("evaluate")
-def evaluate():
-    """Evaluate a trained student (phase 2)."""
-    from brainforge.training.qlora import evaluate as evaluate_stub
+def evaluate(
+    model: Path = typer.Option(
+        Path("experiments"), "--model", "-m", help="Trained adapter directory"
+    ),
+    dataset: Path = typer.Option(
+        Path("datasets/prepared/test_postcutoff.jsonl"),
+        "--dataset",
+        "-d",
+        help="Eval split (JSONL)",
+    ),
+):
+    """Evaluate a trained student (loss + perplexity, written to eval.json)."""
+    from brainforge.training.qlora import evaluate as evaluate_model
 
     try:
-        evaluate_stub("models/student", "datasets/test_postcutoff.jsonl")
+        result = evaluate_model(model, dataset)
     except BrainforgeError as exc:
-        err_console.print(f"[yellow]not available:[/yellow] {exc}")
+        err_console.print(f"[red]evaluation failed:[/red] {exc}")
         raise typer.Exit(code=1) from exc
+    console.print(f"[green]evaluated[/green] {result['n_records']} records")
+    console.print(f"  eval_loss: {result['eval_loss']:.4f}")
+    console.print(f"  perplexity: {result['perplexity']:.4f}")
 
 
 @app.command("export")
-def export():
-    """Export a trained student (phase 2)."""
-    from brainforge.training.qlora import export as export_stub
+def export(
+    model: Path = typer.Option(
+        Path("experiments"), "--model", "-m", help="Trained adapter directory"
+    ),
+    output: Path = typer.Option(
+        Path("models/export"), "--output", "-o", help="Merged model output directory"
+    ),
+):
+    """Merge the LoRA adapter into the base model and export it standalone."""
+    from brainforge.training.qlora import export as export_model
 
     try:
-        export_stub("models/student", "models/export")
+        result = export_model(model, output)
     except BrainforgeError as exc:
-        err_console.print(f"[yellow]not available:[/yellow] {exc}")
+        err_console.print(f"[red]export failed:[/red] {exc}")
         raise typer.Exit(code=1) from exc
+    console.print(f"[green]exported[/green] -> {result['output_dir']}")

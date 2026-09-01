@@ -1,0 +1,101 @@
+name: GPU
+
+on:
+  workflow_dispatch:
+    inputs:
+      job:
+        description: "Job to run"
+        type: choice
+        options: [smoke, train]
+        default: smoke
+        required: true
+      dataset:
+        description: "Optional raw dataset JSONL to prepare before training"
+        type: string
+        default: ""
+        required: false
+      epochs:
+        description: "Override training epochs (0 = config default)"
+        type: number
+        default: 0
+        required: false
+      base_model:
+        description: "Override base model (empty = config default)"
+        type: string
+        default: ""
+        required: false
+
+permissions:
+  contents: read
+
+# Runs on the self-hosted GPU runner (Windows host with an RTX 3080).
+# See docs/how-to/register-gpu-runner.md. Every step forces `shell: bash`
+# (Git for Windows) so the same commands work on Linux and Windows runners.
+jobs:
+  smoke:
+    if: ${{ inputs.job == 'smoke' }}
+    name: Training smoke (1 QLoRA step)
+    runs-on: [self-hosted, gpu]
+    continue-on-error: true
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v4
+      - name: Sync training dependencies
+        run: uv sync --extra training
+      - name: Run training smoke
+        run: uv run python -m brainforge.training.smoke
+        env:
+          HF_HOME: ${{ runner.temp }}/hf-cache
+
+  train:
+    if: ${{ inputs.job == 'train' }}
+    name: QLoRA train -> evaluate
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 720
+    defaults:
+      run:
+        shell: bash
+    env:
+      HF_HOME: ${{ runner.temp }}/hf-cache
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v4
+      - name: Sync training dependencies
+        run: uv sync --extra training
+      - name: Resolve dataset dir
+        run: |
+          if [ -n "${{ inputs.dataset }}" ]; then
+            STEM=$(basename "${{ inputs.dataset }}" .jsonl)
+            echo "DATASET_DIR=datasets/${STEM}_prepared" >> "$GITHUB_ENV"
+          else
+            echo "DATASET_DIR=datasets/prepared" >> "$GITHUB_ENV"
+          fi
+          echo "STATS_PATH=$DATASET_DIR/stats.json" >> "$GITHUB_ENV"
+      - name: Prepare dataset
+        if: ${{ inputs.dataset != '' }}
+        run: uv run brainforge train prepare "${{ inputs.dataset }}"
+      - name: Train QLoRA
+        run: |
+          ARGS=(--dataset-dir "$DATASET_DIR")
+          if [ -n "${{ inputs.epochs }}" ] && [ "${{ inputs.epochs }}" != "0" ]; then
+            ARGS+=(--epochs "${{ inputs.epochs }}")
+          fi
+          if [ -n "${{ inputs.base_model }}" ]; then
+            ARGS+=(--base-model "${{ inputs.base_model }}")
+          fi
+          uv run brainforge train run "${ARGS[@]}"
+      - name: Evaluate on post-cutoff split
+        run: |
+          LATEST=$(ls -td experiments/*/ | head -1)
+          uv run brainforge train evaluate --model "$LATEST" --dataset "$DATASET_DIR/test_postcutoff.jsonl"
+      - name: Upload training artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: training-output
+          path: |
+            experiments/
+            ${{ env.STATS_PATH }}
+          retention-days: 14

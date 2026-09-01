@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Real QLoRA training pipeline: `train_qlora` (TRL `SFTTrainer`, bitsandbytes
+  NF4/8bit quantization, gradient checkpointing, `TrainingConfig`-driven),
+  `evaluate` (loss + perplexity on the post-cutoff split, `eval.json`) and
+  `export` (LoRA merge). CLI: `train run` with `--dataset-dir`,
+  `--epochs`, `--base-model`, `--output`; per-run output directories under
+  `experiments/`.
+- GPU CI on all three forges: GitHub `GPU` workflow (manual smoke + full
+  train -> evaluate with 14-day artifacts), GitLab manual `train` job
+  (`tags: [gpu]`), Forgejo `gpu-*.yml` dispatch workflows (untested runner).
+- `GPU train via SSH` workflow: runs the training chain on the GPU host over
+  SSH from a standard runner (secrets `SSH_HOST`, `SSH_USER`, `SSH_KEY`).
+- GPU host runbook: docs/how-to/register-gpu-runner.md (Windows runner
+  registration, OpenSSH Server setup, first training run).
 - Portable CI: the same six gates run on GitHub Actions (reference), GitLab
   CI (`.gitlab-ci.yml`, pinned `uv==0.12.7` and gitleaks image `v8.30.1`),
   Forgejo (`.forgejo/workflows/ci.yml`, act_runner, untested against a live
