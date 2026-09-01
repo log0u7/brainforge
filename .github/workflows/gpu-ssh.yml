@@ -10,8 +10,8 @@ on:
         required: false
       epochs:
         description: "Override training epochs (0 = config default)"
-        type: number
-        default: 0
+        type: string
+        default: "0"
         required: false
       base_model:
         description: "Override base model (empty = config default)"
