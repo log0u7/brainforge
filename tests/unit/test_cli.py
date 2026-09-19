@@ -109,16 +109,26 @@ def test_train_prepare(project_env):
     )
     result = runner.invoke(app, ["train", "prepare", "datasets/security_dataset.jsonl"])
     assert result.exit_code == 0, result.output
-    assert (project_env / "datasets" / "security_dataset_prepared" / "train.jsonl").is_file()
-    assert (
-        project_env / "datasets" / "security_dataset_prepared" / "test_postcutoff.jsonl"
-    ).is_file()
+    assert (project_env / "datasets" / "prepared" / "train.jsonl").is_file()
+    assert (project_env / "datasets" / "prepared" / "test_postcutoff.jsonl").is_file()
 
 
 def test_train_run_fails_without_gpu(project_env):
     result = runner.invoke(app, ["train", "run"])
     assert result.exit_code == 1
     assert "training failed" in result.output
+
+
+def test_train_evaluate_no_runs_fails_cleanly(project_env):
+    result = runner.invoke(app, ["train", "evaluate"])
+    assert result.exit_code == 1
+    assert "no training runs" in result.output
+
+
+def test_train_export_no_runs_fails_cleanly(project_env):
+    result = runner.invoke(app, ["train", "export"])
+    assert result.exit_code == 1
+    assert "no training runs" in result.output
 
 
 def test_rag_index_and_search_hashing(project_env):

@@ -14,7 +14,7 @@
     "mlgw": {
       "type": "mlgw",
       "base_url": "${MLGW_BASE_URL:http://localhost:8080/v1}",
-      "api_key": "${MLGW_API_KEY:deadbeef}"
+      "api_key": "${MLGW_API_KEY:}"
     },
     "mock": {
       "type": "mock"

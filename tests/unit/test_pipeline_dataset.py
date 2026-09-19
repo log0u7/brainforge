@@ -8,6 +8,7 @@ from brainforge.dataset.case_builder import build_case_from_dict, case_id_for
 from brainforge.dataset.dedup import deduplicate
 from brainforge.dataset.split import (
     group_key,
+    is_postcutoff,
     postcutoff_warning,
     split_dataset,
     split_with_postcutoff,
@@ -305,6 +306,25 @@ def test_case_builder_from_dict():
     assert case.source.date == "2026-08-01"
 
 
+def test_case_id_rejects_path_traversal():
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        Case(
+            id="../../etc/passwd",
+            source=CaseSource(type="manual"),
+            input=CaseInput(code="x"),
+        )
+    with pytest.raises(ValidationError):
+        build_case_from_dict(
+            {
+                "id": "../../../tmp/pwn",
+                "source": {"type": "manual"},
+                "input": {"code": "x"},
+            }
+        )
+
+
 def test_case_id_deterministic():
     payload = {"source": {"type": "manual"}, "input": {"code": "x"}}
     assert build_case_from_dict(payload).id == build_case_from_dict(payload).id
@@ -369,6 +389,33 @@ def test_postcutoff_filtering(postcutoff_case, precutoff_case):
     assert [r.id for r in splits["test_postcutoff"]] == ["case-post"]
     warning = postcutoff_warning(splits, min_postcutoff=20)
     assert warning is not None and "post-cutoff" in warning
+
+
+def test_postcutoff_records_excluded_from_regular_splits():
+    def make_record(rid: str, repo: str, postcutoff: bool) -> DatasetRecord:
+        return DatasetRecord(
+            id=rid,
+            domain="security",
+            messages=[
+                ChatMessage(role="user", content=rid),
+                ChatMessage(role="assistant", content="a"),
+            ],
+            metadata={
+                "recitation_risk": not postcutoff,
+                "source": {"type": "git", "repository": repo},
+            },
+        )
+
+    # One post-cutoff record per repo so every hash bucket is covered.
+    records = [make_record(f"post-{i}", f"repo-post-{i}", True) for i in range(30)]
+    records += [make_record(f"pre-{i}", f"repo-pre-{i}", False) for i in range(30)]
+    splits = split_with_postcutoff(records)
+    for name in ("train", "validation", "test"):
+        leaked = [r.id for r in splits[name] if is_postcutoff(r)]
+        assert not leaked, f"{name} contains post-cutoff records: {leaked}"
+    assert len(splits["test_postcutoff"]) == 30
+    total = sum(len(v) for v in splits.values())
+    assert total == 60, "post-cutoff records must not be duplicated across splits"
 
 
 def test_dedup_exact_and_near(tmp_path):

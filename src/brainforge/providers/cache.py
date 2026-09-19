@@ -4,8 +4,6 @@ import sqlite3
 import time
 from pathlib import Path
 
-from pydantic import BaseModel
-
 from brainforge.providers.base import ChatRequest, ChatResponse, Provider
 
 
@@ -28,9 +26,6 @@ class CacheProvider(Provider):
         response = self.inner.complete(request, model)
         self._store(key, response)
         return response
-
-    def structured(self, request: ChatRequest, model: str, schema: type[BaseModel]) -> ChatResponse:
-        return self.inner.structured(request, model, schema)
 
     def _key(self, request: ChatRequest, model: str) -> str:
         payload = json.dumps(

@@ -111,8 +111,6 @@ def split(
     """Split a dataset into train/validation/test (+ post-cutoff holdout)."""
     from brainforge.training.prepare import prepare
 
-    records = _load_records(path)
-    del records
     target = output_dir or path.parent / (path.stem + "_split")
     try:
         stats = prepare(path, target, train_ratio, val_ratio, seed)

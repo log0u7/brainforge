@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from brainforge.config.models import ProviderConfig
 from brainforge.errors import ProviderError, ProviderNotSupportedError, ProviderUnavailableError
-from brainforge.providers.base import ChatMessage, ChatRequest, Provider, extract_json
+from brainforge.providers.base import ChatMessage, ChatRequest, ChatResponse, Provider, extract_json
 from brainforge.providers.cache import CacheProvider
 from brainforge.providers.mock import MockProvider
 from brainforge.providers.observability import UsageLogger, estimate_cost
@@ -82,7 +82,12 @@ class CountingProvider(Provider):
 
     def complete(self, request, model):
         self.calls += 1
-        return MockProvider(self.name, self.config).complete(request, model)
+        response = ChatResponse(
+            content=json.dumps({"verdict": "ok", "confidence": 0.5, "items": ["x"]}),
+            provider=self.name,
+            model=model,
+        )
+        return response
 
 
 def test_extract_json_plain():
@@ -182,6 +187,18 @@ def test_cache_hit_and_miss(tmp_path):
     assert second.cached is True
     assert inner.calls == 1
     assert first.content == second.content
+
+
+def test_cache_structured_hit_and_miss(tmp_path):
+    inner = CountingProvider()
+    cached = CacheProvider(inner, tmp_path / "cache.sqlite")
+    first = cached.structured(make_request(), "m", SimpleSchema)
+    second = cached.structured(make_request(), "m", SimpleSchema)
+    assert first.cached is False
+    assert second.cached is True
+    assert inner.calls == 1
+    assert first.data is not None
+    assert second.data is not None
 
 
 def test_cache_disabled(tmp_path):

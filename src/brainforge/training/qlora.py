@@ -48,18 +48,18 @@ def _messages_dataset(split_path: Path):
     return Dataset.from_list(extract_messages(read_jsonl(split_path)))
 
 
-def _quantization_config(config: TrainingConfig):
+def _quantization_config(quantization: str):
     import torch
     from transformers import BitsAndBytesConfig
 
-    if config.quantization == "4bit":
+    if quantization == "4bit":
         return BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_quant_type="nf4",
             bnb_4bit_compute_dtype=torch.bfloat16,
             bnb_4bit_use_double_quant=True,
         )
-    if config.quantization == "8bit":
+    if quantization == "8bit":
         return BitsAndBytesConfig(load_in_8bit=True)
     return None
 
@@ -76,14 +76,24 @@ def _lora_config(config: TrainingConfig):
     )
 
 
-def train_qlora(config: TrainingConfig, dataset_dir, output_dir) -> dict:
+def train_qlora(
+    config: TrainingConfig, dataset_dir, output_dir, resume: bool | str = False
+) -> dict:
     """Run QLoRA fine-tuning on a prepared dataset and save the adapter."""
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    if resume:
+        checkpoints = sorted(output_dir.glob("checkpoint-*"))
+        if not checkpoints:
+            raise BrainforgeError(
+                f"no checkpoint found in {output_dir} to resume from;"
+                " run 'brainforge train run' without --resume first"
+            )
+        resume = checkpoints[-1]
     _require_cuda()
     from trl import SFTConfig, SFTTrainer
 
     dataset_dir = Path(dataset_dir)
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
     train_dataset = _messages_dataset(dataset_dir / "train.jsonl")
     validation_path = dataset_dir / "validation.jsonl"
     eval_dataset = _messages_dataset(validation_path) if validation_path.exists() else None
@@ -99,7 +109,10 @@ def train_qlora(config: TrainingConfig, dataset_dir, output_dir) -> dict:
         logging_steps=1,
         eval_strategy="steps" if eval_dataset else "no",
         eval_steps=10,
-        save_strategy="no",
+        save_strategy="steps",
+        save_steps=config.save_steps,
+        save_total_limit=2,
+        seed=config.seed,
         report_to=[],
     )
     trainer = SFTTrainer(
@@ -107,10 +120,10 @@ def train_qlora(config: TrainingConfig, dataset_dir, output_dir) -> dict:
         args=sft_args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
-        quantization_config=_quantization_config(config),
+        quantization_config=_quantization_config(config.quantization),
         peft_config=_lora_config(config),
     )
-    trainer.train()
+    trainer.train(resume_from_checkpoint=resume or None)
     trainer.save_model(str(output_dir))
     summary = {
         "base_model": config.base_model,
@@ -127,7 +140,7 @@ def train_qlora(config: TrainingConfig, dataset_dir, output_dir) -> dict:
     return summary
 
 
-def evaluate(model_path, eval_dataset) -> dict:
+def evaluate(model_path, eval_dataset, quantization: str = "4bit") -> dict:
     """Compute eval loss and perplexity of a trained adapter on a dataset split."""
     _require_cuda()
     import torch
@@ -143,12 +156,11 @@ def evaluate(model_path, eval_dataset) -> dict:
         raise BrainforgeError(
             f"tokenizer at {model_path} has no chat template; cannot evaluate chat records"
         )
-    model = AutoPeftModelForCausalLM.from_pretrained(
-        str(model_path),
-        device_map="auto",
-        torch_dtype=torch.bfloat16,
-        load_in_4bit=True,
-    )
+    load_kwargs = {"device_map": "auto", "torch_dtype": torch.bfloat16}
+    quant_config = _quantization_config(quantization)
+    if quant_config is not None:
+        load_kwargs["quantization_config"] = quant_config
+    model = AutoPeftModelForCausalLM.from_pretrained(str(model_path), **load_kwargs)
     model.eval()
     losses = []
     with torch.no_grad():

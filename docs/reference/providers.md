@@ -49,11 +49,11 @@ styles.
 ## MLGW
 
 ```json
-{"type": "mlgw", "base_url": "${MLGW_BASE_URL:http://localhost:8080/v1}", "api_key": "${MLGW_API_KEY:deadbeef}"}
+{"type": "mlgw", "base_url": "${MLGW_BASE_URL:http://localhost:8080/v1}", "api_key": "${MLGW_API_KEY:}"}
 ```
 
-Local OpenAI-compatible gateway (llama.cpp, Ollama, vLLM backends). The
-`deadbeef` development key is intentionally fake.
+Local OpenAI-compatible gateway (llama.cpp, Ollama, vLLM backends). With an
+empty key the provider fails at call time; set `MLGW_API_KEY` to use it.
 
 ## Local
 

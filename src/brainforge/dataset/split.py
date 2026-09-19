@@ -55,9 +55,9 @@ def split_with_postcutoff(
     train_ratio: float = 0.8,
     val_ratio: float = 0.1,
     seed: int = 42,
-    min_postcutoff: int = 20,
 ) -> dict[str, list[DatasetRecord]]:
-    splits = split_dataset(records, train_ratio, val_ratio, seed)
+    precutoff = [record for record in records if not is_postcutoff(record)]
+    splits = split_dataset(precutoff, train_ratio, val_ratio, seed)
     splits["test_postcutoff"] = postcutoff_records(records)
     return splits
 

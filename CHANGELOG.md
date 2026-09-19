@@ -9,6 +9,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Task-level evaluation harness (`train task-eval`): verdict accuracy, FP/FN
+  rates and CWE classification accuracy on the post-cutoff holdout, scored
+  against the judge-verified answer stored in each record (`task_eval.json`).
+- Interactive chat with a trained student: `train chat` (adapter or merged
+  model, greedy decoding via the model chat template).
+- Training checkpointing: `save_strategy="steps"` with `TrainingConfig.save_steps`
+  (default 100, keep last 2), seeded runs (`TrainingConfig.seed`, default 42)
+  and `train run --resume` (TRL native resume from the latest checkpoint).
+- CPU smoke training job in CI: 1 LoRA step on a tiny model, no GPU or
+  bitsandbytes needed (`make train-smoke-cpu`, `smoke-cpu` CI job). The smoke
+  test skips only when torch is missing; missing-training-deps or an
+  unreachable HF hub now fail the job instead of silently passing.
+- `train evaluate`/`train export`/`train task-eval`/`train chat` now default
+  `--model` to the latest run directory under `experiments/`.
+
+### Changed
+
+- `evaluate` now honors the configured quantization (`--quantization
+  4bit|8bit|none`) instead of always loading in 4-bit.
+- `train prepare` writes the default output to `datasets/prepared/`, the
+  directory `train run`/`evaluate`/`task-eval` read by default; the `--output`
+  override is unchanged.
+- `train run --resume` resumes the latest existing run directory instead of
+  creating a new one.
+- `latest_run_dir` resolves a run by modification time and honors the
+  configured `training.output_dir`.
+
+### Fixed
+
+- `train task-eval` (CLI path): real generation now flattens the message list
+  into a single content string, matching the typed `generate(str | list[str])`
+  contract; `prediction_from_text` no longer swallows unexpected errors as
+  "miss".
+- `train run`/`evaluate`/`task-eval`/`chat`/`export` fail with a clear message
+  instead of a raw traceback when an input file or model path is missing
+  (OSError clamped to a clean exit).
+- `train run --resume` on a run without checkpoints fails fast with a clear
+  message instead of a raw HF Trainer `ValueError`.
+- Removed dead code in `train chat` (misleading `name_or_path` argument,
+  redundant `generate_reply_fn`) and the pointless double dataset read in
+  `dataset split`.
+- `case.id` is validated against `[A-Za-z0-9_-]{1,64}`, preventing path
+  traversal via crafted case files.
+- Post-cutoff records no longer leak into the `train` split: they are now
+  exclusive to `test_postcutoff` (the anti-contamination benchmark).
+- Response cache is now consulted by `structured()` calls; previously every
+  pipeline structured call bypassed the sqlite cache.
+
+### Security
+
+- `ProviderConfig.base_url` now validates scheme (http/https) and rejects
+  link-local and cloud-metadata hosts (SSRF guard); loopback stays allowed for
+  local gateways.
+- Removed the committed `MLGW_API_KEY:deadbeef` placeholder default from the
+  sample config and docs (empty default like the other providers; the provider
+  fails at call time when the key is unset).
+
 - Real QLoRA training pipeline: `train_qlora` (TRL `SFTTrainer`, bitsandbytes
   NF4/8bit quantization, gradient checkpointing, `TrainingConfig`-driven),
   `evaluate` (loss + perplexity on the post-cutoff split, `eval.json`) and

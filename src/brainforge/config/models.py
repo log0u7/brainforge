@@ -1,4 +1,5 @@
 import re
+import urllib.parse
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -6,6 +7,11 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from brainforge.types import ApiStyle, Mode, ProviderType, RoleKind
 
 _KNOWLEDGE_CUTOFF_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
+_BLOCKED_BASE_URL_HOSTS = (
+    "0.0.0.0",
+    "metadata.google.internal",
+)
+_BLOCKED_BASE_URL_PREFIXES = ("169.254.", "fe80:", "fc00:", "fd00:")
 
 
 class ProviderConfig(BaseModel):
@@ -17,6 +23,21 @@ class ProviderConfig(BaseModel):
     api_style: ApiStyle = ApiStyle.CHAT_COMPLETIONS
     timeout: float = Field(default=120.0, gt=0)
     max_retries: int = Field(default=3, ge=0)
+
+    @field_validator("base_url")
+    @classmethod
+    def _validate_base_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        parsed = urllib.parse.urlparse(value)
+        if parsed.scheme not in ("http", "https"):
+            raise ValueError(f"base_url must use http or https, got '{parsed.scheme}'")
+        host = parsed.hostname
+        if not host:
+            raise ValueError(f"base_url must include a host: '{value}'")
+        if host in _BLOCKED_BASE_URL_HOSTS or host.startswith(_BLOCKED_BASE_URL_PREFIXES):
+            raise ValueError(f"base_url host '{host}' is not allowed (link-local or metadata)")
+        return value
 
 
 class PricingConfig(BaseModel):
@@ -77,6 +98,8 @@ class TrainingConfig(BaseModel):
     batch_size: int = Field(default=1, ge=1)
     gradient_accumulation: int = Field(default=16, ge=1)
     quantization: Literal["4bit", "8bit", "none"] = "4bit"
+    save_steps: int = Field(default=100, ge=1)
+    seed: int = Field(default=42, ge=0)
     output_dir: str = "experiments"
 
 
