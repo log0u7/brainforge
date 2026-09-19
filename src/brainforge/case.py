@@ -1,4 +1,8 @@
-from pydantic import BaseModel, Field
+import re
+
+from pydantic import BaseModel, Field, field_validator
+
+_CASE_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
 class CaseSource(BaseModel):
@@ -21,6 +25,13 @@ class Case(BaseModel):
     source: CaseSource
     input: CaseInput
     metadata: dict = Field(default_factory=dict)
+
+    @field_validator("id")
+    @classmethod
+    def _validate_id(cls, value: str) -> str:
+        if _CASE_ID_PATTERN.match(value) is None:
+            raise ValueError("case id must match [A-Za-z0-9_-]{1,64}")
+        return value
 
     @property
     def language(self) -> str | None:

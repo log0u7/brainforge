@@ -306,6 +306,25 @@ def test_case_builder_from_dict():
     assert case.source.date == "2026-08-01"
 
 
+def test_case_id_rejects_path_traversal():
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        Case(
+            id="../../etc/passwd",
+            source=CaseSource(type="manual"),
+            input=CaseInput(code="x"),
+        )
+    with pytest.raises(ValidationError):
+        build_case_from_dict(
+            {
+                "id": "../../../tmp/pwn",
+                "source": {"type": "manual"},
+                "input": {"code": "x"},
+            }
+        )
+
+
 def test_case_id_deterministic():
     payload = {"source": {"type": "manual"}, "input": {"code": "x"}}
     assert build_case_from_dict(payload).id == build_case_from_dict(payload).id
