@@ -80,12 +80,20 @@ def train_qlora(
     config: TrainingConfig, dataset_dir, output_dir, resume: bool | str = False
 ) -> dict:
     """Run QLoRA fine-tuning on a prepared dataset and save the adapter."""
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    if resume:
+        checkpoints = sorted(output_dir.glob("checkpoint-*"))
+        if not checkpoints:
+            raise BrainforgeError(
+                f"no checkpoint found in {output_dir} to resume from;"
+                " run 'brainforge train run' without --resume first"
+            )
+        resume = checkpoints[-1]
     _require_cuda()
     from trl import SFTConfig, SFTTrainer
 
     dataset_dir = Path(dataset_dir)
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
     train_dataset = _messages_dataset(dataset_dir / "train.jsonl")
     validation_path = dataset_dir / "validation.jsonl"
     eval_dataset = _messages_dataset(validation_path) if validation_path.exists() else None

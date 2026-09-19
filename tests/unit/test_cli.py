@@ -109,10 +109,8 @@ def test_train_prepare(project_env):
     )
     result = runner.invoke(app, ["train", "prepare", "datasets/security_dataset.jsonl"])
     assert result.exit_code == 0, result.output
-    assert (project_env / "datasets" / "security_dataset_prepared" / "train.jsonl").is_file()
-    assert (
-        project_env / "datasets" / "security_dataset_prepared" / "test_postcutoff.jsonl"
-    ).is_file()
+    assert (project_env / "datasets" / "prepared" / "train.jsonl").is_file()
+    assert (project_env / "datasets" / "prepared" / "test_postcutoff.jsonl").is_file()
 
 
 def test_train_run_fails_without_gpu(project_env):
