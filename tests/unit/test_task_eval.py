@@ -50,6 +50,25 @@ def test_prediction_from_text_unparseable_is_miss():
     }
 
 
+def test_prediction_from_text_propagates_unexpected_errors(monkeypatch):
+    from brainforge.training import task_eval
+
+    def boom(_text: str) -> dict:
+        raise ValueError("extract_json bug")
+
+    monkeypatch.setattr(task_eval, "extract_json", boom)
+    with pytest.raises(ValueError):
+        prediction_from_text("x")
+
+
+def test_generate_content_flattens_message_list():
+    from brainforge.training.task_eval import _flatten_message
+
+    assert _flatten_message("single") == "single"
+    assert _flatten_message(["first", "second"]) == "first\n\nsecond"
+    assert _flatten_message([]) == ""
+
+
 def test_score_task_metrics():
     # 4 records: TP, TN, 1 FP, 1 FN
     pairs = [

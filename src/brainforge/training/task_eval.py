@@ -8,7 +8,7 @@ ground truth stored in each dataset record's assistant message.
 import json
 from pathlib import Path
 
-from brainforge.errors import BrainforgeError
+from brainforge.errors import BrainforgeError, ProviderError
 from brainforge.providers.base import extract_json
 
 
@@ -34,7 +34,7 @@ def prediction_from_text(text: str) -> dict:
     """Map a raw model answer to {vulnerability_found, cwe}; None = unparseable miss."""
     try:
         data = extract_json(text)
-    except Exception:
+    except ProviderError:
         return {"vulnerability_found": None, "cwe": None}
     return {
         "vulnerability_found": data.get("verdict") == "confirmed",
@@ -116,6 +116,13 @@ def evaluate_model_on_records(
     return result
 
 
+def _flatten_message(user_message: str | list[str]) -> str:
+    """Normalize a user message (possibly a chat-style list) to a single string."""
+    if isinstance(user_message, list):
+        return "\n\n".join(user_message)
+    return user_message
+
+
 def _build_generator(model_path: Path, quantization: str, max_new_tokens: int):
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -139,9 +146,9 @@ def _build_generator(model_path: Path, quantization: str, max_new_tokens: int):
         model = AutoModelForCausalLM.from_pretrained(str(model_path), **load_kwargs)
     model.eval()
 
-    def generate(user_message: str) -> str:
+    def generate(user_message: str | list[str]) -> str:
         inputs = tokenizer.apply_chat_template(
-            [{"role": "user", "content": user_message}],
+            [{"role": "user", "content": _flatten_message(user_message)}],
             tokenize=True,
             add_generation_prompt=True,
             return_tensors="pt",
