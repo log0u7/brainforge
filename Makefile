@@ -1,4 +1,4 @@
-.PHONY: install test lint format secrets audit build ci train-smoke train-run config models rag dataset validate train evaluate clean
+.PHONY: install test lint format secrets audit build ci train-smoke train-smoke-cpu train-run config models rag dataset validate train evaluate clean
 
 install:
 	uv sync
@@ -32,6 +32,11 @@ ci: lint secrets test config build audit
 train-smoke:
 	uv sync --extra training
 	uv run python -m brainforge.training.smoke
+
+# CPU smoke: tiny model, no GPU/bitsandbytes needed; skips gracefully offline.
+train-smoke-cpu:
+	uv sync --extra training
+	uv run python -m brainforge.training.smoke_cpu
 
 train-run:
 	uv run brainforge train run

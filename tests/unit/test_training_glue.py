@@ -69,3 +69,46 @@ def test_cli_train_run_fails_cleanly_without_gpu(project_env, monkeypatch):
     result = runner.invoke(app, ["train", "run", "--dataset-dir", str(dataset_dir)])
     assert result.exit_code == 1
     assert "training failed" in result.output
+
+
+def test_cli_train_run_resume_flag_fails_cleanly_without_gpu(project_env):
+    dataset_dir = project_env / "datasets" / "prepared"
+    dataset_dir.mkdir(parents=True)
+    split = [{"id": "x", "messages": [{"role": "user", "content": "hi"}], "metadata": {}}]
+    for name in ("train.jsonl", "validation.jsonl"):
+        (dataset_dir / name).write_text("\n".join(json.dumps(r) for r in split) + "\n")
+    result = runner.invoke(app, ["train", "run", "--dataset-dir", str(dataset_dir), "--resume"])
+    assert result.exit_code == 1
+    assert "training failed" in result.output
+
+
+def test_cli_train_task_eval_fails_cleanly(project_env):
+    result = runner.invoke(app, ["train", "task-eval", "--model", str(project_env / "nope")])
+    assert result.exit_code == 1
+    assert "task evaluation failed" in result.output
+
+
+def test_cli_train_chat_missing_model_fails(project_env):
+    result = runner.invoke(app, ["train", "chat", "--model", str(project_env / "nope")])
+    assert result.exit_code == 1
+    assert "chat failed" in result.output
+
+
+def test_evaluate_signature_accepts_quantization():
+    import inspect
+
+    from brainforge.training.qlora import evaluate
+
+    params = inspect.signature(evaluate).parameters
+    assert "quantization" in params
+    assert params["quantization"].default == "4bit"
+
+
+def test_smoke_cpu_skips_without_torch(monkeypatch, capsys):
+    import sys
+
+    monkeypatch.setitem(sys.modules, "torch", None)
+    from brainforge.training import smoke_cpu
+
+    assert smoke_cpu.main() == 0
+    assert "skipping" in capsys.readouterr().out.lower()

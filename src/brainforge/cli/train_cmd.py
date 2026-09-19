@@ -11,6 +11,17 @@ app = typer.Typer(
 )
 
 
+def latest_run_dir(base: Path | None = None) -> Path:
+    """Resolve the most recent training run directory under base."""
+    base = base or Path("experiments")
+    candidates = sorted(d for d in base.glob("run-*") if d.is_dir())
+    if not candidates:
+        raise BrainforgeError(
+            f"no training runs found under {base}; run 'brainforge train run' first"
+        )
+    return candidates[-1]
+
+
 @app.command("prepare")
 def prepare(
     dataset: Path = typer.Argument(..., help="Path to dataset.jsonl"),
@@ -51,6 +62,11 @@ def run(
         "-o",
         help="Output dir (default: <config.output_dir>/<run name>)",
     ),
+    resume: bool = typer.Option(
+        False,
+        "--resume/--no-resume",
+        help="Resume from the latest checkpoint in the output dir",
+    ),
     config: str = typer.Option(None, "--config", "-c"),
 ):
     """Run QLoRA training (requires a CUDA GPU and the training extra)."""
@@ -74,7 +90,7 @@ def run(
     run_name = datetime.now().strftime("run-%Y%m%d-%H%M%S")
     output_dir = output or Path(training.output_dir) / run_name
     try:
-        summary = train_qlora(training, dataset_dir, output_dir)
+        summary = train_qlora(training, dataset_dir, output_dir, resume=resume)
     except BrainforgeError as exc:
         err_console.print(f"[red]training failed:[/red] {exc}")
         raise typer.Exit(code=1) from exc
@@ -86,7 +102,7 @@ def run(
 @app.command("evaluate")
 def evaluate(
     model: Path = typer.Option(
-        Path("experiments"), "--model", "-m", help="Trained adapter directory"
+        None, "--model", "-m", help="Trained adapter directory (default: latest run)"
     ),
     dataset: Path = typer.Option(
         Path("datasets/prepared/test_postcutoff.jsonl"),
@@ -99,7 +115,7 @@ def evaluate(
     from brainforge.training.qlora import evaluate as evaluate_model
 
     try:
-        result = evaluate_model(model, dataset)
+        result = evaluate_model(model or latest_run_dir(), dataset)
     except BrainforgeError as exc:
         err_console.print(f"[red]evaluation failed:[/red] {exc}")
         raise typer.Exit(code=1) from exc
@@ -108,10 +124,69 @@ def evaluate(
     console.print(f"  perplexity: {result['perplexity']:.4f}")
 
 
+@app.command("chat")
+def chat(
+    model: Path = typer.Option(
+        None, "--model", "-m", help="Trained adapter or merged model (default: latest run)"
+    ),
+    max_new_tokens: int = typer.Option(512, "--max-new-tokens"),
+):
+    """Interactive chat with a trained student model (requires CUDA + training extra)."""
+    from brainforge.training.chat import chat_loop, load_chat_model
+
+    try:
+        model, tokenizer = load_chat_model(model or latest_run_dir())
+    except BrainforgeError as exc:
+        err_console.print(f"[red]chat failed:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+    reply_fn = lambda history: generate_reply_fn(model, tokenizer, history, max_new_tokens)  # noqa: E731
+    try:
+        chat_loop(str(model.config.name_or_path), reply_fn=reply_fn)
+    except BrainforgeError as exc:
+        err_console.print(f"[red]chat failed:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+def generate_reply_fn(model, tokenizer, history, max_new_tokens):
+    from brainforge.training.chat import generate_reply
+
+    return generate_reply(model, tokenizer, history, max_new_tokens)
+
+
+@app.command("task-eval")
+def task_eval(
+    model: Path = typer.Option(
+        None, "--model", "-m", help="Trained adapter or merged model (default: latest run)"
+    ),
+    dataset: Path = typer.Option(
+        Path("datasets/prepared/test_postcutoff.jsonl"),
+        "--dataset",
+        "-d",
+        help="Eval split (JSONL)",
+    ),
+    quantization: str = typer.Option("4bit", "--quantization", help="4bit, 8bit or none"),
+    max_new_tokens: int = typer.Option(512, "--max-new-tokens"),
+):
+    """Task-level evaluation: verdict + CWE accuracy on a held-out split."""
+    from brainforge.training.task_eval import evaluate_model_on_records
+
+    try:
+        result = evaluate_model_on_records(
+            model or latest_run_dir(), dataset, quantization, max_new_tokens
+        )
+    except BrainforgeError as exc:
+        err_console.print(f"[red]task evaluation failed:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+    console.print(f"[green]task evaluation done[/green] ({result['n_records']} records)")
+    for key in ("accuracy", "false_positive_rate", "false_negative_rate", "cwe_accuracy"):
+        value = result.get(key)
+        console.print(f"  {key}: {value:.4f}" if isinstance(value, float) else f"  {key}: {value}")
+
+
 @app.command("export")
 def export(
     model: Path = typer.Option(
-        Path("experiments"), "--model", "-m", help="Trained adapter directory"
+        None, "--model", "-m", help="Trained adapter directory (default: latest run)"
     ),
     output: Path = typer.Option(
         Path("models/export"), "--output", "-o", help="Merged model output directory"
@@ -121,7 +196,7 @@ def export(
     from brainforge.training.qlora import export as export_model
 
     try:
-        result = export_model(model, output)
+        result = export_model(model or latest_run_dir(), output)
     except BrainforgeError as exc:
         err_console.print(f"[red]export failed:[/red] {exc}")
         raise typer.Exit(code=1) from exc

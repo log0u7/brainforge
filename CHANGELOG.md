@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Task-level evaluation harness (`train task-eval`): verdict accuracy, FP/FN
+  rates and CWE classification accuracy on the post-cutoff holdout, scored
+  against the judge-verified answer stored in each record (`task_eval.json`).
+- Interactive chat with a trained student: `train chat` (adapter or merged
+  model, greedy decoding via the model chat template).
+- Training checkpointing: `save_strategy="steps"` with `TrainingConfig.save_steps`
+  (default 100, keep last 2), seeded runs (`TrainingConfig.seed`, default 42)
+  and `train run --resume` (TRL native resume from the latest checkpoint).
+- CPU smoke training job in CI: 1 LoRA step on a tiny model, no GPU or
+  bitsandbytes needed (`make train-smoke-cpu`, `smoke-cpu` CI job); skips
+  gracefully when torch or the HF hub is unavailable.
+- `train evaluate`/`train export`/`train task-eval`/`train chat` now default
+  `--model` to the latest run directory under `experiments/`.
+
+### Changed
+
+- `evaluate` now honors the configured quantization (`--quantization
+  4bit|8bit|none`) instead of always loading in 4-bit.
+
+### Fixed
+
+- Post-cutoff records no longer leak into the `train` split: they are now
+  exclusive to `test_postcutoff` (the anti-contamination benchmark).
+- Response cache is now consulted by `structured()` calls; previously every
+  pipeline structured call bypassed the sqlite cache.
+
 - Real QLoRA training pipeline: `train_qlora` (TRL `SFTTrainer`, bitsandbytes
   NF4/8bit quantization, gradient checkpointing, `TrainingConfig`-driven),
   `evaluate` (loss + perplexity on the post-cutoff split, `eval.json`) and

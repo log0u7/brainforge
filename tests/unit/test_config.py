@@ -215,6 +215,16 @@ def test_schema_roundtrip(config_file, tmp_path):
     assert not schema_matches(schema_path)
 
 
+def test_training_checkpoint_fields():
+    from brainforge.config.models import TrainingConfig
+
+    config = TrainingConfig()
+    assert config.save_steps == 100
+    assert config.seed == 42
+    with pytest.raises(ValidationError):
+        TrainingConfig(save_steps=0)
+
+
 def test_training_defaults(config_file):
     config = load_config(config_file)
     assert config.training.base_model == "Qwen/Qwen3-8B"

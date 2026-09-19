@@ -77,6 +77,8 @@ class TrainingConfig(BaseModel):
     batch_size: int = Field(default=1, ge=1)
     gradient_accumulation: int = Field(default=16, ge=1)
     quantization: Literal["4bit", "8bit", "none"] = "4bit"
+    save_steps: int = Field(default=100, ge=1)
+    seed: int = Field(default=42, ge=0)
     output_dir: str = "experiments"
 
 
