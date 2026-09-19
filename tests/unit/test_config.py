@@ -204,6 +204,34 @@ def test_knowledge_cutoff_format(config_file):
         Config.model_validate(make_raw() | {"models": raw["models"]})
 
 
+def test_provider_base_url_rejects_metadata_and_link_local():
+    from brainforge.config.models import ProviderConfig
+
+    for bad in (
+        "http://169.254.169.254/latest/meta-data/",
+        "http://metadata.google.internal/computeMetadata/",
+        "https://0.0.0.0/v1",
+        "ftp://openrouter.ai/v1",
+    ):
+        with pytest.raises(ValidationError, match="base_url"):
+            ProviderConfig(type="mock", base_url=bad)
+    for good in (
+        "https://openrouter.ai/api/v1",
+        "http://localhost:8080/v1",
+        "http://127.0.0.1:11434/v1",
+    ):
+        ProviderConfig(type="mock", base_url=good)
+
+
+def test_default_config_mlgw_key_has_no_fake_default(monkeypatch):
+    from brainforge.config.defaults import DEFAULT_CONFIG_PATH
+
+    monkeypatch.delenv("MLGW_API_KEY", raising=False)
+    expanded = expand_env(json.loads(DEFAULT_CONFIG_PATH.read_text()))
+    api_key = expanded["providers"]["mlgw"]["api_key"]
+    assert api_key != "deadbeef"
+
+
 def test_schema_roundtrip(config_file, tmp_path):
     schema_path = tmp_path / "schema.json"
     write_schema(schema_path)
