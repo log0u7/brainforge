@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from brainforge.config.models import Config
+from brainforge.dataset.writer import read_jsonl
 
 
 def slugify(name: str) -> str:
@@ -69,16 +70,10 @@ def create_experiment(
     if dataset_path is not None and Path(dataset_path).is_file():
         shutil.copy(Path(dataset_path), run_dir / "dataset.jsonl")
         if records is None:
-            metrics = compute_metrics(_read_jsonl(Path(dataset_path)))
+            metrics = compute_metrics(read_jsonl(Path(dataset_path)))
     (run_dir / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
     (run_dir / "report.md").write_text(_render_report(run_id, metrics), encoding="utf-8")
     return run_dir
-
-
-def _read_jsonl(path: Path) -> list[dict]:
-    return [
-        json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
-    ]
 
 
 def _render_report(run_id: str, metrics: dict) -> str:

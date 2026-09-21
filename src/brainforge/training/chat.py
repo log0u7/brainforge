@@ -1,38 +1,17 @@
 """Interactive chat with a trained (adapter or merged) student model."""
 
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
-from brainforge.errors import BrainforgeError
+from brainforge.training.models import load_student_model
 
 _EXIT_COMMANDS = {"quit", "exit"}
 
 
-def load_chat_model(model_path):
-    """Load a merged model or a LoRA adapter directory for interactive chat."""
-    model_path = Path(model_path)
-    if not model_path.exists():
-        raise BrainforgeError(f"model directory not found: {model_path}")
-    import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer
-
-    tokenizer = AutoTokenizer.from_pretrained(str(model_path))
-    if tokenizer.chat_template is None:
-        raise BrainforgeError(f"tokenizer at {model_path} has no chat template")
-    if (model_path / "adapter_config.json").is_file():
-        from peft import AutoPeftModelForCausalLM
-
-        model = AutoPeftModelForCausalLM.from_pretrained(
-            str(model_path), device_map="auto", torch_dtype=torch.bfloat16
-        )
-    else:
-        model = AutoModelForCausalLM.from_pretrained(
-            str(model_path), device_map="auto", torch_dtype=torch.bfloat16
-        )
-    model.eval()
-    return model, tokenizer
-
-
-def generate_reply(model, tokenizer, history: list[str], max_new_tokens: int = 512) -> str:
+def generate_reply(
+    model: Any, tokenizer: Any, history: list[str], max_new_tokens: int = 512
+) -> str:
     """Generate one greedy assistant reply for the flat user-turn history."""
     import torch
 
@@ -47,19 +26,19 @@ def generate_reply(model, tokenizer, history: list[str], max_new_tokens: int = 5
     with torch.no_grad():
         output = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
     generated = output[0][inputs["input_ids"].shape[1] :]
-    return tokenizer.decode(generated, skip_special_tokens=True).strip()
+    return str(tokenizer.decode(generated, skip_special_tokens=True)).strip()
 
 
 def chat_loop(
-    model_path,
-    reply_fn=None,
-    input_fn=input,
-    print_fn=print,
+    model_path: Path | str,
+    reply_fn: Callable[[list[str]], str] | None = None,
+    input_fn: Callable[[str], str] = input,
+    print_fn: Callable[[str], None] = print,
     max_new_tokens: int = 512,
 ) -> None:
     """Interactive REPL; exits on quit/exit/EOF, ignores blank lines."""
     if reply_fn is None:
-        model, tokenizer = load_chat_model(model_path)
+        model, tokenizer = load_student_model(model_path)
         reply_fn = lambda history: generate_reply(  # noqa: E731
             model, tokenizer, history, max_new_tokens
         )

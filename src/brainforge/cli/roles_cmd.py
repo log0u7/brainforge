@@ -7,7 +7,7 @@ app = typer.Typer(help="Role inspection.", no_args_is_help=True)
 
 
 @app.command("list")
-def list_roles(config: str = CONFIG_OPTION):
+def list_roles(config: str = CONFIG_OPTION) -> None:
     """List configured roles and their resolution."""
     cfg = load_config_or_exit(config)
     table = Table(title="Roles")

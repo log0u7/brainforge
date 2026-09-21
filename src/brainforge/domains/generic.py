@@ -2,6 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from brainforge.case import Case
 from brainforge.domains.base import DomainPack, GateResult
 from brainforge.types import RoleKind
 
@@ -54,14 +55,16 @@ class GenericPack(DomainPack):
             "requested schema."
         )
 
-    def teacher_prompt(self, role_name: str, case, rag_context: list) -> str:
+    def teacher_prompt(self, role_name: str, case: Case, rag_context: list) -> str:
         return (
             f"Analyze the following case.\n\n{self._case_text(case)}\n\n"
             f"Retrieved context:\n{self._rag_text(rag_context)}\n\n"
             "Produce your analysis as valid JSON."
         )
 
-    def critic_prompt(self, role_name: str, case, rag_context: list, previous_results: dict) -> str:
+    def critic_prompt(
+        self, role_name: str, case: Case, rag_context: list, previous_results: dict
+    ) -> str:
         return (
             f"Analyze the following case independently, then review the other analyses.\n\n"
             f"{self._case_text(case)}\n\nRetrieved context:\n{self._rag_text(rag_context)}\n\n"
@@ -69,7 +72,7 @@ class GenericPack(DomainPack):
             "Report contradictions, missing information and alternative hypotheses as valid JSON."
         )
 
-    def judge_prompt(self, case, rag_context: list, previous_results: dict) -> str:
+    def judge_prompt(self, case: Case, rag_context: list, previous_results: dict) -> str:
         return (
             f"Produce the canonical verdict for the following case.\n\n"
             f"{self._case_text(case)}\n\nRetrieved context:\n{self._rag_text(rag_context)}\n\n"
@@ -88,12 +91,12 @@ class GenericPack(DomainPack):
             reasons.append("missing summary")
         return GateResult(passed=not reasons, reasons=reasons)
 
-    def student_input(self, case) -> str:
+    def student_input(self, case: Case) -> str:
         task = case.input.question or case.input.description or "Analyze the following case."
         code_block = f"\n\n```\n{case.input.code}\n```" if case.input.code else ""
         return f"{task}{code_block}"
 
-    def _case_text(self, case) -> str:
+    def _case_text(self, case: Case) -> str:
         from brainforge.domains.base import format_case
 
         return format_case(case)

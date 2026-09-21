@@ -1,13 +1,17 @@
 import hashlib
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
+from typing import TYPE_CHECKING
 
-from pydantic import BaseModel
+if TYPE_CHECKING:
+    from brainforge.dataset.writer import DatasetRecord
+    from brainforge.domains.base import GateResult
+    from brainforge.rag.retrieval import Retriever
 
 from brainforge.case import Case
-from brainforge.config.models import Config
+from brainforge.config.models import Config, PipelineDef
 from brainforge.domains.base import DomainPack
-from brainforge.pipeline.context import PipelineContext
 from brainforge.pipeline.judge import compute_agreement, is_unresolved
 from brainforge.providers.base import ChatMessage, ChatRequest, Provider
 from brainforge.providers.observability import UsageLogger, estimate_cost
@@ -16,10 +20,17 @@ from brainforge.types import RoleKind
 
 
 @dataclass
+class PipelineContext:
+    case: Case
+    rag_context: list = field(default_factory=list)
+    previous_results: dict = field(default_factory=dict)
+
+
+@dataclass
 class CaseResult:
     case_id: str
     accepted: bool
-    record: BaseModel | None = None
+    record: "DatasetRecord | None" = None
     gate_reasons: list[str] = field(default_factory=list)
     teacher_results: dict = field(default_factory=dict)
     judge_result: dict | None = None
@@ -33,10 +44,10 @@ class PipelineEngine:
         pipeline_name: str,
         roles: RoleRegistry,
         pack: DomainPack,
-        retriever=None,
+        retriever: "Retriever | None" = None,
         usage_logger: UsageLogger | None = None,
         provider_override: Provider | None = None,
-        pipeline=None,
+        pipeline: "PipelineDef | None" = None,
     ):
         if pipeline is not None:
             self.pipeline = pipeline
@@ -166,12 +177,13 @@ class PipelineEngine:
             return True, "unknown_source_date"
         if not cutoffs or any(cutoff is None for cutoff in cutoffs):
             return True, "unknown_teacher_cutoff"
+        cutoff_strings = [str(cutoff) for cutoff in cutoffs]
         source_month = source_date[:7]
-        if source_month <= max(cutoffs):
+        if source_month <= max(cutoff_strings):
             return True, "pre_cutoff_source"
         return False, None
 
-    def _metadata(self, case: Case, context: PipelineContext, gate) -> dict:
+    def _metadata(self, case: Case, context: PipelineContext, gate: "GateResult") -> dict:
         teachers = []
         judge_entry = None
         for step in self.steps:
@@ -223,7 +235,7 @@ class PipelineEngine:
             "created_at": datetime.now(UTC).isoformat(),
         }
 
-    def _record(self, case: Case, canonical: dict, metadata: dict) -> BaseModel:
+    def _record(self, case: Case, canonical: dict, metadata: dict) -> "DatasetRecord":
         from brainforge.dataset.writer import build_record
 
         return build_record(
@@ -238,8 +250,8 @@ class PipelineEngine:
 def run_pipeline(
     engine: PipelineEngine,
     cases: list[Case],
-    output_path,
-    rejected_dir=None,
+    output_path: Path | str,
+    rejected_dir: Path | str | None = None,
 ) -> dict:
     from brainforge.dataset.writer import append_record, write_rejected
 

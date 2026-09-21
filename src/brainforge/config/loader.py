@@ -75,7 +75,7 @@ def export_schema() -> dict[str, Any]:
 
 def schema_matches(schema_path: Path | str) -> bool:
     on_disk = json.loads(Path(schema_path).read_text(encoding="utf-8"))
-    return on_disk == export_schema()
+    return bool(on_disk == export_schema())
 
 
 def write_schema(schema_path: Path | str) -> Path:

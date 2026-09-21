@@ -27,7 +27,7 @@ def prepare(
     splits = split_with_postcutoff(records, train_ratio, val_ratio, seed)
     output = Path(output_dir)
     output.mkdir(parents=True, exist_ok=True)
-    stats = {}
+    stats: dict[str, int | str] = {}
     for name in ("train", "validation", "test", "test_postcutoff"):
         split_records = splits.get(name, [])
         write_jsonl(output / f"{name}.jsonl", split_records)

@@ -1,4 +1,4 @@
-.PHONY: install test lint format secrets audit build ci train-smoke train-smoke-cpu train-run config models rag dataset validate train evaluate clean
+.PHONY: install test lint format mypy secrets audit build ci mutate train-smoke train-smoke-cpu train-run config models rag dataset validate train evaluate clean
 
 install:
 	uv sync
@@ -65,6 +65,13 @@ train:
 
 evaluate:
 	uv run brainforge train evaluate
+
+mypy:
+	uv run mypy
+
+# Mutation testing: run after touching core logic; triage surviving mutants.
+mutate:
+	uv run mutmut run
 
 clean:
 	rm -rf .pytest_cache .ruff_cache .coverage htmlcov

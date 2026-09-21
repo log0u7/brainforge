@@ -26,10 +26,3 @@ class RoleKind(StrEnum):
     TEACHER = "teacher"
     CRITIC = "critic"
     JUDGE = "judge"
-
-
-class SplitName(StrEnum):
-    TRAIN = "train"
-    VALIDATION = "validation"
-    TEST = "test"
-    TEST_POSTCUTOFF = "test_postcutoff"

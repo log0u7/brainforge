@@ -35,7 +35,7 @@ class OpenAICompatProvider(Provider):
             api_key=config.api_key or "not-needed",
             timeout=config.timeout,
             max_retries=0,
-            http_client=http_client,
+            http_client=http_client,  # type: ignore[arg-type]  # openai>=3 types httpx2 but accepts httpx at runtime
         )
 
     def complete(self, request: ChatRequest, model: str) -> ChatResponse:
@@ -80,6 +80,3 @@ class OpenAICompatProvider(Provider):
         raise ProviderUnavailableError(
             f"provider '{self.name}' failed after {attempts} attempts: {last_error}"
         )
-
-    def list_models(self) -> list[str]:
-        return [model.id for model in self._client.models.list()]

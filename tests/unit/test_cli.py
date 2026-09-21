@@ -137,3 +137,53 @@ def test_rag_index_and_search_hashing(project_env):
     result = runner.invoke(app, ["rag", "search", "subprocess shell=True", "--backend", "hashing"])
     assert result.exit_code == 0, result.output
     assert "Search" in result.output
+
+
+def test_models_test_mock_ok(project_env):
+    result = runner.invoke(app, ["models", "test", "security"])
+    assert result.exit_code == 0, result.output
+    assert "ok" in result.output
+    assert "reply:" in result.output
+    assert "Reply with the single word: pong" in result.output
+
+
+def test_models_test_unknown_model(project_env):
+    result = runner.invoke(app, ["models", "test", "ghost"])
+    assert result.exit_code == 1
+    assert "unknown model" in result.output
+
+
+def test_teacher_run_missing_cases_dir(project_env):
+    result = runner.invoke(
+        app,
+        [
+            "teacher",
+            "run",
+            "--role",
+            "security_teacher",
+            "--case",
+            "case-x",
+            "--cases-dir",
+            "ghost",
+        ],
+    )
+    assert result.exit_code == 1
+    assert "cases directory not found" in result.output
+
+
+def test_teacher_run_case_not_found(project_env):
+    result = runner.invoke(
+        app,
+        [
+            "teacher",
+            "run",
+            "--role",
+            "security_teacher",
+            "--case",
+            "case-ghost",
+            "--cases-dir",
+            "data/raw",
+        ],
+    )
+    assert result.exit_code == 1
+    assert "case not found" in result.output

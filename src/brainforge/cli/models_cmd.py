@@ -8,7 +8,7 @@ app = typer.Typer(help="Model registry operations.", no_args_is_help=True)
 
 
 @app.command("list")
-def list_models(config: str = CONFIG_OPTION):
+def list_models(config: str = CONFIG_OPTION) -> None:
     """List configured models."""
     cfg = load_config_or_exit(config)
     table = Table(title="Models")
@@ -32,7 +32,7 @@ def list_models(config: str = CONFIG_OPTION):
 def test_model(
     model_name: str = typer.Argument(..., help="Model name from the registry"),
     config: str = CONFIG_OPTION,
-):
+) -> None:
     """Send a tiny request to a model to verify connectivity."""
     from brainforge.providers.base import ChatMessage, ChatRequest
 

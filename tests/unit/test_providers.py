@@ -12,7 +12,6 @@ from brainforge.providers.mock import MockProvider
 from brainforge.providers.observability import UsageLogger, estimate_cost
 from brainforge.providers.openai_compat import OpenAICompatProvider
 from brainforge.providers.registry import build_provider
-from brainforge.providers.zen import ZenProvider
 from brainforge.types import ApiStyle
 
 
@@ -268,7 +267,7 @@ def test_openai_compat_exhausted_retries(monkeypatch):
 def test_zen_rejects_unsupported_api_style():
     config = ProviderConfig(type="zen", api_style=ApiStyle.ANTHROPIC)
     with pytest.raises(ProviderNotSupportedError, match="api_style"):
-        ZenProvider("zen", config)
+        OpenAICompatProvider("zen", config)
 
 
 def test_build_provider_all_types():

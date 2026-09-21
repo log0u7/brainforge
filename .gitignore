@@ -11,6 +11,9 @@ venv/
 .pytest_cache/
 .ruff_cache/
 .coverage
+mutants/
+.opencode/
+out/
 htmlcov/
 .mypy_cache/
 requirements-audit.txt
@@ -27,8 +30,6 @@ datasets/*
 !datasets/.gitkeep
 experiments/*
 !experiments/.gitkeep
-golden/*
-!golden/.gitkeep
 
 # Secrets and env
 .env

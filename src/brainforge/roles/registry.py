@@ -1,5 +1,6 @@
 from brainforge.config.models import Config, RoleDef
 from brainforge.models.registry import ModelRegistry
+from brainforge.providers.base import Provider
 from brainforge.types import RoleKind
 
 
@@ -11,7 +12,7 @@ class RoleBinding:
         kind: RoleKind,
         model_key: str,
         model_name: str,
-        provider,
+        provider: Provider,
     ):
         self.role_name = role_name
         self.definition = definition
@@ -58,9 +59,6 @@ class RoleRegistry:
                 resolved_model.provider,
             )
         return self._bindings[role_name]
-
-    def kinds(self) -> dict[str, RoleKind]:
-        return {name: self.config.infer_role_kind(name) for name in self.config.roles}
 
     def role_names(self) -> list[str]:
         return sorted(self.config.roles)

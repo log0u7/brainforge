@@ -1,6 +1,8 @@
+from collections.abc import Callable
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
+from typing import Any
 
 import typer
 
@@ -12,12 +14,12 @@ app = typer.Typer(
 )
 
 
-def _clamp_errors(label: str):
+def _clamp_errors(label: str) -> Callable:
     """Turn expected failures (BrainforgeError and OS errors) into a clean exit."""
 
-    def decorator(fn):
+    def decorator(fn: Callable) -> Callable:
         @wraps(fn)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: object, **kwargs: object) -> Any:
             try:
                 return fn(*args, **kwargs)
             except (BrainforgeError, OSError) as exc:
@@ -52,7 +54,7 @@ def prepare(
     train_ratio: float = typer.Option(0.8, "--train-ratio"),
     val_ratio: float = typer.Option(0.1, "--val-ratio"),
     seed: int = typer.Option(42, "--seed"),
-):
+) -> None:
     """Validate, split and export a dataset for TRL training."""
     from brainforge.training.prepare import prepare
 
@@ -88,14 +90,14 @@ def run(
         help="Resume from the latest checkpoint in the output dir",
     ),
     config: str = typer.Option(None, "--config", "-c"),
-):
+) -> None:
     """Run QLoRA training (requires a CUDA GPU and the training extra)."""
     from brainforge.config import load_config
     from brainforge.training.qlora import train_qlora
 
     cfg = load_config(config)
     training = cfg.training
-    updates = {}
+    updates: dict[str, Any] = {}
     if epochs:
         updates["epochs"] = epochs
     if base_model:
@@ -125,7 +127,7 @@ def evaluate(
         "-d",
         help="Eval split (JSONL)",
     ),
-):
+) -> None:
     """Evaluate a trained student (loss + perplexity, written to eval.json)."""
     from brainforge.training.qlora import evaluate as evaluate_model
 
@@ -142,7 +144,7 @@ def chat(
         None, "--model", "-m", help="Trained adapter or merged model (default: latest run)"
     ),
     max_new_tokens: int = typer.Option(512, "--max-new-tokens"),
-):
+) -> None:
     """Interactive chat with a trained student model (requires CUDA + training extra)."""
     from brainforge.training.chat import chat_loop
 
@@ -163,7 +165,7 @@ def task_eval(
     ),
     quantization: str = typer.Option("4bit", "--quantization", help="4bit, 8bit or none"),
     max_new_tokens: int = typer.Option(512, "--max-new-tokens"),
-):
+) -> None:
     """Task-level evaluation: verdict + CWE accuracy on a held-out split."""
     from brainforge.training.task_eval import evaluate_model_on_records
 
@@ -185,7 +187,7 @@ def export(
     output: Path = typer.Option(
         Path("models/export"), "--output", "-o", help="Merged model output directory"
     ),
-):
+) -> None:
     """Merge the LoRA adapter into the base model and export it standalone."""
     from brainforge.training.qlora import export as export_model
 

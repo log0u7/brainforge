@@ -24,7 +24,7 @@ uv sync --extra training   # torch, transformers, peft, trl, bitsandbytes
 
 ```bash
 uv run pytest                       # unit tests (integration tests are opt-in)
-uv run pytest -m integration        # only with BRAINFORCE_IT=1 and real API keys
+uv run pytest -m integration        # cross-boundary subprocess tests (BRAINFORCE_IT=1)
 uv run ruff check . && uv run ruff format .   # lint + format
 uv run brainforge config validate   # after touching config/
 uv run brainforge config schema --check       # schema must stay in sync
@@ -62,9 +62,21 @@ docs: rewrite dataset contamination section
 ## Tests
 
 - Unit tests are mandatory for new code paths (see `tests/unit/`).
-- Integration tests hitting real providers are marked `integration` and gated
-  by `BRAINFORCE_IT=1`.
+- Integration tests run the CLI chain as a subprocess with the mock provider
+  (no API keys, no GPU); they are marked `integration` and gated by
+  `BRAINFORCE_IT=1`.
 - The training smoke test runs only on a GPU runner (manual job).
+
+### Red-green-refactor
+
+- Every new feature or bugfix starts with a failing test (red), then the
+  minimal code that makes it pass (green), then refactor with tests green.
+- Bug reports first get a regression test that reproduces the bug, then the fix.
+- No production code lands without a test demanding its existence.
+- `make mutate` after touching core logic; every surviving mutant is either
+  killed by strengthening a test or justified explicitly.
+- PR checklist: ruff clean, mypy clean, tests green, coverage >= `fail_under`
+  (`pyproject.toml`), mutation survivors triaged when core logic changed.
 
 ## Documentation and ADRs
 

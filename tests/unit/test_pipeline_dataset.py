@@ -443,3 +443,98 @@ def test_dedup_exact_and_near(tmp_path):
     assert 1 in duplicates
     assert duplicates[1] == 0
     assert [r.id for r in kept] == ["a", "b"]
+
+
+def test_group_key_falls_back_to_path_then_url():
+    def record_with_source(source):
+        return DatasetRecord(
+            id="c",
+            domain="security",
+            messages=[
+                ChatMessage(role="user", content="u"),
+                ChatMessage(role="assistant", content="a"),
+            ],
+            metadata={"source": source},
+        )
+
+    assert group_key(record_with_source({"type": "git", "path": "src/a.py"})) == "src/a.py"
+    assert group_key(record_with_source({"type": "git", "url": "https://example.com/r"})) == (
+        "https://example.com/r"
+    )
+    assert group_key(record_with_source({"type": "manual"})) == "manual"
+    assert group_key(record_with_source({})) == "unknown"
+    assert group_key(record_with_source("not-a-dict")) == "unknown"
+
+
+def test_split_defaults_fill_all_buckets():
+    def make_record(rid: str) -> DatasetRecord:
+        return DatasetRecord(
+            id=rid,
+            domain="security",
+            messages=[
+                ChatMessage(role="user", content=rid),
+                ChatMessage(role="assistant", content="a"),
+            ],
+            metadata={"source": {"type": "git", "repository": rid}},
+        )
+
+    records = [make_record(f"c{i}") for i in range(300)]
+    splits = split_dataset(records)
+    assert len(splits["validation"]) > 0
+    assert len(splits["test"]) > 0
+    assert 0.7 * len(records) <= len(splits["train"]) <= 0.9 * len(records)
+
+
+class CountingLogger:
+    def __init__(self):
+        self.entries = []
+
+    def log(self, response, role=None, cost_usd=0.0):
+        self.entries.append((response.provider, role, cost_usd))
+
+
+class FakeChunk:
+    def __init__(self):
+        self.source = "doc.md"
+        self.doc_id = "doc-1"
+        self.chunk_id = "chunk-1"
+        self.hash = "h1"
+        self.score = 0.9
+        self.text = "relevant context"
+
+
+class FakeRetriever:
+    def search(self, query):
+        assert query
+        return [FakeChunk()]
+
+
+def test_engine_logs_usage_and_records_rag(postcutoff_case):
+    config = scripted_config()
+    roles = RoleRegistry(config, ModelRegistry(config))
+    logger = CountingLogger()
+    engine = PipelineEngine(
+        config,
+        "security_dataset",
+        roles,
+        get_pack("security"),
+        retriever=FakeRetriever(),
+        usage_logger=logger,
+    )
+    result = engine.run_case(postcutoff_case)
+    assert result.accepted, result.gate_reasons
+    assert len(logger.entries) == 3
+    assert logger.entries[0][1] == "security_teacher"
+    metadata = result.record.metadata
+    assert metadata["rag"]["used"] is True
+    chunk = metadata["rag"]["chunks"][0]
+    assert chunk["source"] == "doc.md"
+    assert chunk["doc_id"] == "doc-1"
+    assert chunk["chunk_id"] == "chunk-1"
+
+
+def test_engine_unknown_pipeline_message():
+    config = scripted_config()
+    roles = RoleRegistry(config, ModelRegistry(config))
+    with pytest.raises(KeyError, match="not found in configuration"):
+        PipelineEngine(config, "ghost", roles, get_pack("security"))

@@ -10,7 +10,7 @@ app = typer.Typer(help="Configuration validation and inspection.", no_args_is_he
 
 
 @app.command("validate")
-def validate(config: str = CONFIG_OPTION):
+def validate(config: str = CONFIG_OPTION) -> None:
     """Validate the configuration file and dry-build all providers."""
     cfg = load_config_or_exit(config)
     for name, provider_config in cfg.providers.items():
@@ -27,7 +27,7 @@ def validate(config: str = CONFIG_OPTION):
 
 
 @app.command("providers")
-def providers(config: str = CONFIG_OPTION):
+def providers(config: str = CONFIG_OPTION) -> None:
     """List configured providers."""
     cfg = load_config_or_exit(config)
     table = Table(title="Providers")
@@ -52,7 +52,7 @@ def schema(
     write: bool = typer.Option(False, "--write", help="Write schema.json from the models"),
     check: bool = typer.Option(False, "--check", help="Verify schema.json is in sync"),
     config: str = CONFIG_OPTION,
-):
+) -> None:
     """Export or verify the JSON Schema generated from the config models."""
 
     schema_path = default_schema_path(config)
@@ -71,7 +71,7 @@ def schema(
 
 
 @app.command("path")
-def path(config: str = CONFIG_OPTION):
+def path(config: str = CONFIG_OPTION) -> None:
     """Print the resolved configuration file path."""
     from brainforge.config import resolve_config_path
 

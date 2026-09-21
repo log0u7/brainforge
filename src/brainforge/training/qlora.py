@@ -9,10 +9,14 @@ extra is missing.
 import json
 import math
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from brainforge.config.models import TrainingConfig
 from brainforge.dataset.writer import read_jsonl
 from brainforge.errors import BrainforgeError
+
+if TYPE_CHECKING:
+    from datasets import Dataset
 
 
 def _require_cuda() -> None:
@@ -42,13 +46,13 @@ def extract_messages(records: list[dict]) -> list[dict]:
     return rows
 
 
-def _messages_dataset(split_path: Path):
+def _messages_dataset(split_path: Path) -> "Dataset":
     from datasets import Dataset
 
     return Dataset.from_list(extract_messages(read_jsonl(split_path)))
 
 
-def _quantization_config(quantization: str):
+def _quantization_config(quantization: str) -> Any:
     import torch
     from transformers import BitsAndBytesConfig
 
@@ -64,7 +68,7 @@ def _quantization_config(quantization: str):
     return None
 
 
-def _lora_config(config: TrainingConfig):
+def _lora_config(config: TrainingConfig) -> Any:
     from peft import LoraConfig
 
     return LoraConfig(
@@ -77,7 +81,10 @@ def _lora_config(config: TrainingConfig):
 
 
 def train_qlora(
-    config: TrainingConfig, dataset_dir, output_dir, resume: bool | str = False
+    config: TrainingConfig,
+    dataset_dir: Path | str,
+    output_dir: Path | str,
+    resume: bool | str | Path = False,
 ) -> dict:
     """Run QLoRA fine-tuning on a prepared dataset and save the adapter."""
     output_dir = Path(output_dir)
@@ -140,7 +147,7 @@ def train_qlora(
     return summary
 
 
-def evaluate(model_path, eval_dataset, quantization: str = "4bit") -> dict:
+def evaluate(model_path: Path | str, eval_dataset: Path | str, quantization: str = "4bit") -> dict:
     """Compute eval loss and perplexity of a trained adapter on a dataset split."""
     _require_cuda()
     import torch
@@ -185,7 +192,7 @@ def evaluate(model_path, eval_dataset, quantization: str = "4bit") -> dict:
     return result
 
 
-def export(model_path, output_dir) -> dict:
+def export(model_path: Path | str, output_dir: Path | str) -> dict:
     """Merge the LoRA adapter into the base model and save it standalone."""
     _require_cuda()
     from peft import AutoPeftModelForCausalLM

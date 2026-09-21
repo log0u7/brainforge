@@ -6,6 +6,7 @@ ground truth stored in each dataset record's assistant message.
 """
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 
 from brainforge.errors import BrainforgeError, ProviderError
@@ -75,7 +76,9 @@ def score_task(pairs: list[tuple[dict, dict]]) -> dict:
     }
 
 
-def run_task_eval(records: list[dict], generate, max_new_tokens: int = 512) -> dict:
+def run_task_eval(
+    records: list[dict], generate: Callable[[str | list[str]], str], max_new_tokens: int = 512
+) -> dict:
     """Score generated answers against expected ones.
 
     ``generate`` receives the user message content and returns raw model text;
@@ -83,8 +86,8 @@ def run_task_eval(records: list[dict], generate, max_new_tokens: int = 512) -> d
     """
     if not records:
         raise BrainforgeError("empty evaluation dataset")
-    domains = {record.get("domain") for record in records}
-    unexpected = domains - {"security", None}
+    domains = {str(record["domain"]) for record in records if record.get("domain") is not None}
+    unexpected = domains - {"security"}
     if unexpected:
         raise BrainforgeError(
             f"task evaluation only supports the security domain, found: {sorted(unexpected)}"
@@ -95,12 +98,15 @@ def run_task_eval(records: list[dict], generate, max_new_tokens: int = 512) -> d
         text = generate(user_messages)
         pairs.append((prediction_from_text(text), expected_from_record(record)))
     result = score_task(pairs)
-    result["domains"] = sorted(d for d in domains if d)
+    result["domains"] = sorted(domains)
     return result
 
 
 def evaluate_model_on_records(
-    model_path, dataset_path, quantization: str = "4bit", max_new_tokens: int = 512
+    model_path: Path | str,
+    dataset_path: Path | str,
+    quantization: str = "4bit",
+    max_new_tokens: int = 512,
 ) -> dict:
     """Load the trained model and run task evaluation on a JSONL dataset split."""
     from brainforge.dataset.writer import read_jsonl
@@ -123,28 +129,14 @@ def _flatten_message(user_message: str | list[str]) -> str:
     return user_message
 
 
-def _build_generator(model_path: Path, quantization: str, max_new_tokens: int):
+def _build_generator(
+    model_path: Path, quantization: str, max_new_tokens: int
+) -> Callable[[str | list[str]], str]:
     import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer
 
-    from brainforge.training.qlora import _quantization_config
+    from brainforge.training.models import load_student_model
 
-    if not model_path.exists():
-        raise BrainforgeError(f"model directory not found: {model_path}")
-    tokenizer = AutoTokenizer.from_pretrained(str(model_path))
-    if tokenizer.chat_template is None:
-        raise BrainforgeError(f"tokenizer at {model_path} has no chat template")
-    load_kwargs = {"device_map": "auto", "torch_dtype": torch.bfloat16}
-    quant_config = _quantization_config(quantization)
-    if quant_config is not None:
-        load_kwargs["quantization_config"] = quant_config
-    if (model_path / "adapter_config.json").is_file():
-        from peft import AutoPeftModelForCausalLM
-
-        model = AutoPeftModelForCausalLM.from_pretrained(str(model_path), **load_kwargs)
-    else:
-        model = AutoModelForCausalLM.from_pretrained(str(model_path), **load_kwargs)
-    model.eval()
+    model, tokenizer = load_student_model(model_path, quantization)
 
     def generate(user_message: str | list[str]) -> str:
         inputs = tokenizer.apply_chat_template(
@@ -157,6 +149,6 @@ def _build_generator(model_path: Path, quantization: str, max_new_tokens: int):
         with torch.no_grad():
             output = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
         generated = output[0][inputs["input_ids"].shape[1] :]
-        return tokenizer.decode(generated, skip_special_tokens=True)
+        return str(tokenizer.decode(generated, skip_special_tokens=True))
 
     return generate

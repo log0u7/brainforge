@@ -16,7 +16,3 @@ class ProviderNotSupportedError(ProviderError):
 
 class ProviderUnavailableError(ProviderError):
     pass
-
-
-class QualityGateError(BrainforgeError):
-    pass

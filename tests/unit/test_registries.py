@@ -45,12 +45,3 @@ def test_role_registry_resolve(config):
     assert binding.temperature == 0.2
     assert isinstance(binding.provider, MockProvider)
     assert roles.resolve("security_teacher") is binding
-
-
-def test_role_registry_kinds(config):
-    roles = RoleRegistry(config, ModelRegistry(config))
-    kinds = roles.kinds()
-    assert kinds["security_teacher"].value == "teacher"
-    assert kinds["coding_teacher"].value == "teacher"
-    assert kinds["general_teacher"].value == "critic"
-    assert kinds["judge"].value == "judge"

@@ -30,7 +30,7 @@ def build(
     output: Path = typer.Option(None, "--output", "-o"),
     provider: str = typer.Option("mock", "--provider", help="Provider override (default: mock)"),
     config: str = typer.Option(None, "--config", "-c"),
-):
+) -> None:
     """Build a dataset by running a pipeline (defaults to the mock provider)."""
     from brainforge.cli.pipeline_cmd import run as pipeline_run
 
@@ -50,7 +50,7 @@ def build(
 @app.command("validate")
 def validate(
     path: Path = typer.Argument(..., help="Path to dataset.jsonl"),
-):
+) -> None:
     """Validate every record of a dataset."""
     raw = read_jsonl(path) if path.is_file() else []
     if not raw:
@@ -71,7 +71,7 @@ def validate(
 @app.command("inspect")
 def inspect(
     path: Path = typer.Argument(..., help="Path to dataset.jsonl"),
-):
+) -> None:
     """Show dataset statistics: contamination, agreement, duplicates."""
     records = _load_records(path)
     total = len(records)
@@ -107,7 +107,7 @@ def split(
     val_ratio: float = typer.Option(0.1, "--val-ratio"),
     seed: int = typer.Option(42, "--seed"),
     config: str = typer.Option(None, "--config", "-c"),
-):
+) -> None:
     """Split a dataset into train/validation/test (+ post-cutoff holdout)."""
     from brainforge.training.prepare import prepare
 

@@ -1,9 +1,14 @@
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import typer
 from rich.console import Console
 
 from brainforge.case import Case
+
+if TYPE_CHECKING:
+    from brainforge.config.models import Config
+    from brainforge.roles.registry import RoleRegistry
 
 console = Console()
 err_console = Console(stderr=True)
@@ -11,7 +16,7 @@ err_console = Console(stderr=True)
 CONFIG_OPTION = typer.Option(None, "--config", "-c", help="Path to config.json")
 
 
-def load_config_or_exit(config_path: str | None):
+def load_config_or_exit(config_path: str | None) -> "Config":
     from brainforge.config import load_config
     from brainforge.errors import ConfigError
 
@@ -22,15 +27,11 @@ def load_config_or_exit(config_path: str | None):
         raise typer.Exit(code=1) from exc
 
 
-def build_roles(config, cache_path: Path | str | None = None):
+def build_roles(config: "Config", cache_path: Path | str | None = None) -> "RoleRegistry":
     from brainforge.models.registry import ModelRegistry
     from brainforge.roles.registry import RoleRegistry
 
     return RoleRegistry(config, ModelRegistry(config, cache_path=cache_path))
-
-
-def build_roles_without_cache(config):
-    return build_roles(config, cache_path=None)
 
 
 def find_case(case_ref: str, cases_dir: Path) -> Case:

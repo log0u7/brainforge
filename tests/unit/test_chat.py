@@ -1,6 +1,7 @@
 import pytest
 
-from brainforge.training.chat import chat_loop, generate_reply, load_chat_model
+from brainforge.training.chat import chat_loop, generate_reply
+from brainforge.training.models import load_student_model
 
 
 class TestChatLoop:
@@ -65,12 +66,12 @@ class TestChatLoop:
         assert replies == [["hello"]]
 
 
-class TestLoadChatModel:
+class TestLoadStudentModel:
     def test_missing_path_fails_cleanly(self, tmp_path):
         from brainforge.errors import BrainforgeError
 
         with pytest.raises(BrainforgeError, match="not found"):
-            load_chat_model(tmp_path / "ghost")
+            load_student_model(tmp_path / "ghost")
 
 
 def test_generate_reply_signature():

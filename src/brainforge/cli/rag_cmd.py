@@ -18,7 +18,7 @@ def index(
     index_dir: Path = typer.Option(DEFAULT_RAG_INDEX_DIR, "--index-dir"),
     backend_name: str = typer.Option("fastembed", "--backend", help="fastembed or hashing"),
     config: str = CONFIG_OPTION,
-):
+) -> None:
     """Index documents from a directory into the local vector store."""
     load_config_or_exit(config)
     try:
@@ -45,7 +45,7 @@ def search(
     index_dir: Path = typer.Option(DEFAULT_RAG_INDEX_DIR, "--index-dir"),
     backend_name: str = typer.Option("fastembed", "--backend"),
     config: str = CONFIG_OPTION,
-):
+) -> None:
     """Search the local RAG index."""
     load_config_or_exit(config)
     retriever = Retriever(index_dir, get_backend(backend_name))

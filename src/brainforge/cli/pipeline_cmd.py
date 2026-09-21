@@ -10,10 +10,12 @@ from brainforge.config.defaults import (
     DEFAULT_LOG_DIR,
     DEFAULT_RAG_INDEX_DIR,
 )
+from brainforge.config.models import Config
 from brainforge.domains import get_or_generic
 from brainforge.errors import BrainforgeError
 from brainforge.models.registry import ModelRegistry
 from brainforge.pipeline.engine import PipelineEngine, run_pipeline
+from brainforge.providers.base import Provider
 from brainforge.rag.embeddings import get_backend
 from brainforge.rag.retrieval import Retriever
 from brainforge.roles.registry import RoleRegistry
@@ -32,11 +34,11 @@ def _build_retriever(rag: bool, backend_name: str, index_dir: Path) -> Retriever
 
 
 def execute_pipeline(
-    cfg,
+    cfg: Config,
     pipeline_name: str,
     input_dir: Path,
     output: Path,
-    provider_override=None,
+    provider_override: Provider | None = None,
     fresh: bool = False,
     rag: bool = True,
     rag_backend: str = "fastembed",
@@ -79,9 +81,9 @@ def run(
     fresh: bool = typer.Option(False, "--fresh", help="Bypass the response cache"),
     rag: bool = typer.Option(True, "--rag/--no-rag", help="Use the local RAG index if present"),
     rag_backend: str = typer.Option("fastembed", "--rag-backend"),
-    experiment: str = typer.Option(None, "--experiment", help="Create an experiment report"),
+    experiment: str | None = typer.Option(None, "--experiment", help="Create an experiment report"),
     config: str = CONFIG_OPTION,
-):
+) -> None:
     """Execute a pipeline over the cases in --input and write the dataset."""
     cfg = load_config_or_exit(config)
     if pipeline_name not in cfg.pipelines:
