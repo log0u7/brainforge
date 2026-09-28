@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-28
+
+### Added
+
+- Configurable training schedule knobs in `TrainingConfig`: `lr_scheduler_type`
+  (default `cosine`, previously TRL's silent linear default), `warmup_steps`
+  (5), `max_grad_norm` (1.0), `max_length` (1024), `packing`,
+  `assistant_only_loss`, `attn_implementation` (`sdpa`/`flash_attention_2`/
+  `eager`, default `sdpa`), `eval_batch_size` and `generate_batch_size` (4).
+  All passed through to TRL `SFTConfig`; attention implementation also pinned
+  on every model load (chat, task-eval, evaluate, export).
+- Optional parallel case execution for dataset generation:
+  `PipelineDef.concurrency` (default 1 = unchanged behavior). Results are
+  collected in submission order so dataset output stays deterministic; file
+  writes remain in the main thread. `UsageLogger` writes are now lock-guarded.
+- `train evaluate` and `train task-eval` gained `--config` and `--batch-size`
+  options (0 = config default).
+
+### Changed
+
+- `evaluate` (loss + perplexity) runs batched padded forward passes instead of
+  one unbatched forward with an `.item()` sync per record. Perplexity is now
+  the true corpus perplexity (exp of the token-weighted mean NLL) instead of
+  the mean of per-sequence perplexities; existing `eval.json` values are not
+  directly comparable across the change.
+- `train task-eval` generates in batches (left padding) instead of one
+  `model.generate` per record; `run_task_eval` now takes a batched generate
+  callable (list in, list out).
+- RAG vector search caches chunks in memory per `VectorStore` instance instead
+  of a full sqlite table scan per query (invalidated on `add`/`clear`);
+  `Retriever.index` persists all vectors in one write instead of rewriting
+  `vectors.npy` per batch; `HashingBackend` memoizes token digests.
+
+### Fixed
+
+- `train run --resume` picked the latest checkpoint with a lexicographic sort,
+  silently resuming from an older checkpoint once step numbers cross 999
+  (e.g. `checkpoint-999` over `checkpoint-1000`); checkpoints are now sorted
+  by numeric step.
+
 ## [0.1.0] - 2026-09-21
 
 ### Added
