@@ -84,6 +84,7 @@ class PipelineDef(BaseModel):
     min_confidence: float = Field(default=0.5, ge=0, le=1)
     reject_unresolved: bool = True
     reject_recitation_risk: bool = False
+    concurrency: int = Field(default=1, ge=1)
 
 
 class TrainingConfig(BaseModel):
@@ -101,6 +102,15 @@ class TrainingConfig(BaseModel):
     save_steps: int = Field(default=100, ge=1)
     seed: int = Field(default=42, ge=0)
     output_dir: str = "experiments"
+    lr_scheduler_type: str = "cosine"
+    warmup_steps: int = Field(default=5, ge=0)
+    max_grad_norm: float = Field(default=1.0, gt=0)
+    max_length: int = Field(default=1024, gt=0)
+    packing: bool = False
+    assistant_only_loss: bool = False
+    attn_implementation: Literal["sdpa", "flash_attention_2", "eager"] = "sdpa"
+    eval_batch_size: int = Field(default=4, ge=1)
+    generate_batch_size: int = Field(default=4, ge=1)
 
 
 class Config(BaseModel):

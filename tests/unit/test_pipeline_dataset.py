@@ -208,6 +208,69 @@ def test_run_pipeline_without_rejected_dir(postcutoff_case, precutoff_case, tmp_
     assert stats == {"accepted": 0, "rejected": 1}
 
 
+class DelayedScriptedProvider(ScriptedProvider):
+    """ScriptedProvider that sleeps and tracks how many calls ran concurrently."""
+
+    def __init__(self, responses_by_model: dict[str, dict]):
+        import threading
+
+        super().__init__(responses_by_model)
+        self._lock = threading.Lock()
+        self._active = 0
+        self.max_active = 0
+
+    def structured(self, request, model, schema):
+        import time
+
+        with self._lock:
+            self._active += 1
+            self.max_active = max(self.max_active, self._active)
+        time.sleep(0.05)
+        with self._lock:
+            self._active -= 1
+        return super().structured(request, model, schema)
+
+
+def test_run_pipeline_concurrency_preserves_order(postcutoff_case, precutoff_case, tmp_path):
+    config = scripted_config()
+    config.pipelines["security_dataset"].concurrency = 4
+    config.pipelines["security_dataset"].reject_recitation_risk = True
+    roles = RoleRegistry(config, ModelRegistry(config))
+    provider = DelayedScriptedProvider(
+        {
+            "mock-security": {
+                "summary": "s",
+                "vulnerability_found": True,
+                "confidence": 0.9,
+                "evidence": [{"description": "e"}],
+                "reasoning": "r",
+            },
+            "mock-coding": {"summary": "s", "behavior": "b", "confidence": 0.9, "reasoning": "r"},
+            "mock-judge": {
+                "verdict": "confirmed",
+                "confidence": 0.9,
+                "reasoning": "r",
+                "cwe": "CWE-78",
+                "evidence": [{"description": "e"}],
+                "disagreement": False,
+            },
+        }
+    )
+    engine = PipelineEngine(
+        config,
+        "security_dataset",
+        roles,
+        get_pack("security"),
+        provider_override=provider,
+    )
+    output = tmp_path / "out.jsonl"
+    stats = run_pipeline(engine, [postcutoff_case, precutoff_case], output)
+    assert stats == {"accepted": 1, "rejected": 1}
+    records = read_jsonl(output)
+    assert [record["id"] for record in records] == ["case-post"]
+    assert provider.max_active > 1
+
+
 def test_build_record_shape(postcutoff_case):
     record = build_record(
         case=postcutoff_case,

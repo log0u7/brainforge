@@ -127,11 +127,22 @@ def evaluate(
         "-d",
         help="Eval split (JSONL)",
     ),
+    config: str = typer.Option(None, "--config", "-c"),
+    batch_size: int = typer.Option(
+        0, "--batch-size", help="Eval forward batch size (0 = config default)"
+    ),
 ) -> None:
     """Evaluate a trained student (loss + perplexity, written to eval.json)."""
+    from brainforge.config import load_config
     from brainforge.training.qlora import evaluate as evaluate_model
 
-    result = evaluate_model(model or latest_run_dir(), dataset)
+    training = load_config(config).training
+    result = evaluate_model(
+        model or latest_run_dir(),
+        dataset,
+        batch_size=batch_size or training.eval_batch_size,
+        attn_implementation=training.attn_implementation,
+    )
     console.print(f"[green]evaluated[/green] {result['n_records']} records")
     console.print(f"  eval_loss: {result['eval_loss']:.4f}")
     console.print(f"  perplexity: {result['perplexity']:.4f}")
@@ -165,12 +176,22 @@ def task_eval(
     ),
     quantization: str = typer.Option("4bit", "--quantization", help="4bit, 8bit or none"),
     max_new_tokens: int = typer.Option(512, "--max-new-tokens"),
+    config: str = typer.Option(None, "--config", "-c"),
+    batch_size: int = typer.Option(
+        0, "--batch-size", help="Generation batch size (0 = config default)"
+    ),
 ) -> None:
     """Task-level evaluation: verdict + CWE accuracy on a held-out split."""
+    from brainforge.config import load_config
     from brainforge.training.task_eval import evaluate_model_on_records
 
+    training = load_config(config).training
     result = evaluate_model_on_records(
-        model or latest_run_dir(), dataset, quantization, max_new_tokens
+        model or latest_run_dir(),
+        dataset,
+        quantization,
+        max_new_tokens,
+        batch_size=batch_size or training.generate_batch_size,
     )
     console.print(f"[green]task evaluation done[/green] ({result['n_records']} records)")
     for key in ("accuracy", "false_positive_rate", "false_negative_rate", "cwe_accuracy"):

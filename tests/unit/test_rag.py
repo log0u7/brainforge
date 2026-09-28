@@ -88,6 +88,38 @@ def test_vector_store_roundtrip(tmp_path):
     assert results[0][1] > 0.9
 
 
+def test_vector_store_search_caches_chunks(tmp_path, monkeypatch):
+    store = VectorStore(tmp_path / "index")
+    backend = HashingBackend(dim=32)
+    docs = [Document(doc_id="doc-1", source="a.md", text="alpha beta gamma delta")]
+    chunks = chunk_documents(docs)
+    store.add(chunks, backend.embed([chunk.text for chunk in chunks]))
+    queries = backend.embed(["alpha beta gamma delta", "alpha beta gamma delta"])
+    store.search(queries[0], k=1)
+    calls = []
+    original = store.all_chunks
+    monkeypatch.setattr(store, "all_chunks", lambda: (calls.append(1), original())[1])
+    store.search(queries[1], k=1)
+    assert calls == []
+
+
+def test_vector_store_cache_refreshed_after_add(tmp_path):
+    store = VectorStore(tmp_path / "index")
+    backend = HashingBackend(dim=32)
+
+    def chunks_for(text: str, doc_id: str):
+        return chunk_documents([Document(doc_id=doc_id, source=f"{doc_id}.md", text=text)])
+
+    store.add(
+        chunks_for("alpha beta gamma delta", "doc-1"), backend.embed(["alpha beta gamma delta"])
+    )
+    first = store.search(backend.embed(["alpha beta gamma delta"])[0], k=1)
+    assert first[0][0].doc_id == "doc-1"
+    store.add(chunks_for("epsilon zeta eta", "doc-2"), backend.embed(["epsilon zeta eta"]))
+    second = store.search(backend.embed(["epsilon zeta eta"])[0], k=1)
+    assert second[0][0].doc_id == "doc-2"
+
+
 def test_retriever_index_and_search_with_provenance(docs_dir, tmp_path):
     retriever = Retriever(tmp_path / "index", HashingBackend(dim=128))
     stats = retriever.index(docs_dir)

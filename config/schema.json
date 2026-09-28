@@ -114,6 +114,12 @@
           "default": false,
           "title": "Reject Recitation Risk",
           "type": "boolean"
+        },
+        "concurrency": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Concurrency",
+          "type": "integer"
         }
       },
       "required": [
@@ -365,6 +371,61 @@
           "default": "experiments",
           "title": "Output Dir",
           "type": "string"
+        },
+        "lr_scheduler_type": {
+          "default": "cosine",
+          "title": "Lr Scheduler Type",
+          "type": "string"
+        },
+        "warmup_steps": {
+          "default": 5,
+          "minimum": 0,
+          "title": "Warmup Steps",
+          "type": "integer"
+        },
+        "max_grad_norm": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "title": "Max Grad Norm",
+          "type": "number"
+        },
+        "max_length": {
+          "default": 1024,
+          "exclusiveMinimum": 0,
+          "title": "Max Length",
+          "type": "integer"
+        },
+        "packing": {
+          "default": false,
+          "title": "Packing",
+          "type": "boolean"
+        },
+        "assistant_only_loss": {
+          "default": false,
+          "title": "Assistant Only Loss",
+          "type": "boolean"
+        },
+        "attn_implementation": {
+          "default": "sdpa",
+          "enum": [
+            "sdpa",
+            "flash_attention_2",
+            "eager"
+          ],
+          "title": "Attn Implementation",
+          "type": "string"
+        },
+        "eval_batch_size": {
+          "default": 4,
+          "minimum": 1,
+          "title": "Eval Batch Size",
+          "type": "integer"
+        },
+        "generate_batch_size": {
+          "default": 4,
+          "minimum": 1,
+          "title": "Generate Batch Size",
+          "type": "integer"
         }
       },
       "title": "TrainingConfig",
@@ -429,7 +490,16 @@
         "quantization": "4bit",
         "save_steps": 100,
         "seed": 42,
-        "output_dir": "experiments"
+        "output_dir": "experiments",
+        "lr_scheduler_type": "cosine",
+        "warmup_steps": 5,
+        "max_grad_norm": 1.0,
+        "max_length": 1024,
+        "packing": false,
+        "assistant_only_loss": false,
+        "attn_implementation": "sdpa",
+        "eval_batch_size": 4,
+        "generate_batch_size": 4
       }
     }
   },

@@ -1,3 +1,4 @@
+import hashlib
 from typing import Any, Protocol
 
 import numpy as np
@@ -22,15 +23,20 @@ class HashingBackend:
     def __init__(self, dim: int = 256):
         self.name = "hashing"
         self.dim = dim
+        self._slots: dict[str, int] = {}
 
     def embed(self, texts: list[str]) -> np.ndarray:
         matrix = np.zeros((len(texts), self.dim), dtype=np.float32)
         for row, text in enumerate(texts):
             for token in text.lower().split():
-                digest = int.from_bytes(
-                    __import__("hashlib").sha1(token.encode("utf-8")).digest()[:4], "little"
-                )
-                matrix[row, digest % self.dim] += 1.0
+                slot = self._slots.get(token)
+                if slot is None:
+                    digest = int.from_bytes(
+                        hashlib.sha1(token.encode("utf-8")).digest()[:4], "little"
+                    )
+                    slot = digest % self.dim
+                    self._slots[token] = slot
+                matrix[row, slot] += 1.0
         return _normalize(matrix)
 
 

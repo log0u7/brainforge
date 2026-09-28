@@ -1,6 +1,7 @@
 """CPU-only smoke training: 1 LoRA step on a tiny model, CI-safe without GPU/HF."""
 
 import sys
+from typing import Any
 
 
 def main() -> int:
@@ -16,7 +17,7 @@ def main() -> int:
         model_name = "hf-internal-testing/tiny-random-LlamaForCausalLM"
         print(f"smoke test (CPU): 1 LoRA step on {model_name}")
         tokenizer = AutoTokenizer.from_pretrained(model_name)
-        model = AutoModelForCausalLM.from_pretrained(model_name)
+        model: Any = AutoModelForCausalLM.from_pretrained(model_name)
         lora = LoraConfig(r=4, lora_alpha=8, lora_dropout=0.05, task_type="CAUSAL_LM")
         model = get_peft_model(model, lora)
         inputs = tokenizer("subprocess.run(user_input, shell=True)", return_tensors="pt").to(

@@ -1,4 +1,5 @@
 import json
+import threading
 import time
 from pathlib import Path
 
@@ -11,6 +12,7 @@ class UsageLogger:
         self.log_dir = Path(log_dir)
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.path = self.log_dir / "usage.jsonl"
+        self._lock = threading.Lock()
 
     def log(
         self,
@@ -32,7 +34,7 @@ class UsageLogger:
             "cost_usd": cost_usd,
             "error": error,
         }
-        with self.path.open("a", encoding="utf-8") as handle:
+        with self._lock, self.path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 

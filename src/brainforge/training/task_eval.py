@@ -77,12 +77,13 @@ def score_task(pairs: list[tuple[dict, dict]]) -> dict:
 
 
 def run_task_eval(
-    records: list[dict], generate: Callable[[str | list[str]], str], max_new_tokens: int = 512
+    records: list[dict], generate: Callable[[list], list[str]], max_new_tokens: int = 512
 ) -> dict:
     """Score generated answers against expected ones.
 
-    ``generate`` receives the user message content and returns raw model text;
-    pass ``None`` only from the CLI path where the real model loader builds it.
+    ``generate`` receives the list of per-record user messages (one item per
+    record, in order) and must return one raw model text per record, in the
+    same order. Batched generators amortize ``model.generate`` across records.
     """
     if not records:
         raise BrainforgeError("empty evaluation dataset")
@@ -92,11 +93,15 @@ def run_task_eval(
         raise BrainforgeError(
             f"task evaluation only supports the security domain, found: {sorted(unexpected)}"
         )
-    pairs = []
-    for record in records:
-        user_messages = [m["content"] for m in record.get("messages", []) if m["role"] == "user"]
-        text = generate(user_messages)
-        pairs.append((prediction_from_text(text), expected_from_record(record)))
+    prompts = [
+        [m["content"] for m in record.get("messages", []) if m["role"] == "user"]
+        for record in records
+    ]
+    texts = generate(prompts)
+    pairs = [
+        (prediction_from_text(text), expected_from_record(record))
+        for record, text in zip(records, texts, strict=True)
+    ]
     result = score_task(pairs)
     result["domains"] = sorted(domains)
     return result
@@ -107,6 +112,7 @@ def evaluate_model_on_records(
     dataset_path: Path | str,
     quantization: str = "4bit",
     max_new_tokens: int = 512,
+    batch_size: int = 4,
 ) -> dict:
     """Load the trained model and run task evaluation on a JSONL dataset split."""
     from brainforge.dataset.writer import read_jsonl
@@ -116,7 +122,7 @@ def evaluate_model_on_records(
     model_path = Path(model_path)
     dataset_path = Path(dataset_path)
     records = read_jsonl(dataset_path)
-    generate = _build_generator(model_path, quantization, max_new_tokens)
+    generate = _build_generator(model_path, quantization, max_new_tokens, batch_size)
     result = run_task_eval(records, generate)
     (model_path / "task_eval.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     return result
@@ -130,25 +136,37 @@ def _flatten_message(user_message: str | list[str]) -> str:
 
 
 def _build_generator(
-    model_path: Path, quantization: str, max_new_tokens: int
-) -> Callable[[str | list[str]], str]:
+    model_path: Path,
+    quantization: str,
+    max_new_tokens: int,
+    batch_size: int = 4,
+    attn_implementation: str = "sdpa",
+) -> Callable[[list], list[str]]:
     import torch
 
     from brainforge.training.models import load_student_model
 
-    model, tokenizer = load_student_model(model_path, quantization)
+    model, tokenizer = load_student_model(model_path, quantization, attn_implementation)
+    # Left padding keeps every prompt in the batch aligned at the same position.
+    tokenizer.padding_side = "left"
 
-    def generate(user_message: str | list[str]) -> str:
-        inputs = tokenizer.apply_chat_template(
-            [{"role": "user", "content": _flatten_message(user_message)}],
-            tokenize=True,
-            add_generation_prompt=True,
-            return_tensors="pt",
-            return_dict=True,
-        ).to(model.device)
+    def generate(user_messages: list) -> list[str]:
+        prompts = [_flatten_message(item) for item in user_messages]
+        replies: list[str] = []
         with torch.no_grad():
-            output = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
-        generated = output[0][inputs["input_ids"].shape[1] :]
-        return str(tokenizer.decode(generated, skip_special_tokens=True))
+            for start in range(0, len(prompts), batch_size):
+                batch = prompts[start : start + batch_size]
+                inputs = tokenizer.apply_chat_template(
+                    [{"role": "user", "content": prompt} for prompt in batch],
+                    tokenize=True,
+                    add_generation_prompt=True,
+                    padding=True,
+                    return_tensors="pt",
+                    return_dict=True,
+                ).to(model.device)
+                output = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
+                generated = output[:, inputs["input_ids"].shape[1] :]
+                replies.extend(tokenizer.batch_decode(generated, skip_special_tokens=True))
+        return replies
 
     return generate
