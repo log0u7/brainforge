@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import numpy as np
 from pydantic import BaseModel
 
 from brainforge.rag.chunking import chunk_documents
@@ -26,13 +27,16 @@ class Retriever:
         documents = load_documents(path)
         chunks = chunk_documents(documents)
         self.store.clear()
-        added = 0
+        # ponytail: embed in batches of 64, persist once; per-batch np.save would
+        # make total I/O quadratic during indexing
         batch_size = 64
-        for start in range(0, len(chunks), batch_size):
-            batch = chunks[start : start + batch_size]
-            vectors = self.backend.embed([chunk.text for chunk in batch])
-            added += self.store.add(batch, vectors)
-        return {"documents": len(documents), "chunks": added}
+        vector_batches = [
+            self.backend.embed([chunk.text for chunk in chunks[start : start + batch_size]])
+            for start in range(0, len(chunks), batch_size)
+        ]
+        if vector_batches:
+            self.store.add(chunks, np.vstack(vector_batches))
+        return {"documents": len(documents), "chunks": len(chunks)}
 
     def search(self, query: str, k: int = 5) -> list[RetrievedChunk]:
         vectors = self.backend.embed([query])

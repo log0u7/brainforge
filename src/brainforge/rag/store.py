@@ -26,6 +26,7 @@ class VectorStore:
         self.db_path = self.index_dir / "index.db"
         self.vectors_path = self.index_dir / "vectors.npy"
         self._matrix: np.ndarray | None = None
+        self._chunks: list[Chunk] | None = None
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
@@ -60,10 +61,13 @@ class VectorStore:
                 )
         matrix = np.vstack([matrix, vectors]) if len(vectors) else matrix
         self._matrix = matrix
+        self._chunks = None
         np.save(self.vectors_path, matrix)
         return len(chunks)
 
     def _dim_hint(self) -> int:
+        if self._matrix is not None:
+            return int(self._matrix.shape[1])
         if self.vectors_path.exists():
             return int(np.load(self.vectors_path).shape[1])
         return 1
@@ -81,7 +85,10 @@ class VectorStore:
         ]
 
     def search(self, query_vector: np.ndarray, k: int = 5) -> list[tuple[Chunk, float]]:
-        chunks = self.all_chunks()
+        # ponytail: in-memory chunk cache + O(n) numpy matmul; add ANN (sqlite-vec/faiss)
+        # only if the corpus grows past ~100k chunks
+        chunks = self._chunks if self._chunks is not None else self.all_chunks()
+        self._chunks = chunks
         matrix = self._load_matrix(self._dim_hint())
         if not chunks or matrix.shape[0] == 0:
             return []
@@ -99,5 +106,6 @@ class VectorStore:
         with self._connect() as conn:
             conn.execute("DELETE FROM chunks")
         self._matrix = None
+        self._chunks = None
         if self.vectors_path.exists():
             self.vectors_path.unlink()

@@ -30,8 +30,10 @@ uv run brainforge config validate   # after touching config/
 uv run brainforge config schema --check       # schema must stay in sync
 ```
 
-Branches: `feat/<topic>`, `fix/<topic>`, `docs/<topic>`. Keep changes small and
-focused; one topic per pull request.
+Branches follow the gitflow described in
+[Branches, worktrees and reviews](#branches-worktrees-and-reviews): one topic
+per branch, `feat/<topic>`, `fix/<topic>`, `chore/<topic>`, `docs/<topic>`,
+landed through a merge request.
 
 ## Commits
 
@@ -90,12 +92,52 @@ tests or CLI commands. The full rules and the workflow are in
 [docs/adr/index.md](docs/adr/index.md) and
 [docs/how-to/write-an-adr.md](docs/how-to/write-an-adr.md).
 
-## Pull requests
+## Branches, worktrees and reviews
 
-1. Rebase on `main`; CI must pass (lint, secrets, tests, config, build).
-2. Describe what changed and why; link related issues.
-3. One approval required; the reviewer pays special attention to provenance
-   and contamination handling.
+A simple, battle-tested gitflow for team work:
+
+- `main` is protected: release-ready only, no direct pushes; everything lands
+  through a merge request.
+- One topic per branch, cut from `main`: `feat/<topic>`, `fix/<topic>`,
+  `chore/<topic>`, `docs/<topic>`.
+- One session per worktree. The main clone stays on `main` and is never
+  mutated by working sessions; do the work in a worktree instead:
+
+```bash
+git worktree add ~/projets/wt/brainforge/<topic> -b feat/<topic>
+cd ~/projets/wt/brainforge/<topic>
+uv sync               # worktrees have their own .venv
+```
+
+- Rebase on `main` before opening the MR (`git fetch && git rebase origin/main`).
+- Merge request flow:
+  1. Push the branch and open the MR (`gh pr create`); describe what changed
+     and why; link related issues.
+  2. CI must be green (lint, secrets, tests, config, build, audit).
+  3. At least one approval; the reviewer pays special attention to provenance
+     and contamination handling.
+  4. Merge with a merge commit (history stays readable one topic at a time)
+     and delete the branch.
+- Clean up once the work is merged:
+
+```bash
+git worktree remove ~/projets/wt/brainforge/<topic>
+```
+
+## Releases
+
+- `CHANGELOG.md` accumulates changes under `[Unreleased]` (Keep a Changelog
+  format); English only.
+- A release moves `[Unreleased]` into a dated section, bumps `version` in
+  `pyproject.toml` and lands as a `chore(release): X.Y.Z` commit inside an MR.
+- Tag `vX.Y.Z` only after the merge lands on `main`, on the exact merge
+  commit, pushed one by one:
+
+```bash
+git tag vX.Y.Z && git push origin vX.Y.Z
+```
+
+- SemVer: `0.x` is unstable; breaking changes bump the minor until 1.0.0.
 
 ## Reporting issues
 

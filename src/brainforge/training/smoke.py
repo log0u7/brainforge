@@ -1,5 +1,6 @@
 import os
 import sys
+from typing import Any
 
 
 def main() -> int:
@@ -17,7 +18,7 @@ def main() -> int:
     model_name = os.environ.get("BRAINFORCE_SMOKE_MODEL", "Qwen/Qwen3-0.6B")
     print(f"smoke test: 1 QLoRA step on {model_name}")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForCausalLM.from_pretrained(
+    model: Any = AutoModelForCausalLM.from_pretrained(
         model_name,
         torch_dtype=torch.bfloat16,
         load_in_4bit=True,

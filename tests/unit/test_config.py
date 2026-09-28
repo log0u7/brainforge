@@ -253,6 +253,38 @@ def test_training_checkpoint_fields():
         TrainingConfig(save_steps=0)
 
 
+def test_training_schedule_fields():
+    from brainforge.config.models import TrainingConfig
+
+    config = TrainingConfig()
+    assert config.lr_scheduler_type == "cosine"
+    assert config.warmup_steps == 5
+    assert config.max_grad_norm == 1.0
+    assert config.max_length == 1024
+    assert config.packing is False
+    assert config.assistant_only_loss is False
+    assert config.attn_implementation == "sdpa"
+    assert config.eval_batch_size == 4
+    assert config.generate_batch_size == 4
+    with pytest.raises(ValidationError):
+        TrainingConfig(attn_implementation="bogus")
+    with pytest.raises(ValidationError):
+        TrainingConfig(eval_batch_size=0)
+    with pytest.raises(ValidationError):
+        TrainingConfig(warmup_steps=-1)
+    with pytest.raises(ValidationError):
+        TrainingConfig(max_grad_norm=0)
+
+
+def test_pipeline_concurrency_default():
+    from brainforge.config.models import PipelineDef
+
+    pipeline = PipelineDef(domain="security")
+    assert pipeline.concurrency == 1
+    with pytest.raises(ValidationError):
+        PipelineDef(domain="security", concurrency=0)
+
+
 def test_training_defaults(config_file):
     config = load_config(config_file)
     assert config.training.base_model == "Qwen/Qwen3-8B"

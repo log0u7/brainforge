@@ -97,7 +97,7 @@ def test_score_task_metrics():
 def test_run_task_eval_rejects_non_security():
     records = [make_record("confirmed", domain="coding")]
     with pytest.raises(BrainforgeError, match="domain"):
-        run_task_eval(records, generate=lambda messages: "{}")
+        run_task_eval(records, generate=lambda messages: ["{}"] * len(messages))
 
 
 def test_run_task_eval_with_stub_generate():
@@ -105,9 +105,24 @@ def test_run_task_eval_with_stub_generate():
     stub_reply = json.dumps({"verdict": "confirmed", "cwe": "CWE-78"})
     received = []
     result = run_task_eval(
-        records, generate=lambda messages: received.append(messages) or stub_reply
+        records,
+        generate=lambda messages: received.extend(messages) or [stub_reply] * len(messages),
     )
     assert result["accuracy"] == 0.5
     assert result["n_records"] == 2
-    # One generate() call per record, user message only.
-    assert received == [["analyze this snippet"]] * 2
+    # One batched call; each item is the per-record user-message list.
+    assert received == [["analyze this snippet"], ["analyze this snippet"]]
+
+
+def test_run_task_eval_preserves_record_order():
+    records = [make_record("confirmed", cwe="CWE-78"), make_record("rejected", cwe=None)]
+
+    def generate(messages: list) -> list[str]:
+        return [
+            json.dumps({"verdict": "confirmed", "cwe": "CWE-78"}),
+            json.dumps({"verdict": "rejected"}),
+        ]
+
+    result = run_task_eval(records, generate)
+    assert result["accuracy"] == 1.0
+    assert result["false_positive_rate"] == 0.0

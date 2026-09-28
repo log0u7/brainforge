@@ -8,6 +8,7 @@ extra is missing.
 
 import json
 import math
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -17,6 +18,23 @@ from brainforge.errors import BrainforgeError
 
 if TYPE_CHECKING:
     from datasets import Dataset
+
+_CHECKPOINT_RE = re.compile(r"^checkpoint-(\d+)$")
+
+
+def _latest_checkpoint(output_dir: Path) -> Path:
+    """Pick the highest-step ``checkpoint-<N>`` directory (numeric, not lexicographic)."""
+    steps = []
+    for path in output_dir.glob("checkpoint-*"):
+        match = _CHECKPOINT_RE.match(path.name)
+        if match is not None:
+            steps.append((int(match.group(1)), path))
+    if not steps:
+        raise BrainforgeError(
+            f"no checkpoint found in {output_dir} to resume from;"
+            " run 'brainforge train run' without --resume first"
+        )
+    return max(steps, key=lambda pair: pair[0])[1]
 
 
 def _require_cuda() -> None:
@@ -90,13 +108,7 @@ def train_qlora(
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     if resume:
-        checkpoints = sorted(output_dir.glob("checkpoint-*"))
-        if not checkpoints:
-            raise BrainforgeError(
-                f"no checkpoint found in {output_dir} to resume from;"
-                " run 'brainforge train run' without --resume first"
-            )
-        resume = checkpoints[-1]
+        resume = _latest_checkpoint(output_dir)
     _require_cuda()
     from trl import SFTConfig, SFTTrainer
 
@@ -110,7 +122,15 @@ def train_qlora(
         num_train_epochs=config.epochs,
         learning_rate=config.learning_rate,
         per_device_train_batch_size=config.batch_size,
+        per_device_eval_batch_size=config.eval_batch_size,
         gradient_accumulation_steps=config.gradient_accumulation,
+        lr_scheduler_type=config.lr_scheduler_type,
+        warmup_steps=config.warmup_steps,
+        max_grad_norm=config.max_grad_norm,
+        max_length=config.max_length,
+        packing=config.packing,
+        assistant_only_loss=config.assistant_only_loss,
+        model_init_kwargs={"attn_implementation": config.attn_implementation},
         gradient_checkpointing=True,
         bf16=True,
         logging_steps=1,
@@ -130,7 +150,7 @@ def train_qlora(
         quantization_config=_quantization_config(config.quantization),
         peft_config=_lora_config(config),
     )
-    trainer.train(resume_from_checkpoint=resume or None)
+    trainer.train(resume_from_checkpoint=str(resume) if resume else None)
     trainer.save_model(str(output_dir))
     summary = {
         "base_model": config.base_model,
@@ -147,8 +167,18 @@ def train_qlora(
     return summary
 
 
-def evaluate(model_path: Path | str, eval_dataset: Path | str, quantization: str = "4bit") -> dict:
-    """Compute eval loss and perplexity of a trained adapter on a dataset split."""
+def evaluate(
+    model_path: Path | str,
+    eval_dataset: Path | str,
+    quantization: str = "4bit",
+    batch_size: int = 4,
+    attn_implementation: str = "sdpa",
+) -> dict:
+    """Compute eval loss and perplexity of a trained adapter on a dataset split.
+
+    Forward passes are batched (padded) and the reported ``perplexity`` is the
+    true corpus perplexity: exp of the token-weighted mean negative log-likelihood.
+    """
     _require_cuda()
     import torch
     from peft import AutoPeftModelForCausalLM
@@ -163,30 +193,46 @@ def evaluate(model_path: Path | str, eval_dataset: Path | str, quantization: str
         raise BrainforgeError(
             f"tokenizer at {model_path} has no chat template; cannot evaluate chat records"
         )
-    load_kwargs = {"device_map": "auto", "torch_dtype": torch.bfloat16}
+    load_kwargs: dict[str, Any] = {
+        "device_map": "auto",
+        "torch_dtype": torch.bfloat16,
+        "attn_implementation": attn_implementation,
+    }
     quant_config = _quantization_config(quantization)
     if quant_config is not None:
         load_kwargs["quantization_config"] = quant_config
     model = AutoPeftModelForCausalLM.from_pretrained(str(model_path), **load_kwargs)
     model.eval()
-    losses = []
+
+    tokenized: list[Any] = [
+        tokenizer.apply_chat_template(
+            row["messages"],
+            tokenize=True,
+            add_generation_prompt=False,
+            return_dict=True,
+        )
+        for row in rows
+    ]
+    loss_terms: list[Any] = []
+    token_counts: list[int] = []
     with torch.no_grad():
-        for row in rows:
-            inputs = tokenizer.apply_chat_template(
-                row["messages"],
-                tokenize=True,
-                add_generation_prompt=False,
-                return_tensors="pt",
-                return_dict=True,
-            ).to(model.device)
-            outputs = model(**inputs, labels=inputs["input_ids"])
-            losses.append(outputs.loss.item())
+        for start in range(0, len(tokenized), batch_size):
+            padded = tokenizer.pad(tokenized[start : start + batch_size], padding=True)
+            batch = {key: value.to(model.device) for key, value in padded.items()}
+            labels = batch["input_ids"].clone()
+            labels[batch["attention_mask"] == 0] = -100
+            outputs = model(**batch, labels=labels)
+            # HF loss is the mean over non-ignored shifted positions.
+            n_tokens = int(batch["attention_mask"][:, 1:].sum())
+            loss_terms.append(outputs.loss * n_tokens)
+            token_counts.append(n_tokens)
+    eval_loss = float(sum(loss_terms)) / sum(token_counts)
     result = {
         "model": str(model_path),
         "dataset": str(eval_dataset),
         "n_records": len(rows),
-        "eval_loss": sum(losses) / len(losses),
-        "perplexity": math.exp(sum(losses) / len(losses)),
+        "eval_loss": eval_loss,
+        "perplexity": math.exp(eval_loss),
     }
     (model_path / "eval.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     return result
@@ -202,7 +248,7 @@ def export(model_path: Path | str, output_dir: Path | str) -> dict:
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     model = AutoPeftModelForCausalLM.from_pretrained(
-        str(model_path), device_map="auto", torch_dtype="bfloat16"
+        str(model_path), device_map="auto", torch_dtype="bfloat16", attn_implementation="sdpa"
     )
     merged = model.merge_and_unload()
     merged.save_pretrained(str(output_dir))

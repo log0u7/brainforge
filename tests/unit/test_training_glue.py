@@ -118,6 +118,22 @@ def test_train_qlora_resume_without_checkpoint_fails_fast(tmp_path):
         train_qlora(_training_config(), tmp_path, output_dir, resume=True)
 
 
+def test_latest_checkpoint_sorts_numerically(tmp_path):
+    from brainforge.training.qlora import _latest_checkpoint
+
+    (tmp_path / "checkpoint-999").mkdir()
+    (tmp_path / "checkpoint-1000").mkdir()
+    assert _latest_checkpoint(tmp_path) == tmp_path / "checkpoint-1000"
+
+
+def test_latest_checkpoint_ignores_non_numeric_names(tmp_path):
+    from brainforge.training.qlora import _latest_checkpoint
+
+    (tmp_path / "checkpoint-42").mkdir()
+    (tmp_path / "checkpoint-not-a-step").mkdir()
+    assert _latest_checkpoint(tmp_path) == tmp_path / "checkpoint-42"
+
+
 def test_cli_train_run_resume_reuses_latest_run(project_env, monkeypatch):
     calls = {}
 

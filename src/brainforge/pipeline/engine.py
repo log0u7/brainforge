@@ -253,12 +253,24 @@ def run_pipeline(
     output_path: Path | str,
     rejected_dir: Path | str | None = None,
 ) -> dict:
+    """Run cases through the engine, optionally in parallel (pipeline.concurrency).
+
+    Results are collected in submission order so dataset output stays
+    deterministic; file writes stay in the main thread.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
     from brainforge.dataset.writer import append_record, write_rejected
 
+    workers = max(getattr(engine.pipeline, "concurrency", 1) or 1, 1)
+    if workers > 1:
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            results = list(executor.map(engine.run_case, cases))
+    else:
+        results = [engine.run_case(case) for case in cases]
     accepted_count = 0
     rejected_count = 0
-    for case in cases:
-        result = engine.run_case(case)
+    for case, result in zip(cases, results, strict=True):
         if result.accepted and result.record is not None:
             append_record(output_path, result.record)
             accepted_count += 1

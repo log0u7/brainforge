@@ -216,6 +216,29 @@ def test_cache_differentiates_requests(tmp_path):
     assert inner.calls == 2
 
 
+def test_usage_logger_concurrent_writes(tmp_path):
+    import json as json_module
+    import threading
+
+    from brainforge.providers.observability import UsageLogger
+
+    logger = UsageLogger(tmp_path)
+    response = ChatResponse(content="", provider="p", model="m")
+
+    def worker() -> None:
+        for _ in range(25):
+            logger.log(response, role="teacher")
+
+    threads = [threading.Thread(target=worker) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    lines = (tmp_path / "usage.jsonl").read_text().strip().splitlines()
+    assert len(lines) == 200
+    assert all(json_module.loads(line)["role"] == "teacher" for line in lines)
+
+
 def test_openai_compat_success():
     calls = []
     provider = make_provider_with_responses([httpx.Response(200, json=COMPLETION_BODY)], calls)
