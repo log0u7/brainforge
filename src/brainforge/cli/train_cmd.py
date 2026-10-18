@@ -1,11 +1,14 @@
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import typer
 
 from brainforge.cli._common import clamp_errors, console
 from brainforge.errors import BrainforgeError
+
+if TYPE_CHECKING:
+    from brainforge.config.models import TrainingConfig
 
 app = typer.Typer(
     help="Training: prepare datasets, run QLoRA or full fine-tuning, evaluate, export.",
@@ -26,6 +29,23 @@ def latest_run_dir(base: Path | None = None) -> Path:
             f"no training runs found under {base}; run 'brainforge train run' first"
         )
     return max(candidates, key=lambda d: d.stat().st_mtime)
+
+
+def train_student(
+    training: "TrainingConfig",
+    dataset_dir: Path | str,
+    output_dir: Path | str,
+    resume: bool | str | Path = False,
+    kd: bool = False,
+) -> dict:
+    """Dispatch to the configured training backend (kd, unsloth or trl)."""
+    if kd:
+        from brainforge.training.kd import train_kd as train_fn
+    elif training.backend == "unsloth":
+        from brainforge.training.unsloth_backend import train_unsloth as train_fn
+    else:
+        from brainforge.training.qlora import train_qlora as train_fn
+    return train_fn(training, dataset_dir, output_dir, resume=resume)
 
 
 @app.command("prepare")
@@ -111,13 +131,7 @@ def run(
         output_dir = latest_run_dir(base=Path(training.output_dir))
     else:
         output_dir = output or Path(training.output_dir) / run_name
-    if kd:
-        from brainforge.training.kd import train_kd as train_fn
-    elif training.backend == "unsloth":
-        from brainforge.training.unsloth_backend import train_unsloth as train_fn
-    else:
-        from brainforge.training.qlora import train_qlora as train_fn
-    summary = train_fn(training, dataset_dir, output_dir, resume=resume)
+    summary = train_student(training, dataset_dir, output_dir, resume=resume, kd=kd)
     console.print(f"[green]training done[/green] -> {summary['output_dir']}")
     for key, value in summary.items():
         console.print(f"  {key}: {value}")

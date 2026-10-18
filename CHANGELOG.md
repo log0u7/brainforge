@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Quickstart command: `brainforge quickstart run --domain <pack> [--input
+  <dir>] [--provider mock] [--base-model X] [--epochs 1] [--strategy
+  qlora|full] [--backend trl|unsloth] [--kd]` chains the pipeline, split
+  preparation, training and evaluation in one command, then prints the
+  next steps (GGUF/Ollama export, chat, full fine-tuning). The train step
+  requires a CUDA GPU and the training extra; the dataset steps run
+  anywhere, so `--provider mock` is a zero-cost dry run of the whole chain.
+  `train_cmd.train_student` is extracted as the shared backend dispatch
+  used by `train run` and `quickstart`.
 - Knowledge distillation (experimental): `pipeline run --kd` records the
   judge's per-token top-k logprobs into a `<dataset>.kd.jsonl` sidecar, and
   `train run --kd` trains with `alpha * T^2 * CE(student_T, teacher_topk_T)

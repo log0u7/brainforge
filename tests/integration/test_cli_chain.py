@@ -83,3 +83,37 @@ def test_cli_chain_pipeline_validate_prepare(workspace: Path):
     for name, count in splits.items():
         assert stats[name] == count, name
     assert sum(splits.values()) == len(records)
+
+
+def test_cli_chain_quickstart_reaches_training_gate(workspace: Path):
+    """The quickstart chains pipeline -> prepare, then stops at the CUDA gate.
+
+    Without a GPU the training step fails cleanly; the chain up to it must
+    have produced the dataset and the prepared splits.
+    """
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from brainforge.cli import app; app()",
+            "quickstart",
+            "run",
+            "--domain",
+            "security",
+            "--input",
+            str(workspace / "data" / "raw"),
+            "--provider",
+            "mock",
+        ],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert "quickstart failed" in result.stdout + result.stderr
+    dataset = workspace / "datasets" / "security.jsonl"
+    assert dataset.is_file()
+    prepared = workspace / "datasets" / "prepared"
+    assert (prepared / "train.jsonl").is_file()
+    assert (prepared / "validation.jsonl").is_file()

@@ -6,6 +6,7 @@ from brainforge.cli import (
     dataset_cmd,
     models_cmd,
     pipeline_cmd,
+    quickstart_cmd,
     rag_cmd,
     roles_cmd,
     teacher_cmd,
@@ -36,6 +37,7 @@ for sub_app, name, help_text in [
         "Training: prepare datasets, run QLoRA or full fine-tuning, evaluate, export.",
     ),
     (abliterate_cmd, "abliterate", "Abliteration: remove refusal directions (experimental)."),
+    (quickstart_cmd, "quickstart", "One-shot: cases -> distilled dataset -> trained student."),
 ]:
     app.add_typer(sub_app.app, name=name, help=help_text)
 
