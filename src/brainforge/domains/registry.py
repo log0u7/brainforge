@@ -4,6 +4,7 @@ from brainforge.domains.coding.pack import CodingPack
 from brainforge.domains.ctf.pack import CtfPack
 from brainforge.domains.generic import GenericPack
 from brainforge.domains.security.pack import SecurityPack
+from brainforge.domains.security_audit.pack import SecurityAuditPack
 from brainforge.domains.ticket_triage.pack import TicketTriagePack
 
 _PACKS: dict[str, DomainPack] = {}
@@ -33,6 +34,7 @@ register(CodingPack())
 register(TicketTriagePack())
 register(CtfPack())
 register(CodeReviewPack())
+register(SecurityAuditPack())
 
 __all__ = [
     "DomainPack",

@@ -1,0 +1,17 @@
+{
+  "id": "audit-auth-001",
+  "source": {
+    "type": "system",
+    "repository": "auth-service",
+    "path": "app/login.py",
+    "date": "2026-07-10"
+  },
+  "input": {
+    "code": "@app.post(\"/login\")\ndef login(username, password):\n    if session_store.get(username) == password:\n        return create_token(username)\n    return None\n\ndef create_token(username):\n    return jwt.encode({\"user\": username}, SECRET_KEY)\n",
+    "description": "Authentication service: a Flask app that validates credentials by comparing the password to a value stored in an in-memory session store and issues a JWT without an expiry claim.",
+    "question": "Audit this system for security issues."
+  },
+  "metadata": {
+    "language": "python"
+  }
+}
