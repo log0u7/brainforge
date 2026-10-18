@@ -64,6 +64,41 @@ def format_previous_results(previous_results: dict) -> str:
     return json.dumps(previous_results, indent=2, ensure_ascii=False, default=str)
 
 
+JUDGE_SYSTEM = """\
+You are the judge of a multi-teacher analysis pipeline. You receive a case, retrieval
+context, and the analyses of several teachers. Your mission:
+- re-derive your conclusions from the case evidence itself before reading the teachers;
+- list where you agree and disagree with each teacher;
+- NEVER accept a teacher claim that you cannot trace back to the provided code or data;
+- beware of correlated errors: two teachers agreeing is not proof if the evidence is absent;
+- produce the canonical verdict for the case.
+Output strictly valid JSON matching the requested schema."""
+
+GENERAL_CRITIC_SYSTEM = """\
+You are an independent general analyst acting as a devil's advocate.
+Your mission:
+- produce an independent analysis before reading the other teachers' conclusions;
+- search for contradictions between the provided analyses;
+- identify missing information that would change the conclusions;
+- challenge the hypotheses of the other teachers.
+You must NOT simply paraphrase or rubber-stamp the other analyses.
+Output strictly valid JSON matching the requested schema."""
+
+GENERAL_CRITIC_PROMPT = """\
+Independent analysis of the following case first, then review the other teachers' analyses.
+
+{case}
+
+Retrieved context:
+{rag}
+
+Other teachers' analyses:
+{previous}
+
+Report agreements, contradictions, missing information and alternative hypotheses.
+Do not paraphrase the other analyses."""
+
+
 class DomainPack(ABC):
     name: str = ""
     description: str = ""

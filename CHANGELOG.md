@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `ticket_triage` domain pack: IT helpdesk triage (classification, business
+  priority, team routing, first-response draft) with dedicated teacher and
+  judge schemas, quality gate, and example cases. Registered alongside
+  `security` and `coding`; usable through the existing pipeline with any
+  provider, including local models via the `local` provider type.
+
+### Changed
+
+- Judge and general-critic system prompts and the general critic prompt
+  template, previously duplicated across the `security` and `coding` packs,
+  are now shared constants in `brainforge.domains.base`. Behavior is
+  unchanged; new packs reuse them instead of copying.
+
 ## [0.2.0] - 2026-09-28
 
 ### Added

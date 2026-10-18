@@ -1,0 +1,16 @@
+{
+  "id": "ticket-invoice-question-001",
+  "source": {
+    "type": "ticketing",
+    "repository": "example-helpdesk",
+    "path": "tickets/invoice-question-001",
+    "date": "2026-08-16"
+  },
+  "input": {
+    "description": "Something looks wrong on my last bill, can someone take a look when you have a minute, thanks.",
+    "question": "Classify and triage this ticket."
+  },
+  "metadata": {
+    "language": "en"
+  }
+}
