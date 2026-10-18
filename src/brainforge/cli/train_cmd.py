@@ -219,11 +219,39 @@ def export(
         None, "--model", "-m", help="Trained adapter directory (default: latest run)"
     ),
     output: Path = typer.Option(
-        Path("models/export"), "--output", "-o", help="Merged model output directory"
+        Path("models/export"), "--output", "-o", help="Export output directory"
+    ),
+    format: Literal["merged", "gguf"] = typer.Option(
+        "merged", "--format", "-f", help="merged: HF weights; gguf: quantized GGUF + Modelfile"
+    ),
+    quant: str = typer.Option("Q4_K_M", "--quant", help="GGUF quantization type (gguf format)"),
+    ollama: str = typer.Option(
+        None, "--ollama", help="Register the GGUF with Ollama under this name (gguf format)"
+    ),
+    llama_cpp_path: Path = typer.Option(
+        None, "--llama-cpp-path", help="Path to a llama.cpp checkout (gguf format)"
     ),
 ) -> None:
-    """Merge the LoRA adapter into the base model and export it standalone."""
-    from brainforge.training.qlora import export as export_model
+    """Export a trained student: merged HF weights or quantized GGUF."""
+    from brainforge.training.qlora import export as export_merged
 
-    result = export_model(model or latest_run_dir(), output)
-    console.print(f"[green]exported[/green] -> {result['output_dir']}")
+    if format == "merged":
+        result = export_merged(model or latest_run_dir(), output)
+        console.print(f"[green]exported[/green] -> {result['output_dir']}")
+        return
+    from brainforge.training.gguf import export_gguf
+
+    merged_dir = Path(output) / "merged"
+    export_merged(model or latest_run_dir(), merged_dir)
+    result = export_gguf(
+        merged_dir,
+        output,
+        quant=quant,
+        llama_cpp_path=llama_cpp_path,
+        ollama_name=ollama,
+    )
+    console.print(f"[green]exported gguf[/green] -> {result['output_dir']}")
+    console.print(f"  quant: {result['quant']}")
+    console.print(f"  modelfile: {result['modelfile']}")
+    if result["ollama"]:
+        console.print(f"  ollama: {result['ollama']}")

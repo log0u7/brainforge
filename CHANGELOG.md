@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- GGUF export: `train export --format gguf` converts a merged student to a
+  quantized GGUF (default Q4_K_M, `--quant`) via llama.cpp
+  (`convert_hf_to_gguf.py` + `llama-quantize`), writes a `Modelfile`, and
+  with `--ollama <name>` registers the model with Ollama when the binary
+  is available. llama.cpp is located via `--llama-cpp-path`, the
+  `LLAMA_CPP_DIR` env var, or PATH; missing tools fail fast with an
+  install pointer. The produced GGUF can be distributed with llmp2p
+  (`llmp2p import --ollama <output-dir>` then `llmp2p seed`).
 - Unsloth training backend: `TrainingConfig.backend` (`trl` default,
   `unsloth`), `train run --backend {trl,unsloth}`, and the opt-in
   `unsloth` extra (`uv sync --extra unsloth`). The backend swaps model
