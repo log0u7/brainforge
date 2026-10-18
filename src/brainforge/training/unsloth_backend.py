@@ -12,6 +12,7 @@ the package and the test suite run without the extra.
 
 import json
 from pathlib import Path
+from typing import Any
 
 from brainforge.config.models import TrainingConfig
 from brainforge.errors import BrainforgeError
@@ -82,12 +83,21 @@ def train_unsloth(
         eval_dataset is not None,
         gradient_checkpointing=config.strategy == "full",
     )
+    # trl >= 1 renamed the `tokenizer` kwarg to `processing_class`; unsloth's
+    # patched SFTTrainer keeps `tokenizer`. Pick whichever the loaded class has.
+    import inspect
+
+    trainer_kwargs: dict[str, Any] = {}
+    if "tokenizer" in inspect.signature(SFTTrainer.__init__).parameters:
+        trainer_kwargs["tokenizer"] = tokenizer
+    else:
+        trainer_kwargs["processing_class"] = tokenizer
     trainer = SFTTrainer(
         model=model,
-        tokenizer=tokenizer,
         args=sft_args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
+        **trainer_kwargs,
     )
     trainer.train(resume_from_checkpoint=str(resume) if resume else None)
     model.save_pretrained(str(output_dir))

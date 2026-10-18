@@ -29,8 +29,25 @@ class _FakeState:
 class _FakeSFTTrainer:
     instances: ClassVar[list["_FakeSFTTrainer"]] = []
 
-    def __init__(self, **kwargs) -> None:
-        self.init_kwargs = kwargs
+    def __init__(
+        self,
+        model=None,
+        tokenizer=None,
+        args=None,
+        train_dataset=None,
+        eval_dataset=None,
+        processing_class=None,
+        **kwargs,
+    ) -> None:
+        self.init_kwargs = {
+            "model": model,
+            "tokenizer": tokenizer,
+            "args": args,
+            "train_dataset": train_dataset,
+            "eval_dataset": eval_dataset,
+            "processing_class": processing_class,
+            **kwargs,
+        }
         self.state = _FakeState()
         type(self).instances.append(self)
 
