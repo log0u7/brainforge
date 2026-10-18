@@ -67,6 +67,11 @@
       "family": "qwen",
       "knowledge_cutoff": "2026-05"
     },
+    "agent": {
+      "provider": "mlgw",
+      "model": "qwen3.5-9b",
+      "family": "qwen"
+    },
     "judge": {
       "provider": "zen",
       "model": "glm-5.2",
@@ -106,6 +111,10 @@
     },
     "audit_teacher": {
       "model": "audit",
+      "temperature": 0.2
+    },
+    "agent_teacher": {
+      "model": "agent",
       "temperature": 0.2
     },
     "judge": {
@@ -149,6 +158,11 @@
     },
     "security_audit": {
       "domain": "security_audit",
+      "mode": "standard",
+      "min_confidence": 0.5
+    },
+    "agentic": {
+      "domain": "agentic",
       "mode": "standard",
       "min_confidence": 0.5
     }
