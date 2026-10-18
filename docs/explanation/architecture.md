@@ -14,7 +14,8 @@ src/brainforge/
 ├── models/registry   model name -> ModelDef + provider instance
 ├── roles/registry    role name -> RoleBinding (kind, model, provider)
 ├── domains/          domain packs: schemas, prompts, quality gates
-│                     (security + coding reference packs, ticket_triage, generic)
+│                     (security + coding reference packs, ticket_triage,
+│                      ctf, code_review, security_audit, agentic, generic)
 ├── pipeline/         engine, context, judge helpers, KD sidecar capture
 ├── rag/              loaders, chunking, embeddings, vector store, retrieval
 ├── dataset/          case builder, writer, validation, gate, dedup, split

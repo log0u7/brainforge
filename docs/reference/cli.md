@@ -6,8 +6,9 @@ rich tables; failures exit 1 with a reason on stderr.
 
 BrainForge distills a multi-teacher pipeline into a student model: cases
 in, verified dataset out, trained model out. Domains are pluggable
-(`security` and `coding` are reference packs; `ticket_triage` is a
-non-security example). See the [architecture explanation](../explanation/architecture.md).
+(`security` and `coding` are reference packs; `ticket_triage`, `ctf`,
+`code_review`, `security_audit` and `agentic` are example packs). See the
+[architecture explanation](../explanation/architecture.md).
 
 ## config
 

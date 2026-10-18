@@ -12,7 +12,7 @@ A case is a JSON document with:
 - `input`: `code` and/or `description` (plus optional `question`).
 - `metadata`: free-form, typically `language`.
 
-Two families ship today:
+Four families ship today:
 
 - **Security cases** (`case-*.json`): command injection (2026-08,
   post-cutoff), SQL injection (2026-04, pre-cutoff), stored XSS (2026-07,
@@ -20,10 +20,23 @@ Two families ship today:
 - **Ticket cases** (`ticket-*.json`): IT helpdesk triage examples (password
   reset, VPN outage, invoice question) for the `ticket_triage` domain,
   showing the framework is domain-agnostic.
+- **CTF cases** (`ctf-*.json`): pwn (gets), web (SQLi) and crypto (XOR)
+  challenges for the `ctf` pack.
+- **Review cases** (`review-*.json`): pull-request reviews (SQLi, hardcoded
+  secret, clean parameterized fix) for the `code_review` pack.
+- **Audit cases** (`audit-*.json`): system security audits (JWT without
+  expiry, unrestricted upload, PAN in logs) for the `security_audit` pack.
+- **Agentic cases** (`agent-*.json`): multi-turn tool-use tasks (debug,
+  refactor, incident) for the `agentic` pack; tools are listed as JSON in
+  `input.code`.
 
 Run them with the mock provider at zero cost:
 
 ```bash
 uv run brainforge pipeline run security_dataset --input examples/cases --provider mock
 uv run brainforge pipeline run ticket_triage --input examples/cases/ticket-vpn-down-001.json --provider mock
+uv run brainforge pipeline run ctf --input examples/cases --provider mock
+uv run brainforge pipeline run code_review --input examples/cases --provider mock
+uv run brainforge pipeline run security_audit --input examples/cases --provider mock
+uv run brainforge pipeline run agentic --input examples/cases --provider mock
 ```

@@ -111,7 +111,7 @@ Full walkthrough: [build your first model](docs/tutorials/first-model.md).
 | Contamination controls | Per-teacher `knowledge_cutoff`, source dates, `recitation_risk` tagging, post-cutoff holdout as the primary benchmark |
 | Local RAG | fastembed (ONNX, CPU) or hashing embeddings, sqlite + numpy store, full chunk provenance |
 | Quality gates | Per-domain rules (evidence, CWE format, confidence), rejected-case quarantine, exact + near-duplicate detection |
-| Domain packs | `security` and `coding` reference packs, `ticket_triage` example, generic fallback for anything else |
+| Domain packs | `security` and `coding` reference packs, `ticket_triage`/`ctf`/`code_review`/`security_audit`/`agentic` example packs, generic fallback for anything else |
 | Training | QLoRA (4-bit + LoRA, one RTX 3080 10GB), full fine-tuning, Unsloth backend (opt-in extra), optional knowledge distillation from teacher logprobs |
 | Export | merged HF weights, quantized GGUF + Modelfile, `ollama create` registration; distribute GGUF with [llmp2p](https://github.com/log0u7/llmp2p) |
 | Abliteration | experimental refusal-direction removal for uncensored/red-team models |
