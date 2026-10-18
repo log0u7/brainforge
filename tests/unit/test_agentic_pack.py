@@ -168,3 +168,72 @@ def test_build_messages_multi_turn(agentic_case):
     # final assistant turn is the verdict
     final = json.loads(messages[3].content)
     assert final["verdict"] == "valid"
+
+
+def test_system_prompt_kinds():
+    pack = get_pack("agentic")
+    assert "agentic" in pack.system_prompt("agent_teacher", RoleKind.TEACHER)
+    assert "judge" in pack.system_prompt("judge", RoleKind.JUDGE).lower()
+    assert "devil" in pack.system_prompt("critic", RoleKind.CRITIC).lower()
+
+
+def test_teacher_prompt_and_judge_prompt(agentic_case):
+    pack = get_pack("agentic")
+
+    class Chunk:
+        text = "read_file is useful"
+        source = "doc"
+
+    teacher = pack.teacher_prompt("agent_teacher", agentic_case, [Chunk()])
+    assert "read_file is useful" in teacher
+    judge = pack.judge_prompt(agentic_case, [], {"agent_teacher": {"summary": "s"}})
+    assert "canonical verdict" in judge.lower()
+
+
+def test_critic_prompt(agentic_case):
+    pack = get_pack("agentic")
+    text = pack.critic_prompt("critic", agentic_case, [], {})
+    assert "read_file" in text
+
+
+def test_quality_gate_low_confidence():
+    pack = get_pack("agentic")
+    result = pack.quality_gate(
+        RoleKind.TEACHER,
+        {
+            "confidence": 0.1,
+            "steps": [{"thought": "t", "action": "a", "action_input": {}, "observation": "o"}],
+            "final_answer": "done",
+            "reasoning": "r",
+        },
+    )
+    assert not result.passed
+    assert any("confidence" in reason for reason in result.reasons)
+
+
+def test_quality_gate_missing_reasoning():
+    pack = get_pack("agentic")
+    result = pack.quality_gate(
+        RoleKind.TEACHER,
+        {
+            "confidence": 0.9,
+            "steps": [{"thought": "t", "action": "a", "action_input": {}, "observation": "o"}],
+            "final_answer": "done",
+        },
+    )
+    assert not result.passed
+    assert any("missing reasoning" in reason for reason in result.reasons)
+
+
+def test_quality_gate_teacher_missing_final_answer():
+    pack = get_pack("agentic")
+    result = pack.quality_gate(
+        RoleKind.TEACHER,
+        {
+            "confidence": 0.9,
+            "steps": [{"thought": "t", "action": "a", "action_input": {}, "observation": "o"}],
+            "reasoning": "r",
+        },
+    )
+    assert not result.passed
+    assert any("missing final_answer" in reason for reason in result.reasons)

@@ -153,3 +153,52 @@ def test_student_input(ctf_case):
     text = pack.student_input(ctf_case)
     assert "Solve this CTF challenge." in text
     assert "gets()" in text
+
+
+def test_system_prompt_kinds():
+    pack = get_pack("ctf")
+    assert "CTF teacher" in pack.system_prompt("ctf_teacher", RoleKind.TEACHER)
+    assert "judge" in pack.system_prompt("judge", RoleKind.JUDGE).lower()
+    assert "devil" in pack.system_prompt("critic", RoleKind.CRITIC).lower()
+
+
+def test_critic_prompt(ctf_case):
+    pack = get_pack("ctf")
+    text = pack.critic_prompt("critic", ctf_case, [], {})
+    assert "gets()" in text
+
+
+def test_quality_gate_low_confidence():
+    pack = get_pack("ctf")
+    result = pack.quality_gate(
+        RoleKind.TEACHER,
+        {"confidence": 0.1, "technique": "x", "exploit_path": [], "reasoning": "r"},
+    )
+    assert not result.passed
+    assert any("confidence" in reason for reason in result.reasons)
+
+
+def test_quality_gate_missing_summary_and_reasoning():
+    pack = get_pack("ctf")
+    result = pack.quality_gate(
+        RoleKind.TEACHER, {"confidence": 0.9, "technique": "x", "exploit_path": []}
+    )
+    assert not result.passed
+    assert any("missing summary or reasoning" in reason for reason in result.reasons)
+
+
+def test_quality_gate_teacher_missing_reasoning_only():
+    pack = get_pack("ctf")
+    result = pack.quality_gate(
+        RoleKind.TEACHER,
+        {"confidence": 0.9, "technique": "x", "exploit_path": [], "summary": "s"},
+    )
+    assert not result.passed
+    assert any("missing reasoning" in reason for reason in result.reasons)
+
+
+def test_quality_gate_judge_missing_reasoning():
+    pack = get_pack("ctf")
+    result = pack.quality_gate(RoleKind.JUDGE, {"confidence": 0.9, "verdict": "unsolved"})
+    assert not result.passed
+    assert any("missing reasoning" in reason for reason in result.reasons)

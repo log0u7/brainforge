@@ -172,3 +172,49 @@ def test_finding_schema():
     finding = ReviewFinding(severity="medium", category="secrets", issue="hardcoded token")
     assert finding.location is None
     assert finding.suggested_fix is None
+
+
+def test_system_prompt_kinds():
+    pack = get_pack("code_review")
+    assert "security reviewer" in pack.system_prompt("review_teacher", RoleKind.TEACHER)
+    assert "judge" in pack.system_prompt("judge", RoleKind.JUDGE).lower()
+    assert "devil" in pack.system_prompt("critic", RoleKind.CRITIC).lower()
+
+
+def test_critic_prompt(review_case):
+    pack = get_pack("code_review")
+    text = pack.critic_prompt("critic", review_case, [], {})
+    assert "SELECT * FROM users" in text
+
+
+def test_quality_gate_low_confidence():
+    pack = get_pack("code_review")
+    result = pack.quality_gate(
+        RoleKind.TEACHER,
+        {"confidence": 0.1, "reasoning": "r", "summary": "s"},
+    )
+    assert not result.passed
+    assert any("confidence" in reason for reason in result.reasons)
+
+
+def test_quality_gate_missing_summary_and_reasoning():
+    pack = get_pack("code_review")
+    result = pack.quality_gate(RoleKind.TEACHER, {"confidence": 0.9})
+    assert not result.passed
+    assert any("missing summary or reasoning" in reason for reason in result.reasons)
+
+
+def test_quality_gate_teacher_missing_summary_only():
+    pack = get_pack("code_review")
+    result = pack.quality_gate(RoleKind.TEACHER, {"confidence": 0.9, "reasoning": "r"})
+    assert not result.passed
+    assert any("missing summary" in reason for reason in result.reasons)
+
+
+def test_quality_gate_judge_missing_reasoning():
+    pack = get_pack("code_review")
+    result = pack.quality_gate(
+        RoleKind.JUDGE, {"confidence": 0.9, "verdict": "approved", "findings": []}
+    )
+    assert not result.passed
+    assert any("missing reasoning" in reason for reason in result.reasons)

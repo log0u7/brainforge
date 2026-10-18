@@ -68,6 +68,12 @@ module = "datasets"
 follow_imports = "skip"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "brainforge.training.kd"
+# _KDTrainer mixin ignore is needed only when transformers is real (training
+# extra); without the extra transformers is Any and the ignore looks unused.
+warn_unused_ignores = false
+
 [tool.mutmut]
 source_paths = ["src/brainforge"]
 also_copy = ["config/", "examples/"]

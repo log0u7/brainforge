@@ -182,3 +182,42 @@ def test_finding_schema():
     finding = AuditFinding(area="authn", severity="medium", evidence="no rate limiting")
     assert finding.recommendation is None
     assert finding.priority is None
+
+
+def test_system_prompt_kinds():
+    pack = get_pack("security_audit")
+    assert "audit teacher" in pack.system_prompt("audit_teacher", RoleKind.TEACHER)
+    assert "judge" in pack.system_prompt("judge", RoleKind.JUDGE).lower()
+    assert "devil" in pack.system_prompt("critic", RoleKind.CRITIC).lower()
+
+
+def test_critic_prompt(audit_case):
+    pack = get_pack("security_audit")
+    text = pack.critic_prompt("critic", audit_case, [], {})
+    assert "create_token" in text
+
+
+def test_quality_gate_low_confidence():
+    pack = get_pack("security_audit")
+    result = pack.quality_gate(
+        RoleKind.TEACHER,
+        {"confidence": 0.1, "reasoning": "r", "summary": "s"},
+    )
+    assert not result.passed
+    assert any("confidence" in reason for reason in result.reasons)
+
+
+def test_quality_gate_missing_summary_and_reasoning():
+    pack = get_pack("security_audit")
+    result = pack.quality_gate(RoleKind.TEACHER, {"confidence": 0.9})
+    assert not result.passed
+    assert any("missing summary or reasoning" in reason for reason in result.reasons)
+
+
+def test_quality_gate_judge_missing_reasoning():
+    pack = get_pack("security_audit")
+    result = pack.quality_gate(
+        RoleKind.JUDGE, {"confidence": 0.9, "verdict": "audit_complete", "findings": []}
+    )
+    assert not result.passed
+    assert any("missing reasoning" in reason for reason in result.reasons)
