@@ -81,6 +81,9 @@ def run(
     strategy: Literal["qlora", "full"] | None = typer.Option(
         None, "--strategy", help="Override config training strategy (qlora or full)"
     ),
+    backend: Literal["trl", "unsloth"] | None = typer.Option(
+        None, "--backend", help="Override config training backend (trl or unsloth)"
+    ),
     output: Path = typer.Option(
         None,
         "--output",
@@ -94,9 +97,8 @@ def run(
     ),
     config: str = typer.Option(None, "--config", "-c"),
 ) -> None:
-    """Run QLoRA training (requires a CUDA GPU and the training extra)."""
+    """Run QLoRA or full fine-tuning (requires a CUDA GPU and the training extra)."""
     from brainforge.config import load_config
-    from brainforge.training.qlora import train_qlora
 
     cfg = load_config(config)
     training = cfg.training
@@ -107,6 +109,8 @@ def run(
         updates["base_model"] = base_model
     if strategy:
         updates["strategy"] = strategy
+    if backend:
+        updates["backend"] = backend
     if updates:
         training = training.model_copy(update=updates)
     run_name = datetime.now().strftime("run-%Y%m%d-%H%M%S-%f")
@@ -114,7 +118,11 @@ def run(
         output_dir = latest_run_dir(base=Path(training.output_dir))
     else:
         output_dir = output or Path(training.output_dir) / run_name
-    summary = train_qlora(training, dataset_dir, output_dir, resume=resume)
+    if training.backend == "unsloth":
+        from brainforge.training.unsloth_backend import train_unsloth as train_fn
+    else:
+        from brainforge.training.qlora import train_qlora as train_fn
+    summary = train_fn(training, dataset_dir, output_dir, resume=resume)
     console.print(f"[green]training done[/green] -> {summary['output_dir']}")
     for key, value in summary.items():
         console.print(f"  {key}: {value}")

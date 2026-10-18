@@ -98,26 +98,12 @@ def _lora_config(config: TrainingConfig) -> Any:
     )
 
 
-def train_qlora(
-    config: TrainingConfig,
-    dataset_dir: Path | str,
-    output_dir: Path | str,
-    resume: bool | str | Path = False,
-) -> dict:
-    """Run QLoRA fine-tuning on a prepared dataset and save the adapter."""
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    if resume:
-        resume = _latest_checkpoint(output_dir)
-    _require_cuda()
-    from trl import SFTConfig, SFTTrainer
+def _sft_config(
+    config: TrainingConfig, output_dir: Path, has_eval: bool, gradient_checkpointing: bool = True
+) -> Any:
+    from trl import SFTConfig
 
-    dataset_dir = Path(dataset_dir)
-    train_dataset = _messages_dataset(dataset_dir / "train.jsonl")
-    validation_path = dataset_dir / "validation.jsonl"
-    eval_dataset = _messages_dataset(validation_path) if validation_path.exists() else None
-
-    sft_args = SFTConfig(
+    return SFTConfig(
         output_dir=str(output_dir),
         num_train_epochs=config.epochs,
         learning_rate=config.learning_rate,
@@ -131,10 +117,10 @@ def train_qlora(
         packing=config.packing,
         assistant_only_loss=config.assistant_only_loss,
         model_init_kwargs={"attn_implementation": config.attn_implementation},
-        gradient_checkpointing=True,
+        gradient_checkpointing=gradient_checkpointing,
         bf16=True,
         logging_steps=1,
-        eval_strategy="steps" if eval_dataset else "no",
+        eval_strategy="steps" if has_eval else "no",
         eval_steps=10,
         save_strategy="steps",
         save_steps=config.save_steps,
@@ -142,6 +128,28 @@ def train_qlora(
         seed=config.seed,
         report_to=[],
     )
+
+
+def train_qlora(
+    config: TrainingConfig,
+    dataset_dir: Path | str,
+    output_dir: Path | str,
+    resume: bool | str | Path = False,
+) -> dict:
+    """Run QLoRA fine-tuning on a prepared dataset and save the adapter."""
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    if resume:
+        resume = _latest_checkpoint(output_dir)
+    _require_cuda()
+    from trl import SFTTrainer
+
+    dataset_dir = Path(dataset_dir)
+    train_dataset = _messages_dataset(dataset_dir / "train.jsonl")
+    validation_path = dataset_dir / "validation.jsonl"
+    eval_dataset = _messages_dataset(validation_path) if validation_path.exists() else None
+
+    sft_args = _sft_config(config, output_dir, eval_dataset is not None)
     sft_kwargs: dict[str, Any] = {
         "model": config.base_model,
         "args": sft_args,
@@ -156,6 +164,7 @@ def train_qlora(
     trainer.save_model(str(output_dir))
     summary = {
         "base_model": config.base_model,
+        "backend": "trl",
         "strategy": config.strategy,
         "quantization": config.quantization,
         "epochs": config.epochs,

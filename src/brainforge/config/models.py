@@ -100,6 +100,7 @@ class TrainingConfig(BaseModel):
     gradient_accumulation: int = Field(default=16, ge=1)
     quantization: Literal["4bit", "8bit", "none"] = "4bit"
     strategy: Literal["qlora", "full"] = "qlora"
+    backend: Literal["trl", "unsloth"] = "trl"
     save_steps: int = Field(default=100, ge=1)
     seed: int = Field(default=42, ge=0)
     output_dir: str = "experiments"

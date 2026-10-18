@@ -364,6 +364,15 @@
           "title": "Strategy",
           "type": "string"
         },
+        "backend": {
+          "default": "trl",
+          "enum": [
+            "trl",
+            "unsloth"
+          ],
+          "title": "Backend",
+          "type": "string"
+        },
         "save_steps": {
           "default": 100,
           "minimum": 1,
@@ -498,6 +507,7 @@
         "gradient_accumulation": 16,
         "quantization": "4bit",
         "strategy": "qlora",
+        "backend": "trl",
         "save_steps": 100,
         "seed": 42,
         "output_dir": "experiments",

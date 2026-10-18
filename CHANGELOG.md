@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Unsloth training backend: `TrainingConfig.backend` (`trl` default,
+  `unsloth`), `train run --backend {trl,unsloth}`, and the opt-in
+  `unsloth` extra (`uv sync --extra unsloth`). The backend swaps model
+  loading and the trainer wrapper only; dataset preparation, splits and
+  `train_summary.json` stay identical (the summary now records the
+  backend). Unsloth supports 4bit or unquantized loading; 8bit fails fast
+  with a pointer to the trl backend. SFTConfig construction is shared
+  between both backends.
 - Full fine-tuning strategy: `TrainingConfig.strategy` (`qlora` default,
   `full`) and `train run --strategy {qlora,full}`. `full` trains every
   weight in bf16 without quantization or a LoRA adapter (needs more VRAM);
