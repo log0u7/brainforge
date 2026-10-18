@@ -173,6 +173,11 @@ class KDTrainer:
 
 def _tokenize_row(record: dict, teacher: dict, tokenizer: Any) -> dict:
     messages = record["messages"]
+    if any(message.get("role") == "tool" for message in messages):
+        raise BrainforgeError(
+            f"dataset record '{record['id']}' contains tool messages; knowledge "
+            "distillation supports single-turn records only"
+        )
     content = messages[-1]["content"]
     if tokenizer.chat_template is None:
         raise BrainforgeError(

@@ -15,7 +15,7 @@ from brainforge.errors import BrainforgeError
 from brainforge.pipeline.engine import PipelineEngine, run_pipeline
 from brainforge.providers.base import ChatRequest, ChatResponse, PositionLogprobs, Provider
 from brainforge.providers.mock import MockProvider
-from brainforge.training.kd import align_teacher_positions
+from brainforge.training.kd import _tokenize_row, align_teacher_positions
 
 runner = CliRunner()
 
@@ -357,3 +357,40 @@ def test_train_kd_requires_sidecar(tmp_path):
     (dataset_dir / "train.jsonl").write_text(json.dumps(record) + "\n")
     with pytest.raises(BrainforgeError, match=r"kd\.jsonl"):
         train_kd(TrainingConfig(), dataset_dir, tmp_path / "run")
+
+
+class _FakeChatTokenizer:
+    """Renders one token per message as '<role>:<content>;'.
+
+    The ';' makes rfind(content) land inside the matching assistant turn, so a
+    message whose content also appears earlier still resolves to the last
+    occurrence.
+    """
+
+    chat_template = "stub"
+
+    def __call__(self, text, add_special_tokens=False):
+        return {"input_ids": [ord(char) for char in text]}
+
+    def decode(self, ids):
+        return "".join(chr(i) for i in ids if isinstance(i, int))
+
+    def get_vocab(self):
+        return {chr(i): i for i in range(128)}
+
+    def apply_chat_template(self, messages, tokenize=False):
+        return "".join(f"{m['role']}:{m['content']};" for m in messages)
+
+
+def test_tokenize_row_rejects_multi_turn_record():
+    record = {
+        "id": "agent-1",
+        "messages": [
+            {"role": "user", "content": "task"},
+            {"role": "assistant", "content": '{"action":"ls"}'},
+            {"role": "tool", "content": "obs"},
+            {"role": "assistant", "content": "final"},
+        ],
+    }
+    with pytest.raises(BrainforgeError, match="tool messages"):
+        _tokenize_row(record, {"positions": []}, _FakeChatTokenizer())
