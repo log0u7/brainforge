@@ -50,12 +50,12 @@ def test_unexpected_role_and_empty_content():
     record = make_record(
         messages=[
             {"role": "user", "content": "  "},
-            {"role": "tool", "content": "data"},
+            {"role": "banana", "content": "data"},
             {"role": "assistant", "content": '{"ok": true}'},
         ]
     )
     errors = validate_record(record)
-    assert any("unexpected message role 'tool'" in error for error in errors)
+    assert any("unexpected message role 'banana'" in error for error in errors)
     assert any("empty content in 'user' message" in error for error in errors)
 
 

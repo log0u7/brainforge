@@ -2,6 +2,8 @@ import json
 
 from brainforge.dataset.writer import DatasetRecord
 
+_ALLOWED_ROLES = {"user", "assistant", "system", "tool"}
+
 
 def validate_record(record: dict) -> list[str]:
     errors: list[str] = []
@@ -16,11 +18,13 @@ def validate_record(record: dict) -> list[str]:
         errors.append("first message must be from the user")
     if messages[-1].role != "assistant":
         errors.append("last message must be from the assistant")
-    for message in messages:
-        if message.role not in {"user", "assistant", "system"}:
+    for index, message in enumerate(messages):
+        if message.role not in _ALLOWED_ROLES:
             errors.append(f"unexpected message role '{message.role}'")
         if not message.content.strip():
             errors.append(f"empty content in '{message.role}' message")
+        if message.role == "tool" and (index == 0 or messages[index - 1].role != "assistant"):
+            errors.append("tool message must follow an assistant message")
     try:
         json.loads(messages[-1].content)
     except json.JSONDecodeError as exc:

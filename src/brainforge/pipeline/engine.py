@@ -256,15 +256,14 @@ class PipelineEngine:
     def _record(
         self, case: Case, canonical: dict, metadata: dict, raw_assistant: str | None = None
     ) -> "DatasetRecord":
-        from brainforge.dataset.writer import build_record
+        from brainforge.dataset.writer import DatasetRecord
 
-        return build_record(
-            case=case,
+        messages = self.pack.build_messages(self.pack.student_input(case), canonical, raw_assistant)
+        return DatasetRecord(
+            id=case.id,
             domain=self.pipeline.domain,
-            student_input=self.pack.student_input(case),
-            canonical=canonical,
+            messages=messages,
             metadata=metadata,
-            raw_assistant=raw_assistant,
         )
 
 

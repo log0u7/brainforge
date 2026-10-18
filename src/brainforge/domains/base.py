@@ -1,9 +1,11 @@
+import json
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import BaseModel, Field
 
 from brainforge.errors import ConfigError
+from brainforge.providers.base import ChatMessage
 from brainforge.types import Mode, RoleKind
 
 if TYPE_CHECKING:
@@ -142,3 +144,26 @@ class DomainPack(ABC):
                 "declare explicit steps in the pipeline configuration"
             )
         return steps
+
+    def build_messages(
+        self,
+        student_input: str,
+        canonical: dict,
+        raw_assistant: str | None = None,
+    ) -> list[ChatMessage]:
+        """Messages of the dataset record for this pack.
+
+        Default: one user turn and one assistant turn (the canonical verdict
+        as JSON, or the teacher's exact output in KD mode). Packs whose gold
+        output is not a single JSON blob (e.g. agentic trajectories) override
+        this to emit multi-turn records with `tool` observations.
+        """
+        assistant_content = (
+            raw_assistant
+            if raw_assistant is not None
+            else json.dumps(canonical, ensure_ascii=False, indent=2)
+        )
+        return [
+            ChatMessage(role="user", content=student_input),
+            ChatMessage(role="assistant", content=assistant_content),
+        ]
