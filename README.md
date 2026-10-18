@@ -13,8 +13,9 @@ adversarial critic, an independent judge) into a verified dataset, then
 trains an open student model on it: QLoRA for a fast first pass, full
 fine-tuning for the decision model, optional logit distillation, GGUF/Ollama
 export to ship it. Domains are pluggable: `security` and `coding` are the
-reference packs (where the rigor was proven), `ticket_triage` is a
-non-security example, and any domain without a pack falls back to a generic
+reference packs (where the rigor was proven), `ticket_triage`, `ctf`,
+`code_review`, `security_audit` and `agentic` show non-security and
+agentic-shaped domains, and any domain without a pack falls back to a generic
 one.
 
 Born from a security problem: you cannot trust one LLM's verdict, models

@@ -71,6 +71,20 @@ working unchanged.
   judge schemas, quality gate, and example cases. Registered alongside
   `security` and `coding`; usable through the existing pipeline with any
   provider, including local models via the `local` provider type.
+- Four example domain packs demonstrating the pack surface beyond security:
+  `ctf` (challenge solving: category, technique, exploit path, flag),
+  `code_review` (pull-request review: findings, risk, suggested patch, gate
+  forbids "approved" with high/critical findings), `security_audit` (system
+  audit: findings with area/priority, gate forbids critical severity at
+  p3), and `agentic` (multi-turn tool-use trajectories). Each has a teacher
+  and judge schema, a quality gate, and example cases.
+- Multi-turn dataset records: the `agentic` pack emits assistant tool calls
+  interleaved with `tool` observations via the new
+  `DomainPack.build_messages(student_input, canonical, raw_assistant)` hook
+  (default remains two-turn user+assistant). Dataset validation accepts the
+  `tool` role when it follows an assistant message.
+- `train run --kd` rejects multi-turn records with a clear error (knowledge
+  distillation aligns a single assistant turn).
 
 ### Changed
 

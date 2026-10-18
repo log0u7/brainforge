@@ -28,6 +28,28 @@ consumed by validation, deduplication, splitting and training. Decision:
 
 The student sees only `messages`. Metadata is for tooling and audit.
 
+## Multi-turn records (agentic)
+
+The `agentic` pack emits multi-turn records that interleave assistant tool
+calls with `tool` observations, then end on an assistant verdict:
+
+```json
+{
+  "domain": "agentic",
+  "messages": [
+    {"role": "user", "content": "task + available tools"},
+    {"role": "assistant", "content": "{\"thought\": \"...\", \"action\": \"ls\", \"action_input\": {}}"},
+    {"role": "tool", "content": "a.py b.py"},
+    {"role": "assistant", "content": "{\"verdict\": \"valid\", ...}"}
+  ]
+}
+```
+
+Rules beyond the two-turn case: every `tool` message must immediately follow
+an `assistant` message; the last message is still `assistant` (the verdict).
+`train run --kd` rejects multi-turn records (knowledge distillation aligns a
+single assistant turn), so exclude them from KD datasets.
+
 ## `metadata` keys
 
 | Key | Type | Description |
@@ -50,8 +72,9 @@ The student sees only `messages`. Metadata is for tooling and audit.
 
 - record parses against the schema;
 - first message is `user`, last is `assistant`, roles in
-  {system, user, assistant}, no empty content;
-- assistant content parses as JSON;
+  {system, user, assistant, tool}, no empty content;
+- each `tool` message follows an `assistant` message;
+- for two-turn records, assistant content parses as JSON;
 - metadata contains `source`, `teachers`, `quality`, `recitation_risk`;
 - `metadata.quality.passed` is `true`.
 
