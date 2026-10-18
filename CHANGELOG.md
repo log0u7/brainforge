@@ -5,7 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2026-10-18
+
+BrainForge becomes a generic distillation and fine-tuning framework: born
+from a security problem, generalized to any domain. Security stays the
+reference domain pack; every other domain inherits the verification
+machinery (judge independence, contamination tagging, post-cutoff holdout)
+by default. All changes are additive; existing security workflows keep
+working unchanged.
 
 ### Added
 
@@ -71,6 +78,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   template, previously duplicated across the `security` and `coding` packs,
   are now shared constants in `brainforge.domains.base`. Behavior is
   unchanged; new packs reuse them instead of copying.
+- Provider structured output: the retry loop is extracted into
+  `_structured_with` and reused by `structured_logprobs`; the
+  OpenAI-compatible provider shares one retry helper between `complete`
+  and `complete_logprobs`. Behavior unchanged.
+- Docs repositioned around the generic framework: README narrative
+  (origin + pivot, quickstart, two-phase workflow), full CLI reference
+  (the train-as-stub drift is fixed and guarded by a test), complete
+  training configuration table, new how-to (ship to Ollama) and
+  explanation (knowledge distillation) pages, 5 new ADRs, `ticket_triage`
+  tutorial.
+- `clamp_errors` moved from `train_cmd` to `cli/_common` for reuse by the
+  train and abliterate commands.
+- Dependency audit: one documented waiver (`--ignore-vuln
+  PYSEC-2026-4217`) for fsspec<=2026.2.0, transitive via torch/datasets
+  http extra and unfixable while the unsloth extra requires datasets<5.0
+  (datasets 4.8.x caps fsspec at 2026.2.0). Re-check when unsloth
+  supports datasets>=5.1.
 
 ## [0.2.0] - 2026-09-28
 
