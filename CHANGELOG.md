@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Abliteration (experimental): `brainforge abliterate run --model <id|dir>
+  --calibration <prompts.jsonl> --output <dir> [--layers all|0,2,...]`
+  computes a single refusal direction (mean hidden-state difference between
+  harmful and benign calibration prompts at a 2/3-depth layer) and projects
+  every attention output and MLP down projection orthogonal to it, saving
+  the modified model plus `ablation_stats.json` (direction norm before and
+  after, suppression ratio). Requires the training extra (CPU or GPU).
+  Quality is a heuristic, not a guarantee.
 - GGUF export: `train export --format gguf` converts a merged student to a
   quantized GGUF (default Q4_K_M, `--quant`) via llama.cpp
   (`convert_hf_to_gguf.py` + `llama-quantize`), writes a `Modelfile`, and

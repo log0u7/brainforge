@@ -1,6 +1,7 @@
 import typer
 
 from brainforge.cli import (
+    abliterate_cmd,
     config_cmd,
     dataset_cmd,
     models_cmd,
@@ -29,7 +30,12 @@ for sub_app, name, help_text in [
     (pipeline_cmd, "pipeline", "Run dataset generation pipelines."),
     (rag_cmd, "rag", "Local RAG index and search."),
     (dataset_cmd, "dataset", "Dataset utilities."),
-    (train_cmd, "train", "Training: prepare datasets, run QLoRA, evaluate, export."),
+    (
+        train_cmd,
+        "train",
+        "Training: prepare datasets, run QLoRA or full fine-tuning, evaluate, export.",
+    ),
+    (abliterate_cmd, "abliterate", "Abliteration: remove refusal directions (experimental)."),
 ]:
     app.add_typer(sub_app.app, name=name, help=help_text)
 

@@ -1,34 +1,16 @@
-from collections.abc import Callable
 from datetime import datetime
-from functools import wraps
 from pathlib import Path
 from typing import Any, Literal
 
 import typer
 
-from brainforge.cli._common import console, err_console
+from brainforge.cli._common import clamp_errors, console
 from brainforge.errors import BrainforgeError
 
 app = typer.Typer(
-    help="Training: prepare datasets, run QLoRA, evaluate, export.", no_args_is_help=True
+    help="Training: prepare datasets, run QLoRA or full fine-tuning, evaluate, export.",
+    no_args_is_help=True,
 )
-
-
-def _clamp_errors(label: str) -> Callable:
-    """Turn expected failures (BrainforgeError and OS errors) into a clean exit."""
-
-    def decorator(fn: Callable) -> Callable:
-        @wraps(fn)
-        def wrapper(*args: object, **kwargs: object) -> Any:
-            try:
-                return fn(*args, **kwargs)
-            except (BrainforgeError, OSError) as exc:
-                err_console.print(f"[red]{label} failed:[/red] {exc}")
-                raise typer.Exit(code=1) from exc
-
-        return wrapper
-
-    return decorator
 
 
 def latest_run_dir(base: Path | None = None) -> Path:
@@ -47,7 +29,7 @@ def latest_run_dir(base: Path | None = None) -> Path:
 
 
 @app.command("prepare")
-@_clamp_errors("prepare")
+@clamp_errors("prepare")
 def prepare(
     dataset: Path = typer.Argument(..., help="Path to dataset.jsonl"),
     output_dir: Path = typer.Option(None, "--output", "-o"),
@@ -66,7 +48,7 @@ def prepare(
 
 
 @app.command("run")
-@_clamp_errors("training")
+@clamp_errors("training")
 def run(
     dataset_dir: Path = typer.Option(
         Path("datasets/prepared"),
@@ -129,7 +111,7 @@ def run(
 
 
 @app.command("evaluate")
-@_clamp_errors("evaluation")
+@clamp_errors("evaluation")
 def evaluate(
     model: Path = typer.Option(
         None, "--model", "-m", help="Trained adapter directory (default: latest run)"
@@ -162,7 +144,7 @@ def evaluate(
 
 
 @app.command("chat")
-@_clamp_errors("chat")
+@clamp_errors("chat")
 def chat(
     model: Path = typer.Option(
         None, "--model", "-m", help="Trained adapter or merged model (default: latest run)"
@@ -176,7 +158,7 @@ def chat(
 
 
 @app.command("task-eval")
-@_clamp_errors("task evaluation")
+@clamp_errors("task evaluation")
 def task_eval(
     model: Path = typer.Option(
         None, "--model", "-m", help="Trained adapter or merged model (default: latest run)"
@@ -213,7 +195,7 @@ def task_eval(
 
 
 @app.command("export")
-@_clamp_errors("export")
+@clamp_errors("export")
 def export(
     model: Path = typer.Option(
         None, "--model", "-m", help="Trained adapter directory (default: latest run)"

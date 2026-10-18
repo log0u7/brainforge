@@ -1,10 +1,13 @@
+from collections.abc import Callable
+from functools import wraps
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import typer
 from rich.console import Console
 
 from brainforge.case import Case
+from brainforge.errors import BrainforgeError
 
 if TYPE_CHECKING:
     from brainforge.config.models import Config
@@ -14,6 +17,23 @@ console = Console()
 err_console = Console(stderr=True)
 
 CONFIG_OPTION = typer.Option(None, "--config", "-c", help="Path to config.json")
+
+
+def clamp_errors(label: str) -> Callable:
+    """Turn expected failures (BrainforgeError and OS errors) into a clean exit."""
+
+    def decorator(fn: Callable) -> Callable:
+        @wraps(fn)
+        def wrapper(*args: object, **kwargs: object) -> Any:
+            try:
+                return fn(*args, **kwargs)
+            except (BrainforgeError, OSError) as exc:
+                err_console.print(f"[red]{label} failed:[/red] {exc}")
+                raise typer.Exit(code=1) from exc
+
+        return wrapper
+
+    return decorator
 
 
 def load_config_or_exit(config_path: str | None) -> "Config":
