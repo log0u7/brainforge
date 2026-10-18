@@ -5,7 +5,110 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2026-10-18
+
+BrainForge becomes a generic distillation and fine-tuning framework: born
+from a security problem, generalized to any domain. Security stays the
+reference domain pack; every other domain inherits the verification
+machinery (judge independence, contamination tagging, post-cutoff holdout)
+by default. All changes are additive; existing security workflows keep
+working unchanged.
+
+### Added
+
+- Quickstart command: `brainforge quickstart run --domain <pack> [--input
+  <dir>] [--provider mock] [--base-model X] [--epochs 1] [--strategy
+  qlora|full] [--backend trl|unsloth] [--kd]` chains the pipeline, split
+  preparation, training and evaluation in one command, then prints the
+  next steps (GGUF/Ollama export, chat, full fine-tuning). The train step
+  requires a CUDA GPU and the training extra; the dataset steps run
+  anywhere, so `--provider mock` is a zero-cost dry run of the whole chain.
+  `train_cmd.train_student` is extracted as the shared backend dispatch
+  used by `train run` and `quickstart`.
+- Knowledge distillation (experimental): `pipeline run --kd` records the
+  judge's per-token top-k logprobs into a `<dataset>.kd.jsonl` sidecar, and
+  `train run --kd` trains with `alpha * T^2 * CE(student_T, teacher_topk_T)
+  + (1 - alpha) * CE(gold)`. New `TrainingConfig` fields `kd_alpha` (0.5),
+  `kd_temperature` (2.0), `kd_topk` (8). Providers serve logprobs through
+  the OpenAI-compatible chat completions API (`logprobs=true`); the mock
+  provider produces word-level positions for offline runs. In KD mode the
+  dataset record stores the teacher's exact output (not a re-serialization)
+  so sidecar positions align with the student's gold tokens; teacher
+  positions are mapped onto student tokens by character midpoint, so
+  student and teacher may use different tokenizers. Top-k tokens absent
+  from the student vocabulary are dropped with the teacher distribution
+  renormalized. Packing is rejected for KD training.
+- Abliteration (experimental): `brainforge abliterate run --model <id|dir>
+  --calibration <prompts.jsonl> --output <dir> [--layers all|0,2,...]`
+  computes a single refusal direction (mean hidden-state difference between
+  harmful and benign calibration prompts at a 2/3-depth layer) and projects
+  every attention output and MLP down projection orthogonal to it, saving
+  the modified model plus `ablation_stats.json` (direction norm before and
+  after, suppression ratio). Requires the training extra (CPU or GPU).
+  Quality is a heuristic, not a guarantee.
+- GGUF export: `train export --format gguf` converts a merged student to a
+  quantized GGUF (default Q4_K_M, `--quant`) via llama.cpp
+  (`convert_hf_to_gguf.py` + `llama-quantize`), writes a `Modelfile`, and
+  with `--ollama <name>` registers the model with Ollama when the binary
+  is available. llama.cpp is located via `--llama-cpp-path`, the
+  `LLAMA_CPP_DIR` env var, or PATH; missing tools fail fast with an
+  install pointer. The produced GGUF can be distributed with llmp2p
+  (`llmp2p import --ollama <output-dir>` then `llmp2p seed`).
+- Unsloth training backend: `TrainingConfig.backend` (`trl` default,
+  `unsloth`), `train run --backend {trl,unsloth}`, and the opt-in
+  `unsloth` extra (`uv sync --extra unsloth`). The backend swaps model
+  loading and the trainer wrapper only; dataset preparation, splits and
+  `train_summary.json` stay identical (the summary now records the
+  backend). Unsloth supports 4bit or unquantized loading; 8bit fails fast
+  with a pointer to the trl backend. SFTConfig construction is shared
+  between both backends.
+- Full fine-tuning strategy: `TrainingConfig.strategy` (`qlora` default,
+  `full`) and `train run --strategy {qlora,full}`. `full` trains every
+  weight in bf16 without quantization or a LoRA adapter (needs more VRAM);
+  `qlora` behavior is unchanged. `train_summary.json` records the strategy.
+- `ticket_triage` domain pack: IT helpdesk triage (classification, business
+  priority, team routing, first-response draft) with dedicated teacher and
+  judge schemas, quality gate, and example cases. Registered alongside
+  `security` and `coding`; usable through the existing pipeline with any
+  provider, including local models via the `local` provider type.
+- Four example domain packs demonstrating the pack surface beyond security:
+  `ctf` (challenge solving: category, technique, exploit path, flag),
+  `code_review` (pull-request review: findings, risk, suggested patch, gate
+  forbids "approved" with high/critical findings), `security_audit` (system
+  audit: findings with area/priority, gate forbids critical severity at
+  p3), and `agentic` (multi-turn tool-use trajectories). Each has a teacher
+  and judge schema, a quality gate, and example cases.
+- Multi-turn dataset records: the `agentic` pack emits assistant tool calls
+  interleaved with `tool` observations via the new
+  `DomainPack.build_messages(student_input, canonical, raw_assistant)` hook
+  (default remains two-turn user+assistant). Dataset validation accepts the
+  `tool` role when it follows an assistant message.
+- `train run --kd` rejects multi-turn records with a clear error (knowledge
+  distillation aligns a single assistant turn).
+
+### Changed
+
+- Judge and general-critic system prompts and the general critic prompt
+  template, previously duplicated across the `security` and `coding` packs,
+  are now shared constants in `brainforge.domains.base`. Behavior is
+  unchanged; new packs reuse them instead of copying.
+- Provider structured output: the retry loop is extracted into
+  `_structured_with` and reused by `structured_logprobs`; the
+  OpenAI-compatible provider shares one retry helper between `complete`
+  and `complete_logprobs`. Behavior unchanged.
+- Docs repositioned around the generic framework: README narrative
+  (origin + pivot, quickstart, two-phase workflow), full CLI reference
+  (the train-as-stub drift is fixed and guarded by a test), complete
+  training configuration table, new how-to (ship to Ollama) and
+  explanation (knowledge distillation) pages, 5 new ADRs, `ticket_triage`
+  tutorial.
+- `clamp_errors` moved from `train_cmd` to `cli/_common` for reuse by the
+  train and abliterate commands.
+- Dependency audit: one documented waiver (`--ignore-vuln
+  PYSEC-2026-4217`) for fsspec<=2026.2.0, transitive via torch/datasets
+  http extra and unfixable while the unsloth extra requires datasets<5.0
+  (datasets 4.8.x caps fsspec at 2026.2.0). Re-check when unsloth
+  supports datasets>=5.1.
 
 ## [0.2.0] - 2026-09-28
 

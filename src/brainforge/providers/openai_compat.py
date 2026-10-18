@@ -1,11 +1,18 @@
 import time
+from typing import Any
 
 import httpx
 from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI
 
 from brainforge.config.models import ProviderConfig
 from brainforge.errors import ProviderError, ProviderNotSupportedError, ProviderUnavailableError
-from brainforge.providers.base import ChatRequest, ChatResponse, Provider, Usage
+from brainforge.providers.base import (
+    ChatRequest,
+    ChatResponse,
+    PositionLogprobs,
+    Provider,
+    Usage,
+)
 from brainforge.types import ApiStyle
 
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
@@ -38,11 +45,14 @@ class OpenAICompatProvider(Provider):
             http_client=http_client,  # type: ignore[arg-type]  # openai>=3 types httpx2 but accepts httpx at runtime
         )
 
-    def complete(self, request: ChatRequest, model: str) -> ChatResponse:
+    def _create_with_retries(
+        self, request: ChatRequest, model: str, extra_kwargs: dict[str, Any]
+    ) -> tuple[Any, float, int]:
         kwargs: dict = {
             "model": model,
             "messages": [{"role": m.role, "content": m.content} for m in request.messages],
             "temperature": request.temperature,
+            **extra_kwargs,
         }
         if request.top_p is not None:
             kwargs["top_p"] = request.top_p
@@ -55,18 +65,7 @@ class OpenAICompatProvider(Provider):
                 start = time.perf_counter()
                 response = self._client.chat.completions.create(**kwargs)
                 latency_ms = (time.perf_counter() - start) * 1000
-                usage = response.usage
-                return ChatResponse(
-                    content=response.choices[0].message.content,
-                    provider=self.name,
-                    model=model,
-                    usage=Usage(
-                        input_tokens=getattr(usage, "prompt_tokens", 0) or 0,
-                        output_tokens=getattr(usage, "completion_tokens", 0) or 0,
-                    ),
-                    latency_ms=latency_ms,
-                    retries=attempt,
-                )
+                return response, latency_ms, attempt
             except (APITimeoutError, APIConnectionError, APIStatusError) as exc:
                 status = getattr(exc, "status_code", None)
                 if isinstance(exc, APIStatusError) and status not in _RETRYABLE_STATUS:
@@ -79,4 +78,47 @@ class OpenAICompatProvider(Provider):
                     time.sleep(min(2**attempt * 0.5, 8.0))
         raise ProviderUnavailableError(
             f"provider '{self.name}' failed after {attempts} attempts: {last_error}"
+        )
+
+    def complete(self, request: ChatRequest, model: str) -> ChatResponse:
+        response, latency_ms, retries = self._create_with_retries(request, model, {})
+        usage = response.usage
+        return ChatResponse(
+            content=response.choices[0].message.content,
+            provider=self.name,
+            model=model,
+            usage=Usage(
+                input_tokens=getattr(usage, "prompt_tokens", 0) or 0,
+                output_tokens=getattr(usage, "completion_tokens", 0) or 0,
+            ),
+            latency_ms=latency_ms,
+            retries=retries,
+        )
+
+    def complete_logprobs(
+        self, request: ChatRequest, model: str, top_logprobs: int = 8
+    ) -> ChatResponse:
+        response, latency_ms, retries = self._create_with_retries(
+            request, model, {"logprobs": True, "top_logprobs": top_logprobs}
+        )
+        choice = response.choices[0]
+        positions: list[PositionLogprobs] = []
+        raw = getattr(choice, "logprobs", None)
+        for entry in getattr(raw, "content", None) or []:
+            topk = [(item.token, item.logprob) for item in (entry.top_logprobs or [])][
+                :top_logprobs
+            ]
+            positions.append(PositionLogprobs(token=entry.token, logprob=entry.logprob, topk=topk))
+        usage = response.usage
+        return ChatResponse(
+            content=choice.message.content,
+            provider=self.name,
+            model=model,
+            usage=Usage(
+                input_tokens=getattr(usage, "prompt_tokens", 0) or 0,
+                output_tokens=getattr(usage, "completion_tokens", 0) or 0,
+            ),
+            latency_ms=latency_ms,
+            retries=retries,
+            logprobs=positions,
         )

@@ -1,0 +1,17 @@
+{
+  "id": "agent-refactor-001",
+  "source": {
+    "type": "task",
+    "repository": "example-app",
+    "path": "src/reporting.py",
+    "date": "2026-09-05"
+  },
+  "input": {
+    "code": "[\n  {\"name\": \"read_file\", \"description\": \"Read a file by path\"},\n  {\"name\": \"search\", \"description\": \"Search the codebase by keyword\"},\n  {\"name\": \"apply_patch\", \"description\": \"Apply a unified diff patch\"}\n]",
+    "description": "Task: reporting.py has three copy-pasted export functions that only differ by the file format. Extract a shared helper without changing behaviour.",
+    "question": "Refactor the duplicated export functions into a single helper."
+  },
+  "metadata": {
+    "language": "python"
+  }
+}

@@ -20,8 +20,8 @@ resolve, gates run) without spending tokens.
 
 ## 2. Choose the cost mode
 
-Pipelines have a `mode` in config; override per run with `--mode` by editing
-`config.json`:
+Pipelines carry a `mode` in config (there is no per-run `--mode` flag; the
+mode lives in `pipelines.<name>.mode`):
 
 | Mode | Security preset | Use |
 |---|---|---|
@@ -43,7 +43,17 @@ with a cached, logged, structured-output call, the judge produces the
 canonical verdict, and the quality gate decides accept/reject.
 
 Options: `--fresh` (bypass cache), `--no-rag`, `--output/-o`,
-`--experiment <name>`.
+`--experiment <name>`, `--kd` (record judge logprobs for distillation).
+
+## 4. Distill instead of one-shot (optional)
+
+```bash
+uv run brainforge pipeline run ticket_triage --input data/raw --kd
+```
+
+Writes `datasets/ticket_triage.kd.jsonl` with the judge's per-token top-k
+logprobs; `train run --kd` then trains with a distillation term. See
+[knowledge distillation](../explanation/knowledge-distillation.md).
 
 ## 4. Watch the run
 

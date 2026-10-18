@@ -1,8 +1,8 @@
 # Architecture
 
-BrainForge turns local, real-world material into verified training examples
-and trains small local models on them. This page explains how the components
-fit together and why the boundaries are where they are.
+BrainForge distills a multi-teacher LLM ensemble into a verified dataset
+and trains an open student model on it. This page explains how the
+components fit together and why the boundaries are where they are.
 
 ## Component map
 
@@ -10,14 +10,17 @@ fit together and why the boundaries are where they are.
 src/brainforge/
 ├── case.py           Case / CaseSource / CaseInput models
 ├── config/           pydantic config models, loader, env expansion, schema export
-├── providers/        Provider abstraction, adapters, cache, observability
+├── providers/        Provider abstraction, adapters, cache, observability, logprobs
 ├── models/registry   model name -> ModelDef + provider instance
 ├── roles/registry    role name -> RoleBinding (kind, model, provider)
 ├── domains/          domain packs: schemas, prompts, quality gates
-├── pipeline/         engine, context, judge helpers
+│                     (security + coding reference packs, ticket_triage,
+│                      ctf, code_review, security_audit, agentic, generic)
+├── pipeline/         engine, context, judge helpers, KD sidecar capture
 ├── rag/              loaders, chunking, embeddings, vector store, retrieval
 ├── dataset/          case builder, writer, validation, gate, dedup, split
-├── training/         prepare/export, QLoRA stub, GPU smoke test
+├── training/         prepare, qlora (trl), unsloth backend, kd trainer,
+│                     abliteration, gguf export, smoke tests
 └── experiments/      run directories, metrics, reports
 ```
 
@@ -29,27 +32,34 @@ src/brainforge/
 2. **RAG context** (`rag/`). The engine queries the local index with the case
    description; retrieved chunks are formatted into teacher prompts and their
    provenance copied into the record. Context is generation-only: it never
-   reaches student training inputs.
+   reaches student training inputs. Index your business history here
+   (resolved tickets, KB articles) to feed phase 2 of the workflow.
 3. **Steps** (`pipeline/engine.py`). For each role, the engine resolves the
    role binding (kind, model, provider), asks the domain pack for the output
    schema and prompt, and calls the provider through the cache-wrapped
-   abstraction.
+   abstraction. In KD mode the judge call additionally requests per-token
+   top-k logprobs.
 4. **Judge**. The final judge role receives case, RAG context and all teacher
    analyses, then produces the canonical structured verdict after an
    adversarial re-derivation pass.
 5. **Quality gate**. The domain pack's gate checks evidence, CWE format,
    confidence and reasoning; unresolved verdicts and (optionally)
    `recitation_risk` records are rejected.
-6. **Dataset**. Accepted records append to `datasets/<pipeline>.jsonl`;
-   rejected ones land in `data/rejected/<pipeline>/<case>.json` with reasons.
+6. **Dataset**. Accepted records append to `datasets/<pipeline>.jsonl`
+   (plus `datasets/<pipeline>.kd.jsonl` in KD mode); rejected ones land in
+   `data/rejected/<pipeline>/<case>.json` with reasons.
 7. **Splits and training**. `train prepare` validates, splits source-grouped
    and exports TRL-ready JSONL, including the post-cutoff holdout.
+8. **Training** (`training/`). `train run` dispatches by backend
+   (`trl`/`unsloth`) and strategy (`qlora`/`full`), or `--kd` for
+   distillation; `train export` merges and converts to GGUF/Ollama
+   ([KD details](knowledge-distillation.md)).
 
 ## The separation that matters: Provider ≠ Model ≠ Role ≠ Pipeline
 
 | Layer | Answers | Example |
 |---|---|---|
-| Provider | *How do we reach an LLM?* | `openrouter`, `zen`, `mlgw`, `mock` |
+| Provider | *How do we reach an LLM?* | `openrouter`, `zen`, `mlgw`, `mock`, `local` (Ollama) |
 | Model | *Which model, declared once?* | `security` -> deepseek-v4-pro |
 | Role | *What function does it serve?* | `security_teacher`, `judge` |
 | Pipeline | *Which roles, in which order?* | `security_dataset` |
@@ -66,7 +76,12 @@ teacher ablation (ADR-0002) a config change instead of a refactor.
   (see [provider ADR](../adr/0004-provider-abstraction-openai-sdk.md)).
 - `dataset/` stays import-light; the engine imports the writer lazily to keep
   the module graph acyclic.
-- `training/` reads datasets; it never generates them.
+- `training/` reads datasets; it never generates them. Heavy dependencies
+  (torch, trl, peft, transformers, bitsandbytes, unsloth) are imported
+  lazily inside functions so the base package and the unit suite run
+  without the training extra.
+- `providers/` is the only path to an LLM API; logprobs ride the same
+  abstraction (`structured_logprobs` over `complete_logprobs`).
 
 ## Roles in one sentence each
 
@@ -76,8 +91,10 @@ teacher ablation (ADR-0002) a config change instead of a refactor.
 - **Critic** (general teacher): independent counter-analysis hunting
   contradictions and missing information.
 - **Judge**: canonical verdict; must re-derive conclusions from evidence.
+  In KD mode its token-level distribution is the distillation signal.
 - **Dataset**: verified training knowledge with full provenance.
-- **Student**: the small local model trained on that dataset.
+- **Student**: the small local model trained on that dataset, exported to
+  Ollama or distributed as GGUF.
 
 ## Design invariants
 
@@ -88,5 +105,8 @@ teacher ablation (ADR-0002) a config change instead of a refactor.
 3. Source dates are mandatory for evaluation claims; post-cutoff cases are
    the benchmark signal.
 4. Provenance travels with every record.
-5. Quality beats volume: gates, deduplication and rejected-case quarantine are
-   the default.
+5. Quality beats volume: gates, deduplication and rejected-case quarantine
+   are the default.
+6. Security is the reference domain, not the identity: the
+   contamination/judge-independence machinery was proven there and every
+   other domain inherits it.

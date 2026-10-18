@@ -1,7 +1,9 @@
 # Contamination: recitation versus analysis
 
 Why BrainForge tracks what its teachers could have memorized, and how that
-shapes the datasets and the benchmarks.
+shapes the datasets and the benchmarks. The mechanisms were proven on the
+security domain and apply to any domain: the failure mode (a model that
+names known answers instead of deriving them) is not security-specific.
 
 ## The problem
 

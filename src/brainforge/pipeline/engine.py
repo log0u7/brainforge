@@ -1,4 +1,5 @@
 import hashlib
+import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -24,6 +25,8 @@ class PipelineContext:
     case: Case
     rag_context: list = field(default_factory=list)
     previous_results: dict = field(default_factory=dict)
+    kd_positions: list = field(default_factory=list)
+    raw_assistant: str | None = None
 
 
 @dataclass
@@ -35,6 +38,8 @@ class CaseResult:
     teacher_results: dict = field(default_factory=dict)
     judge_result: dict | None = None
     metadata: dict = field(default_factory=dict)
+    kd_positions: list | None = None
+    kd_model: str | None = None
 
 
 class PipelineEngine:
@@ -48,6 +53,8 @@ class PipelineEngine:
         usage_logger: UsageLogger | None = None,
         provider_override: Provider | None = None,
         pipeline: "PipelineDef | None" = None,
+        kd: bool = False,
+        kd_topk: int = 8,
     ):
         if pipeline is not None:
             self.pipeline = pipeline
@@ -70,6 +77,8 @@ class PipelineEngine:
                 f"(found '{self.steps[-1]}')"
             )
         self.provider_override = provider_override
+        self.kd = kd
+        self.kd_topk = kd_topk
 
     def run_case(self, case: Case) -> CaseResult:
         context = PipelineContext(case=case)
@@ -90,7 +99,7 @@ class PipelineEngine:
             accepted = False
             reasons.append("recitation_risk")
         if accepted:
-            record = self._record(case, canonical, metadata)
+            record = self._record(case, canonical, metadata, raw_assistant=context.raw_assistant)
             return CaseResult(
                 case_id=case.id,
                 accepted=True,
@@ -98,6 +107,8 @@ class PipelineEngine:
                 teacher_results=self._teacher_results(context),
                 judge_result=canonical,
                 metadata=metadata,
+                kd_positions=context.kd_positions or None,
+                kd_model=(metadata["judge"]["model"] if metadata.get("judge") else None),
             )
         return CaseResult(
             case_id=case.id,
@@ -140,7 +151,14 @@ class PipelineEngine:
             cache_extra=self._cache_extra(case, context),
         )
         provider = self.provider_override or binding.provider
-        response = provider.structured(request, binding.model_name, schema)
+        if self.kd and binding.kind == RoleKind.JUDGE:
+            response = provider.structured_logprobs(
+                request, binding.model_name, schema, top_logprobs=self.kd_topk
+            )
+            context.kd_positions = [position.model_dump() for position in (response.logprobs or [])]
+            context.raw_assistant = response.content
+        else:
+            response = provider.structured(request, binding.model_name, schema)
         if self.usage_logger is not None:
             definition = self.model_registry.resolve(binding.model_key).definition
             self.usage_logger.log(
@@ -235,14 +253,16 @@ class PipelineEngine:
             "created_at": datetime.now(UTC).isoformat(),
         }
 
-    def _record(self, case: Case, canonical: dict, metadata: dict) -> "DatasetRecord":
-        from brainforge.dataset.writer import build_record
+    def _record(
+        self, case: Case, canonical: dict, metadata: dict, raw_assistant: str | None = None
+    ) -> "DatasetRecord":
+        from brainforge.dataset.writer import DatasetRecord
 
-        return build_record(
-            case=case,
+        messages = self.pack.build_messages(self.pack.student_input(case), canonical, raw_assistant)
+        return DatasetRecord(
+            id=case.id,
             domain=self.pipeline.domain,
-            student_input=self.pack.student_input(case),
-            canonical=canonical,
+            messages=messages,
             metadata=metadata,
         )
 
@@ -252,11 +272,14 @@ def run_pipeline(
     cases: list[Case],
     output_path: Path | str,
     rejected_dir: Path | str | None = None,
+    kd_sidecar: Path | str | None = None,
 ) -> dict:
     """Run cases through the engine, optionally in parallel (pipeline.concurrency).
 
     Results are collected in submission order so dataset output stays
-    deterministic; file writes stay in the main thread.
+    deterministic; file writes stay in the main thread. When ``kd_sidecar``
+    is given, accepted records carry their teacher top-k logprobs (the KD
+    training signal) into that sidecar file.
     """
     from concurrent.futures import ThreadPoolExecutor
 
@@ -270,10 +293,25 @@ def run_pipeline(
         results = [engine.run_case(case) for case in cases]
     accepted_count = 0
     rejected_count = 0
+    sidecar_path = Path(kd_sidecar) if kd_sidecar is not None else None
     for case, result in zip(cases, results, strict=True):
         if result.accepted and result.record is not None:
             append_record(output_path, result.record)
             accepted_count += 1
+            if sidecar_path is not None and result.kd_positions:
+                sidecar_path.parent.mkdir(parents=True, exist_ok=True)
+                with sidecar_path.open("a", encoding="utf-8") as handle:
+                    handle.write(
+                        json.dumps(
+                            {
+                                "id": case.id,
+                                "model": result.kd_model,
+                                "positions": result.kd_positions,
+                            },
+                            ensure_ascii=False,
+                        )
+                        + "\n"
+                    )
         else:
             rejected_count += 1
             if rejected_dir is not None:

@@ -20,7 +20,10 @@ secrets:
 
 audit:
 	uv export --format requirements-txt --no-dev --no-hashes --no-emit-project -o requirements-audit.txt
-	uvx pip-audit -r requirements-audit.txt --strict
+	# PYSEC-2026-4217 (fsspec<=2026.2.0, transitive via torch/datasets http extra):
+	# unfixable while the unsloth extra requires datasets<5.0 and datasets 4.8.x
+	# caps fsspec at 2026.2.0. Re-check when unsloth supports datasets>=5.1.
+	uvx pip-audit -r requirements-audit.txt --strict --ignore-vuln PYSEC-2026-4217
 
 build:
 	uv build

@@ -1,6 +1,7 @@
 import json
 import re
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 
 from pydantic import BaseModel, Field
 
@@ -23,6 +24,14 @@ class ChatRequest(BaseModel):
     cache_extra: str | None = None
 
 
+class PositionLogprobs(BaseModel):
+    """Top-k alternatives for one generated token position (KD teacher signal)."""
+
+    token: str
+    logprob: float
+    topk: list[tuple[str, float]] = Field(default_factory=list)
+
+
 class Usage(BaseModel):
     input_tokens: int = 0
     output_tokens: int = 0
@@ -37,6 +46,7 @@ class ChatResponse(BaseModel):
     latency_ms: float = 0.0
     cached: bool = False
     retries: int = 0
+    logprobs: list[PositionLogprobs] | None = None
 
 
 def extract_json(text: str) -> dict:
@@ -68,7 +78,22 @@ class Provider(ABC):
     def complete(self, request: ChatRequest, model: str) -> ChatResponse:
         pass
 
-    def structured(self, request: ChatRequest, model: str, schema: type[BaseModel]) -> ChatResponse:
+    def complete_logprobs(
+        self, request: ChatRequest, model: str, top_logprobs: int = 8
+    ) -> ChatResponse:
+        """Complete with per-token top-k logprobs (teacher KD signal).
+
+        Providers that cannot serve logprobs keep the default and raise.
+        """
+        raise ProviderError(f"provider '{self.name}' does not support logprobs")
+
+    def _structured_with(
+        self,
+        request: ChatRequest,
+        model: str,
+        schema: type[BaseModel],
+        complete: Callable[[ChatRequest, str], ChatResponse],
+    ) -> ChatResponse:
         schema_json = json.dumps(schema.model_json_schema(), ensure_ascii=False)
         instruction = (
             "Respond with a single JSON object and nothing else (no markdown, no code fences). "
@@ -84,7 +109,7 @@ class Provider(ABC):
         parse_retries = 2
         last_error: Exception | None = None
         for attempt in range(parse_retries + 1):
-            response = self.complete(request.model_copy(update={"messages": messages}), model)
+            response = complete(request.model_copy(update={"messages": messages}), model)
             try:
                 data = schema.model_validate(extract_json(response.content or ""))
                 response.data = data.model_dump()
@@ -106,4 +131,18 @@ class Provider(ABC):
         raise ProviderError(
             f"structured output for schema '{schema.__name__}' failed after "
             f"{parse_retries + 1} attempts: {last_error}"
+        )
+
+    def structured(self, request: ChatRequest, model: str, schema: type[BaseModel]) -> ChatResponse:
+        return self._structured_with(request, model, schema, self.complete)
+
+    def structured_logprobs(
+        self, request: ChatRequest, model: str, schema: type[BaseModel], top_logprobs: int = 8
+    ) -> ChatResponse:
+        """Like structured(), but the response also carries per-token top-k logprobs."""
+        return self._structured_with(
+            request,
+            model,
+            schema,
+            lambda req, mdl: self.complete_logprobs(req, mdl, top_logprobs),
         )

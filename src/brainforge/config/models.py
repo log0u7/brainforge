@@ -99,6 +99,8 @@ class TrainingConfig(BaseModel):
     batch_size: int = Field(default=1, ge=1)
     gradient_accumulation: int = Field(default=16, ge=1)
     quantization: Literal["4bit", "8bit", "none"] = "4bit"
+    strategy: Literal["qlora", "full"] = "qlora"
+    backend: Literal["trl", "unsloth"] = "trl"
     save_steps: int = Field(default=100, ge=1)
     seed: int = Field(default=42, ge=0)
     output_dir: str = "experiments"
@@ -111,6 +113,9 @@ class TrainingConfig(BaseModel):
     attn_implementation: Literal["sdpa", "flash_attention_2", "eager"] = "sdpa"
     eval_batch_size: int = Field(default=4, ge=1)
     generate_batch_size: int = Field(default=4, ge=1)
+    kd_alpha: float = Field(default=0.5, ge=0, le=1)
+    kd_temperature: float = Field(default=2.0, gt=0)
+    kd_topk: int = Field(default=8, ge=1, le=20)
 
 
 class Config(BaseModel):

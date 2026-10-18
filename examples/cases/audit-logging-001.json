@@ -1,0 +1,17 @@
+{
+  "id": "audit-logging-001",
+  "source": {
+    "type": "system",
+    "repository": "billing-api",
+    "path": "app/charges.py",
+    "date": "2026-08-03"
+  },
+  "input": {
+    "code": "def charge_card(card, amount):\n    logger.info(f\"Charging {card} {amount}\")\n    stripe.Charge.create(\n        amount=amount,\n        source=card,\n        api_key=STRIPE_SECRET,\n    )\n    logger.debug(f\"STRIPE_SECRET={STRIPE_SECRET}\")\n",
+    "description": "Billing API: charges a card through Stripe and logs the request. Full PAN and the API key are passed into the logging calls; logs are shipped to a shared aggregator.",
+    "question": "Audit this system for security issues."
+  },
+  "metadata": {
+    "language": "python"
+  }
+}

@@ -39,6 +39,39 @@
       "model": "qwen3.5-9b",
       "family": "qwen"
     },
+    "ticket": {
+      "provider": "openrouter",
+      "model": "qwen3.5-9b",
+      "family": "qwen",
+      "knowledge_cutoff": "2026-05"
+    },
+    "ticket2": {
+      "provider": "mlgw",
+      "model": "qwen3.5-9b",
+      "family": "qwen"
+    },
+    "ctf": {
+      "provider": "openrouter",
+      "model": "qwen3.5-9b",
+      "family": "qwen",
+      "knowledge_cutoff": "2026-05"
+    },
+    "review": {
+      "provider": "mlgw",
+      "model": "qwen3-coder-480b",
+      "family": "qwen"
+    },
+    "audit": {
+      "provider": "openrouter",
+      "model": "qwen3.5-9b",
+      "family": "qwen",
+      "knowledge_cutoff": "2026-05"
+    },
+    "agent": {
+      "provider": "mlgw",
+      "model": "qwen3.5-9b",
+      "family": "qwen"
+    },
     "judge": {
       "provider": "zen",
       "model": "glm-5.2",
@@ -60,6 +93,30 @@
       "model": "general",
       "temperature": 0.4
     },
+    "ticket_teacher": {
+      "model": "ticket",
+      "temperature": 0.2
+    },
+    "ticket_teacher_2": {
+      "model": "ticket2",
+      "temperature": 0.3
+    },
+    "ctf_teacher": {
+      "model": "ctf",
+      "temperature": 0.3
+    },
+    "review_teacher": {
+      "model": "review",
+      "temperature": 0.2
+    },
+    "audit_teacher": {
+      "model": "audit",
+      "temperature": 0.2
+    },
+    "agent_teacher": {
+      "model": "agent",
+      "temperature": 0.2
+    },
     "judge": {
       "model": "judge",
       "temperature": 0.0
@@ -79,6 +136,35 @@
     "coding_dataset": {
       "domain": "coding",
       "steps": ["coding_teacher", "security_teacher", "judge"]
+    },
+    "ticket_triage": {
+      "domain": "ticket_triage",
+      "mode": "standard",
+      "min_confidence": 0.5
+    },
+    "ticket_triage_maximum": {
+      "domain": "ticket_triage",
+      "mode": "maximum"
+    },
+    "ctf": {
+      "domain": "ctf",
+      "mode": "standard",
+      "min_confidence": 0.5
+    },
+    "code_review": {
+      "domain": "code_review",
+      "mode": "standard",
+      "min_confidence": 0.5
+    },
+    "security_audit": {
+      "domain": "security_audit",
+      "mode": "standard",
+      "min_confidence": 0.5
+    },
+    "agentic": {
+      "domain": "agentic",
+      "mode": "standard",
+      "min_confidence": 0.5
     }
   },
 

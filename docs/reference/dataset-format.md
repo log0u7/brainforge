@@ -28,6 +28,28 @@ consumed by validation, deduplication, splitting and training. Decision:
 
 The student sees only `messages`. Metadata is for tooling and audit.
 
+## Multi-turn records (agentic)
+
+The `agentic` pack emits multi-turn records that interleave assistant tool
+calls with `tool` observations, then end on an assistant verdict:
+
+```json
+{
+  "domain": "agentic",
+  "messages": [
+    {"role": "user", "content": "task + available tools"},
+    {"role": "assistant", "content": "{\"thought\": \"...\", \"action\": \"ls\", \"action_input\": {}}"},
+    {"role": "tool", "content": "a.py b.py"},
+    {"role": "assistant", "content": "{\"verdict\": \"valid\", ...}"}
+  ]
+}
+```
+
+Rules beyond the two-turn case: every `tool` message must immediately follow
+an `assistant` message; the last message is still `assistant` (the verdict).
+`train run --kd` rejects multi-turn records (knowledge distillation aligns a
+single assistant turn), so exclude them from KD datasets.
+
 ## `metadata` keys
 
 | Key | Type | Description |
@@ -50,8 +72,9 @@ The student sees only `messages`. Metadata is for tooling and audit.
 
 - record parses against the schema;
 - first message is `user`, last is `assistant`, roles in
-  {system, user, assistant}, no empty content;
-- assistant content parses as JSON;
+  {system, user, assistant, tool}, no empty content;
+- each `tool` message follows an `assistant` message;
+- for two-turn records, assistant content parses as JSON;
 - metadata contains `source`, `teachers`, `quality`, `recitation_risk`;
 - `metadata.quality.passed` is `true`.
 
@@ -82,3 +105,37 @@ last git commit date, and the id is derived from source + content.
   splits; the primary evaluation signal
   ([contamination](../explanation/contamination.md));
 - `stats.json`: split sizes and the post-cutoff warning.
+
+## KD sidecar (`<dataset>.kd.jsonl`)
+
+Produced by `pipeline run --kd` (one sidecar record per accepted dataset
+record) and consumed by `train run --kd`. One JSON object per line:
+
+```json
+{
+  "id": "case-cmd-injection-001",
+  "model": "glm-5.2",
+  "positions": [
+    {"token": "{", "logprob": -0.05, "topk": [["{", -0.05], ["\"", -3.2]]},
+    {"token": "\n", "logprob": -0.8, "topk": [["\n", -0.8], [" ", -2.1]]}
+  ]
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string | dataset record id (matches the main dataset) |
+| `model` | string | judge model that produced the positions |
+| `positions` | list | per generated token: `{token, logprob, topk}`; `topk` is `[[token, logprob], ...]` |
+
+Notes:
+
+- The tokens of all positions concatenate to the assistant content stored
+  in the dataset record (KD mode stores the teacher's exact output, not a
+  re-serialization, so alignment is exact).
+- Top-k is capped by `training.kd_topk` (default 8).
+- Requires a provider that serves logprobs (OpenAI-compatible chat
+  completions with `logprobs=true`); the mock provider produces word-level
+  positions for dry runs.
+
+See [knowledge distillation](../explanation/knowledge-distillation.md).

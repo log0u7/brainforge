@@ -15,9 +15,21 @@ class DatasetRecord(BaseModel):
 
 
 def build_record(
-    case: Case, domain: str, student_input: str, canonical: dict, metadata: dict
+    case: Case,
+    domain: str,
+    student_input: str,
+    canonical: dict,
+    metadata: dict,
+    raw_assistant: str | None = None,
 ) -> DatasetRecord:
-    assistant_content = json.dumps(canonical, ensure_ascii=False, indent=2)
+    # raw_assistant: the teacher's exact output (KD mode), so the recorded
+    # top-k logprobs align with the student's gold tokens. When absent, the
+    # canonical dict is re-serialized with stable formatting.
+    assistant_content = (
+        raw_assistant
+        if raw_assistant is not None
+        else json.dumps(canonical, ensure_ascii=False, indent=2)
+    )
     return DatasetRecord(
         id=case.id,
         domain=domain,

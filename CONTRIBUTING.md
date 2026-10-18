@@ -57,7 +57,7 @@ docs: rewrite dataset contamination section
   unit test with a mocked transport; never hardcode model ids.
 - New domain? Create a pack under `src/brainforge/domains/<name>/` with
   schemas, prompts and a quality gate; register it; add tests. See
-  [docs/domain-packs.md](docs/domain-packs.md).
+  [docs/how-to/add-domain-pack.md](docs/how-to/add-domain-pack.md).
 - Contamination discipline: any feature touching dataset generation must keep
   `source_date` propagation and `recitation_risk` tagging intact.
 

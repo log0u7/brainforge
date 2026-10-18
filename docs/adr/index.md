@@ -38,3 +38,8 @@ one file per decision, in [MADR 3.0](https://adr.github.io/madr/) format.
 | [0008](0008-tooling-uv-mise-src-layout.md) | Tooling: uv pinned by mise, src layout, ruff and pytest | accepted |
 | [0009](0009-sqlite-response-cache.md) | sqlite response cache keyed on the full request | accepted |
 | [0010](0010-qlora-training-single-rtx-3080.md) | Student training: QLoRA 4-bit on a single RTX 3080 10GB | accepted |
+| [0011](0011-generic-framework-positioning.md) | Generic framework positioning: security is the reference domain, not the identity | accepted |
+| [0012](0012-unsloth-backend-opt-in.md) | Unsloth training backend as an opt-in extra | accepted |
+| [0013](0013-full-fine-tuning-strategy.md) | Full fine-tuning as a second strategy after QLoRA | accepted |
+| [0014](0014-abliteration-single-direction.md) | Abliteration: single-direction refusal removal, experimental | accepted |
+| [0015](0015-knowledge-distillation-sidecar.md) | Knowledge distillation: teacher top-k sidecar plus custom loss, experimental | accepted |

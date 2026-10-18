@@ -1,0 +1,16 @@
+{
+  "id": "ticket-vpn-down-001",
+  "source": {
+    "type": "ticketing",
+    "repository": "example-helpdesk",
+    "path": "tickets/vpn-down-001",
+    "date": "2026-08-15"
+  },
+  "input": {
+    "description": "The VPN client stopped working for the whole finance team after this morning's Windows update. Error 'tunnel negotiation failed' on every machine. Nobody can reach the shared drives and the month-end close is blocked.",
+    "question": "Classify and triage this ticket."
+  },
+  "metadata": {
+    "language": "en"
+  }
+}

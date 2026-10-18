@@ -1,0 +1,17 @@
+{
+  "id": "agent-incident-001",
+  "source": {
+    "type": "task",
+    "repository": "example-app",
+    "path": "ops",
+    "date": "2026-09-12"
+  },
+  "input": {
+    "code": "[\n  {\"name\": \"grep_logs\", \"description\": \"Grep application logs by pattern\"},\n  {\"name\": \"read_file\", \"description\": \"Read a file by path\"},\n  {\"name\": \"search\", \"description\": \"Search the codebase by keyword\"}\n]",
+    "description": "Task: users report intermittent 502s from the payments endpoint since the last deploy. Identify the likely cause from the logs and code.",
+    "question": "Investigate the 502s and identify the root cause."
+  },
+  "metadata": {
+    "language": "python"
+  }
+}

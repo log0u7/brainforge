@@ -98,6 +98,47 @@ def _lora_config(config: TrainingConfig) -> Any:
     )
 
 
+def _trainer_kwargs(
+    config: TrainingConfig, output_dir: Path, has_eval: bool, gradient_checkpointing: bool = True
+) -> dict[str, Any]:
+    """Training knobs shared by the trl, unsloth and kd backends."""
+    return {
+        "output_dir": str(output_dir),
+        "num_train_epochs": config.epochs,
+        "learning_rate": config.learning_rate,
+        "per_device_train_batch_size": config.batch_size,
+        "per_device_eval_batch_size": config.eval_batch_size,
+        "gradient_accumulation_steps": config.gradient_accumulation,
+        "lr_scheduler_type": config.lr_scheduler_type,
+        "warmup_steps": config.warmup_steps,
+        "max_grad_norm": config.max_grad_norm,
+        "gradient_checkpointing": gradient_checkpointing,
+        "bf16": True,
+        "logging_steps": 1,
+        "eval_strategy": "steps" if has_eval else "no",
+        "eval_steps": 10,
+        "save_strategy": "steps",
+        "save_steps": config.save_steps,
+        "save_total_limit": 2,
+        "seed": config.seed,
+        "report_to": [],
+    }
+
+
+def _sft_config(
+    config: TrainingConfig, output_dir: Path, has_eval: bool, gradient_checkpointing: bool = True
+) -> Any:
+    from trl import SFTConfig
+
+    return SFTConfig(
+        **_trainer_kwargs(config, output_dir, has_eval, gradient_checkpointing),
+        max_length=config.max_length,
+        packing=config.packing,
+        assistant_only_loss=config.assistant_only_loss,
+        model_init_kwargs={"attn_implementation": config.attn_implementation},
+    )
+
+
 def train_qlora(
     config: TrainingConfig,
     dataset_dir: Path | str,
@@ -110,50 +151,30 @@ def train_qlora(
     if resume:
         resume = _latest_checkpoint(output_dir)
     _require_cuda()
-    from trl import SFTConfig, SFTTrainer
+    from trl import SFTTrainer
 
     dataset_dir = Path(dataset_dir)
     train_dataset = _messages_dataset(dataset_dir / "train.jsonl")
     validation_path = dataset_dir / "validation.jsonl"
     eval_dataset = _messages_dataset(validation_path) if validation_path.exists() else None
 
-    sft_args = SFTConfig(
-        output_dir=str(output_dir),
-        num_train_epochs=config.epochs,
-        learning_rate=config.learning_rate,
-        per_device_train_batch_size=config.batch_size,
-        per_device_eval_batch_size=config.eval_batch_size,
-        gradient_accumulation_steps=config.gradient_accumulation,
-        lr_scheduler_type=config.lr_scheduler_type,
-        warmup_steps=config.warmup_steps,
-        max_grad_norm=config.max_grad_norm,
-        max_length=config.max_length,
-        packing=config.packing,
-        assistant_only_loss=config.assistant_only_loss,
-        model_init_kwargs={"attn_implementation": config.attn_implementation},
-        gradient_checkpointing=True,
-        bf16=True,
-        logging_steps=1,
-        eval_strategy="steps" if eval_dataset else "no",
-        eval_steps=10,
-        save_strategy="steps",
-        save_steps=config.save_steps,
-        save_total_limit=2,
-        seed=config.seed,
-        report_to=[],
-    )
-    trainer = SFTTrainer(
-        model=config.base_model,
-        args=sft_args,
-        train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
-        quantization_config=_quantization_config(config.quantization),
-        peft_config=_lora_config(config),
-    )
+    sft_args = _sft_config(config, output_dir, eval_dataset is not None)
+    sft_kwargs: dict[str, Any] = {
+        "model": config.base_model,
+        "args": sft_args,
+        "train_dataset": train_dataset,
+        "eval_dataset": eval_dataset,
+    }
+    if config.strategy == "qlora":
+        sft_kwargs["quantization_config"] = _quantization_config(config.quantization)
+        sft_kwargs["peft_config"] = _lora_config(config)
+    trainer = SFTTrainer(**sft_kwargs)
     trainer.train(resume_from_checkpoint=str(resume) if resume else None)
     trainer.save_model(str(output_dir))
     summary = {
         "base_model": config.base_model,
+        "backend": "trl",
+        "strategy": config.strategy,
         "quantization": config.quantization,
         "epochs": config.epochs,
         "train_rows": len(train_dataset),

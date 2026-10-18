@@ -17,15 +17,21 @@ Phases are cumulative. The MVP (phase 1) is implemented in this repository.
 
 ## Phase 2 - Train the first students
 
+- [x] QLoRA training on RTX 3080 10GB (4-bit, LoRA rank from config, gradient
+      checkpointing) via TRL; student base model configurable
+      (default `Qwen/Qwen3-8B`); `train run/evaluate/task-eval/export`
+- [x] Full fine-tuning strategy (`--strategy full`) and Unsloth backend
+      (opt-in extra) for faster iteration
+- [x] Optional knowledge distillation (`pipeline run --kd` sidecar +
+      `train run --kd` loss), marked experimental
+- [x] GGUF export + `ollama create` registration (`train export --format gguf`)
+- [x] Quickstart command chaining the whole loop
+- [x] Experimental abliteration command
+- [x] `ticket_triage` example pack proving the generic framework
 - [ ] First real dataset run: 20-50 cases (CVE + patch + vulnerable + fixed
       code), manual inspection of every accepted record
 - [ ] Scale to 500-2,000 examples once quality is validated
 - [ ] Golden dataset: 50-200 human-verified cases, including post-cutoff ones
-- [x] QLoRA training on RTX 3080 10GB (4-bit, low/moderate LoRA rank, gradient
-      checkpointing) via TRL; student base model configurable
-      (default `Qwen/Qwen3-8B`)
-- [ ] Evaluation harness: vulnerability detection, CWE classification, severity,
-      false positive/negative rates, code and patch understanding
 - [ ] Benchmark base model vs fine-tuned student, primarily on
       `test_postcutoff.jsonl` to prove analysis rather than recitation
 
@@ -42,6 +48,8 @@ Phases are cumulative. The MVP (phase 1) is implemented in this repository.
 - [ ] sqlite-vec index backend as the default at scale
 - [ ] Dataset augmentation (analysis -> remediation -> patch analysis ->
       explanation) with strict anti-duplication limits
+- [ ] KD quality benchmark: compare `train task-eval` numbers KD vs non-KD
+      on identical splits before promoting the feature from experimental
 
 ## Non-goals (standing)
 

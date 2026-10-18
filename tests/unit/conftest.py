@@ -16,6 +16,6 @@ def project_env(tmp_path, monkeypatch):
     (tmp_path / "config" / "config.json").write_text(json.dumps(config))
     (tmp_path / "data" / "raw").mkdir(parents=True)
     examples = Path(__file__).parents[2] / "examples" / "cases"
-    for case_file in examples.glob("*.json"):
+    for case_file in examples.glob("case-*.json"):
         (tmp_path / "data" / "raw" / case_file.name).write_text(case_file.read_text())
     return tmp_path

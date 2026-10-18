@@ -1,34 +1,19 @@
-from collections.abc import Callable
 from datetime import datetime
-from functools import wraps
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import typer
 
-from brainforge.cli._common import console, err_console
+from brainforge.cli._common import clamp_errors, console
 from brainforge.errors import BrainforgeError
 
+if TYPE_CHECKING:
+    from brainforge.config.models import TrainingConfig
+
 app = typer.Typer(
-    help="Training: prepare datasets, run QLoRA, evaluate, export.", no_args_is_help=True
+    help="Training: prepare datasets, run QLoRA or full fine-tuning, evaluate, export.",
+    no_args_is_help=True,
 )
-
-
-def _clamp_errors(label: str) -> Callable:
-    """Turn expected failures (BrainforgeError and OS errors) into a clean exit."""
-
-    def decorator(fn: Callable) -> Callable:
-        @wraps(fn)
-        def wrapper(*args: object, **kwargs: object) -> Any:
-            try:
-                return fn(*args, **kwargs)
-            except (BrainforgeError, OSError) as exc:
-                err_console.print(f"[red]{label} failed:[/red] {exc}")
-                raise typer.Exit(code=1) from exc
-
-        return wrapper
-
-    return decorator
 
 
 def latest_run_dir(base: Path | None = None) -> Path:
@@ -46,8 +31,25 @@ def latest_run_dir(base: Path | None = None) -> Path:
     return max(candidates, key=lambda d: d.stat().st_mtime)
 
 
+def train_student(
+    training: "TrainingConfig",
+    dataset_dir: Path | str,
+    output_dir: Path | str,
+    resume: bool | str | Path = False,
+    kd: bool = False,
+) -> dict:
+    """Dispatch to the configured training backend (kd, unsloth or trl)."""
+    if kd:
+        from brainforge.training.kd import train_kd as train_fn
+    elif training.backend == "unsloth":
+        from brainforge.training.unsloth_backend import train_unsloth as train_fn
+    else:
+        from brainforge.training.qlora import train_qlora as train_fn
+    return train_fn(training, dataset_dir, output_dir, resume=resume)
+
+
 @app.command("prepare")
-@_clamp_errors("prepare")
+@clamp_errors("prepare")
 def prepare(
     dataset: Path = typer.Argument(..., help="Path to dataset.jsonl"),
     output_dir: Path = typer.Option(None, "--output", "-o"),
@@ -66,7 +68,7 @@ def prepare(
 
 
 @app.command("run")
-@_clamp_errors("training")
+@clamp_errors("training")
 def run(
     dataset_dir: Path = typer.Option(
         Path("datasets/prepared"),
@@ -78,6 +80,20 @@ def run(
         0, "--epochs", "-e", help="Override config epochs (0 = keep config)"
     ),
     base_model: str = typer.Option("", "--base-model", "-b", help="Override config base model"),
+    strategy: Literal["qlora", "full"] | None = typer.Option(
+        None, "--strategy", help="Override config training strategy (qlora or full)"
+    ),
+    backend: Literal["trl", "unsloth"] | None = typer.Option(
+        None, "--backend", help="Override config training backend (trl or unsloth)"
+    ),
+    kd: bool = typer.Option(
+        False,
+        "--kd",
+        help=(
+            "Distillation training: SFT + KL to teacher top-k logprobs"
+            " (requires a kd.jsonl sidecar in the dataset dir)"
+        ),
+    ),
     output: Path = typer.Option(
         None,
         "--output",
@@ -91,9 +107,11 @@ def run(
     ),
     config: str = typer.Option(None, "--config", "-c"),
 ) -> None:
-    """Run QLoRA training (requires a CUDA GPU and the training extra)."""
+    """Train the student: QLoRA, full fine-tuning or KD distillation.
+
+    Requires a CUDA GPU and the training extra.
+    """
     from brainforge.config import load_config
-    from brainforge.training.qlora import train_qlora
 
     cfg = load_config(config)
     training = cfg.training
@@ -102,6 +120,10 @@ def run(
         updates["epochs"] = epochs
     if base_model:
         updates["base_model"] = base_model
+    if strategy:
+        updates["strategy"] = strategy
+    if backend:
+        updates["backend"] = backend
     if updates:
         training = training.model_copy(update=updates)
     run_name = datetime.now().strftime("run-%Y%m%d-%H%M%S-%f")
@@ -109,14 +131,14 @@ def run(
         output_dir = latest_run_dir(base=Path(training.output_dir))
     else:
         output_dir = output or Path(training.output_dir) / run_name
-    summary = train_qlora(training, dataset_dir, output_dir, resume=resume)
+    summary = train_student(training, dataset_dir, output_dir, resume=resume, kd=kd)
     console.print(f"[green]training done[/green] -> {summary['output_dir']}")
     for key, value in summary.items():
         console.print(f"  {key}: {value}")
 
 
 @app.command("evaluate")
-@_clamp_errors("evaluation")
+@clamp_errors("evaluation")
 def evaluate(
     model: Path = typer.Option(
         None, "--model", "-m", help="Trained adapter directory (default: latest run)"
@@ -149,7 +171,7 @@ def evaluate(
 
 
 @app.command("chat")
-@_clamp_errors("chat")
+@clamp_errors("chat")
 def chat(
     model: Path = typer.Option(
         None, "--model", "-m", help="Trained adapter or merged model (default: latest run)"
@@ -163,7 +185,7 @@ def chat(
 
 
 @app.command("task-eval")
-@_clamp_errors("task evaluation")
+@clamp_errors("task evaluation")
 def task_eval(
     model: Path = typer.Option(
         None, "--model", "-m", help="Trained adapter or merged model (default: latest run)"
@@ -200,17 +222,45 @@ def task_eval(
 
 
 @app.command("export")
-@_clamp_errors("export")
+@clamp_errors("export")
 def export(
     model: Path = typer.Option(
         None, "--model", "-m", help="Trained adapter directory (default: latest run)"
     ),
     output: Path = typer.Option(
-        Path("models/export"), "--output", "-o", help="Merged model output directory"
+        Path("models/export"), "--output", "-o", help="Export output directory"
+    ),
+    format: Literal["merged", "gguf"] = typer.Option(
+        "merged", "--format", "-f", help="merged: HF weights; gguf: quantized GGUF + Modelfile"
+    ),
+    quant: str = typer.Option("Q4_K_M", "--quant", help="GGUF quantization type (gguf format)"),
+    ollama: str = typer.Option(
+        None, "--ollama", help="Register the GGUF with Ollama under this name (gguf format)"
+    ),
+    llama_cpp_path: Path = typer.Option(
+        None, "--llama-cpp-path", help="Path to a llama.cpp checkout (gguf format)"
     ),
 ) -> None:
-    """Merge the LoRA adapter into the base model and export it standalone."""
-    from brainforge.training.qlora import export as export_model
+    """Export a trained student: merged HF weights or quantized GGUF."""
+    from brainforge.training.qlora import export as export_merged
 
-    result = export_model(model or latest_run_dir(), output)
-    console.print(f"[green]exported[/green] -> {result['output_dir']}")
+    if format == "merged":
+        result = export_merged(model or latest_run_dir(), output)
+        console.print(f"[green]exported[/green] -> {result['output_dir']}")
+        return
+    from brainforge.training.gguf import export_gguf
+
+    merged_dir = Path(output) / "merged"
+    export_merged(model or latest_run_dir(), merged_dir)
+    result = export_gguf(
+        merged_dir,
+        output,
+        quant=quant,
+        llama_cpp_path=llama_cpp_path,
+        ollama_name=ollama,
+    )
+    console.print(f"[green]exported gguf[/green] -> {result['output_dir']}")
+    console.print(f"  quant: {result['quant']}")
+    console.print(f"  modelfile: {result['modelfile']}")
+    if result["ollama"]:
+        console.print(f"  ollama: {result['ollama']}")

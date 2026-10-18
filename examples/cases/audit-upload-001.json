@@ -1,0 +1,17 @@
+{
+  "id": "audit-upload-001",
+  "source": {
+    "type": "system",
+    "repository": "media-service",
+    "path": "app/upload.py",
+    "date": "2026-07-22"
+  },
+  "input": {
+    "code": "@app.post(\"/upload\")\ndef upload():\n    f = request.files[\"file\"]\n    path = os.path.join(UPLOAD_DIR, f.filename)\n    f.save(path)\n    return {\"path\": path}\n\ndef get_file(name):\n    return send_file(os.path.join(UPLOAD_DIR, name))\n",
+    "description": "Media service: accepts file uploads under UPLOAD_DIR and serves them back by name. No size limit, no extension allowlist, no sanitization of the client-supplied filename.",
+    "question": "Audit this system for security issues."
+  },
+  "metadata": {
+    "language": "python"
+  }
+}

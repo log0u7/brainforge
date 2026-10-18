@@ -1,0 +1,17 @@
+{
+  "id": "agent-debug-001",
+  "source": {
+    "type": "task",
+    "repository": "example-app",
+    "path": "tests/test_parse.py",
+    "date": "2026-08-25"
+  },
+  "input": {
+    "code": "[\n  {\"name\": \"read_file\", \"description\": \"Read a file by path\"},\n  {\"name\": \"search\", \"description\": \"Search the codebase by keyword\"},\n  {\"name\": \"run_tests\", \"description\": \"Run the test suite and return output\"}\n]",
+    "description": "Task: find why the test suite fails. A traceback points at utils.parse in parse.py.",
+    "question": "Investigate and fix the failing test."
+  },
+  "metadata": {
+    "language": "python"
+  }
+}

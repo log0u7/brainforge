@@ -355,6 +355,24 @@
           "title": "Quantization",
           "type": "string"
         },
+        "strategy": {
+          "default": "qlora",
+          "enum": [
+            "qlora",
+            "full"
+          ],
+          "title": "Strategy",
+          "type": "string"
+        },
+        "backend": {
+          "default": "trl",
+          "enum": [
+            "trl",
+            "unsloth"
+          ],
+          "title": "Backend",
+          "type": "string"
+        },
         "save_steps": {
           "default": 100,
           "minimum": 1,
@@ -426,6 +444,26 @@
           "minimum": 1,
           "title": "Generate Batch Size",
           "type": "integer"
+        },
+        "kd_alpha": {
+          "default": 0.5,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Kd Alpha",
+          "type": "number"
+        },
+        "kd_temperature": {
+          "default": 2.0,
+          "exclusiveMinimum": 0,
+          "title": "Kd Temperature",
+          "type": "number"
+        },
+        "kd_topk": {
+          "default": 8,
+          "maximum": 20,
+          "minimum": 1,
+          "title": "Kd Topk",
+          "type": "integer"
         }
       },
       "title": "TrainingConfig",
@@ -488,6 +526,8 @@
         "batch_size": 1,
         "gradient_accumulation": 16,
         "quantization": "4bit",
+        "strategy": "qlora",
+        "backend": "trl",
         "save_steps": 100,
         "seed": 42,
         "output_dir": "experiments",
@@ -499,7 +539,10 @@
         "assistant_only_loss": false,
         "attn_implementation": "sdpa",
         "eval_batch_size": 4,
-        "generate_batch_size": 4
+        "generate_batch_size": 4,
+        "kd_alpha": 0.5,
+        "kd_temperature": 2.0,
+        "kd_topk": 8
       }
     }
   },
