@@ -82,3 +82,37 @@ last git commit date, and the id is derived from source + content.
   splits; the primary evaluation signal
   ([contamination](../explanation/contamination.md));
 - `stats.json`: split sizes and the post-cutoff warning.
+
+## KD sidecar (`<dataset>.kd.jsonl`)
+
+Produced by `pipeline run --kd` (one sidecar record per accepted dataset
+record) and consumed by `train run --kd`. One JSON object per line:
+
+```json
+{
+  "id": "case-cmd-injection-001",
+  "model": "glm-5.2",
+  "positions": [
+    {"token": "{", "logprob": -0.05, "topk": [["{", -0.05], ["\"", -3.2]]},
+    {"token": "\n", "logprob": -0.8, "topk": [["\n", -0.8], [" ", -2.1]]}
+  ]
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string | dataset record id (matches the main dataset) |
+| `model` | string | judge model that produced the positions |
+| `positions` | list | per generated token: `{token, logprob, topk}`; `topk` is `[[token, logprob], ...]` |
+
+Notes:
+
+- The tokens of all positions concatenate to the assistant content stored
+  in the dataset record (KD mode stores the teacher's exact output, not a
+  re-serialization, so alignment is exact).
+- Top-k is capped by `training.kd_topk` (default 8).
+- Requires a provider that serves logprobs (OpenAI-compatible chat
+  completions with `logprobs=true`); the mock provider produces word-level
+  positions for dry runs.
+
+See [knowledge distillation](../explanation/knowledge-distillation.md).

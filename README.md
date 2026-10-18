@@ -5,101 +5,128 @@
 [![license](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
 [![code style](https://img.shields.io/badge/lint-ruff-261230)](https://docs.astral.sh/ruff/)
 
-**Turn real-world data into verified training datasets with multi-teacher LLM
-pipelines, then train small local models on them.**
+**Every other fine-tuning tool trusts a single teacher. BrainForge never
+does.**
 
-BrainForge builds security and coding datasets from real material (vulnerable
-code, CVEs, patches, git history, documentation), verifies every example
-through independent LLM teachers and a judge, and fine-tunes a 7-9B student
-locally with QLoRA on a single RTX 3080 10GB. The engine is domain-agnostic:
-specializations plug in as *domain packs* (security and coding ship today).
+BrainForge distills a multi-teacher LLM ensemble (independent teachers, an
+adversarial critic, an independent judge) into a verified dataset, then
+trains an open student model on it: QLoRA for a fast first pass, full
+fine-tuning for the decision model, optional logit distillation, GGUF/Ollama
+export to ship it. Domains are pluggable: `security` and `coding` are the
+reference packs (where the rigor was proven), `ticket_triage` is a
+non-security example, and any domain without a pack falls back to a generic
+one.
 
-## Quickstart
+Born from a security problem: you cannot trust one LLM's verdict, models
+memorize CVEs, benchmarks lie. The machinery those problems forced (judge
+independence enforced at config load, contamination tagging, post-cutoff
+holdout) is domain-agnostic, and every new domain inherits it by default.
+That is what makes a ticket-triage model trustworthy rather than "65%,
+maybe".
+
+## Quickstart: your first student in one command
 
 ```bash
 git clone git@github.com:log0u7/brainforge.git && cd brainforge
 mise install && uv sync
+uv run brainforge config validate
 ```
 
-Validate the shipped configuration, then generate a dataset at zero cost with
-the mock provider:
+Zero-cost dry run of the whole chain (mock provider, no GPU):
 
 ```bash
-uv run brainforge config validate
-uv run brainforge pipeline run security_dataset --input examples/cases --provider mock
+uv run brainforge quickstart run --domain ticket_triage \
+  --input examples/cases --provider mock
 ```
 
 ```text
-security_dataset: 3 accepted, 0 rejected (3 cases) -> datasets/security_dataset.jsonl
+quickstart domain=ticket_triage pipeline=ticket_triage
+dataset 3 accepted, 0 rejected (3 cases) -> datasets/ticket_triage.jsonl
+preparing splits
+quickstart failed: no CUDA device available; QLoRA training requires a GPU
 ```
 
-Inspect what was produced, then export training splits:
+The dataset step runs anywhere; training needs a CUDA GPU and the training
+extra (`uv sync --extra training`). With real providers:
 
 ```bash
-uv run brainforge dataset inspect datasets/security_dataset.jsonl
-uv run brainforge train prepare datasets/security_dataset.jsonl
+export OPENROUTER_API_KEY=... ZENCODE_API_KEY=...
+uv run brainforge quickstart run --domain ticket_triage --input data/raw
 ```
 
-Point the teachers at real providers by exporting `OPENROUTER_API_KEY` and
-`ZENCODE_API_KEY` and dropping `--provider mock`. Full walkthrough:
-[build your first dataset](docs/tutorials/first-dataset.md).
+Full walkthrough: [build your first model](docs/tutorials/first-model.md).
 
 ## How it works
 
 ```text
-                    ┌──────────────────┐
-                    │   LOCAL DATA     │
-                    │ CVE / Git / Code │
-                    │ Docs / Markdown  │
-                    └────────┬─────────┘
-                             ▼
-                    ┌──────────────────┐
-                    │    LOCAL RAG     │
-                    └────────┬─────────┘
-                             ▼
-                    ┌──────────────────┐
-                    │   CASE BUILDER   │
-                    └────────┬─────────┘
-           ┌─────────────────┼─────────────────┐
-           ▼                 ▼                 ▼
-     ┌───────────┐     ┌───────────┐     ┌───────────┐
-     │ OpenRouter│     │ OpenCode  │     │   MLGW    │
-     │ security  │     │    Zen    │     │  general  │
-     │  teacher  │     │  coding   │     │  critic   │
-     └─────┬─────┘     └─────┬─────┘     └─────┬─────┘
-           └─────────────────┼─────────────────┘
-                             ▼
-                    ┌──────────────────┐
-                    │  JUDGE (distinct │
-                    │ provider/family) │
-                    └────────┬─────────┘
-                        QUALITY GATE
-                             ▼
-                    ┌──────────────────┐
-                    │   dataset.jsonl  │
-                    │  + provenance    │
-                    └────────┬─────────┘
-                         QLoRA SFT
-                             ▼
-                    ┌──────────────────┐
-                    │ STUDENT 7-9B     │
-                    │  local GPU       │
-                    └──────────────────┘
+                     ┌──────────────────┐
+                     │   LOCAL DATA     │
+                     │ tickets / CVEs / │
+                     │ code / docs      │
+                     └────────┬─────────┘
+                              ▼
+                     ┌──────────────────┐
+                     │    LOCAL RAG     │  (business history,
+                     └────────┬─────────┘   KB, tickets resolved)
+                              ▼
+                     ┌──────────────────┐
+                     │   CASE BUILDER   │
+                     └────────┬─────────┘
+            ┌─────────────────┼─────────────────┐
+            ▼                 ▼                 ▼
+      ┌───────────┐     ┌───────────┐     ┌───────────┐
+      │ teacher 1 │     │ teacher 2 │     │  critic   │
+      │ (any open │     │ (any open │     │(devil's   │
+      │  model)   │     │  model)   │     │ advocate) │
+      └─────┬─────┘     └─────┬─────┘     └─────┬─────┘
+            └─────────────────┼─────────────────┘
+                              ▼
+                     ┌──────────────────┐
+                     │  JUDGE (distinct │
+                     │ provider/family) │
+                     └────────┬─────────┘
+                         QUALITY GATE
+                              ▼
+                     ┌──────────────────┐
+                     │   dataset.jsonl  │
+                     │  + provenance    │
+                     │  + kd.jsonl      │ (optional logits)
+                     └────────┬─────────┘
+              QLoRA ──▶ full FT ──▶ GGUF / Ollama
+                              ▼
+                     ┌──────────────────┐
+                     │ STUDENT (open    │
+                     │  model, local)   │
+                     └──────────────────┘
 ```
 
 ## What you get
 
 | Capability | Detail |
 |---|---|
-| Provider layer | OpenRouter, OpenCode Zen, MLGW, local servers, deterministic mock; sqlite cache, retries, usage logs with cost estimates |
-| Multi-teacher ensembles | Independent teachers, adversarial judge, cost modes (cheap / standard / maximum), teacher ablation by config |
+| Provider layer | OpenRouter, OpenCode Zen, MLGW, local servers (Ollama included), deterministic mock; sqlite cache, retries, usage logs with cost estimates |
+| Multi-teacher ensembles | Independent teachers, adversarial critic, independent judge, cost modes (cheap / standard / maximum), teacher ablation by config |
 | Judge independence | Enforced at config load: distinct provider and model family from every teacher |
 | Contamination controls | Per-teacher `knowledge_cutoff`, source dates, `recitation_risk` tagging, post-cutoff holdout as the primary benchmark |
 | Local RAG | fastembed (ONNX, CPU) or hashing embeddings, sqlite + numpy store, full chunk provenance |
 | Quality gates | Per-domain rules (evidence, CWE format, confidence), rejected-case quarantine, exact + near-duplicate detection |
-| Datasets | JSONL with chat messages + separated provenance metadata, source-grouped splits, TRL-ready export |
-| Training prep | Validate / split / export; QLoRA 4-bit scaffolding for phase 2 on one RTX 3080 10GB |
-| Tooling | `brainforge` CLI (typer + rich), Makefile, 112 tests, GitHub Actions CI and a manual GPU smoke job |
+| Domain packs | `security` and `coding` reference packs, `ticket_triage` example, generic fallback for anything else |
+| Training | QLoRA (4-bit + LoRA, one RTX 3080 10GB), full fine-tuning, Unsloth backend (opt-in extra), optional knowledge distillation from teacher logprobs |
+| Export | merged HF weights, quantized GGUF + Modelfile, `ollama create` registration; distribute GGUF with [llmp2p](https://github.com/log0u7/llmp2p) |
+| Abliteration | experimental refusal-direction removal for uncensored/red-team models |
+| Quickstart | `brainforge quickstart run --domain <pack>`: cases to trained student in one command |
+| Tooling | `brainforge` CLI (typer + rich), Makefile, 267 tests, GitHub Actions CI and a manual GPU smoke job |
+
+## Two-phase workflow
+
+1. **Quick pass**: two teachers (any open models, local or API), a judge,
+   one LoRA run. Minutes to a working model, e.g. 65% on ticket triage.
+2. **Decision model**: index your business history in RAG, regenerate the
+   dataset through the same verified pipeline, then `train run --strategy
+   full` for the full fine-tune that lands the number that matters.
+
+Between the two, `dataset inspect` tells you whether the gain is analysis
+or recitation.
 
 ## Principles
 
@@ -124,15 +151,18 @@ Point the teachers at real providers by exporting `OPENROUTER_API_KEY` and
 | MLGW (local gateway) | `mlgw` | general critic |
 | Mock | `mock` | zero-cost demos and tests |
 
+Any OpenAI-compatible endpoint works, including Ollama on
+`http://localhost:11434/v1` via the `local` provider type.
+
 ## Documentation
 
 | Section | Content |
 |---|---|
-| [Tutorial](docs/tutorials/first-dataset.md) | first dataset in 10 minutes, no keys |
-| [How-to guides](docs/how-to/configure-providers.md) | providers, RAG, generation, dataset management, domain packs, ADRs |
+| [Tutorial](docs/tutorials/first-model.md) | first student model in minutes, no keys |
+| [How-to guides](docs/how-to/configure-providers.md) | providers, RAG, generation, dataset management, domain packs, shipping to Ollama, ADRs |
 | [Reference](docs/reference/configuration.md) | configuration, providers, CLI, dataset format, quality gates, RAG, training, CI |
-| [Explanation](docs/explanation/architecture.md) | architecture, contamination, judge correlation |
-| [Decision records](docs/adr/index.md) | 10 MADR ADRs behind the design |
+| [Explanation](docs/explanation/architecture.md) | architecture, contamination, judge correlation, knowledge distillation |
+| [Decision records](docs/adr/index.md) | 15 MADR ADRs behind the design |
 
 ## Development
 
@@ -144,8 +174,12 @@ make config      # config validate + schema check
 make docs-serve  # local documentation
 ```
 
+Integration tests are opt-in: `BRAINFORCE_IT=1 uv run pytest -m integration`
+(needs `uv sync --extra training`). GPU smoke: `make train-smoke-cpu` for the
+CPU path, `make train-smoke` on a CUDA runner.
+
 Contributions welcome: see [CONTRIBUTING.md](CONTRIBUTING.md) and the
-[ROADMAP](ROADMAP.md) (phase 2: QLoRA training and the golden dataset).
+[ROADMAP](ROADMAP.md).
 
 ## License
 

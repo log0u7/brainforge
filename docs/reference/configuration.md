@@ -89,6 +89,8 @@ judge role shares a provider or a declared `family` with any other role. Rationa
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `base_model` | string | `Qwen/Qwen3-8B` | student base model |
+| `strategy` | `qlora` \| `full` | `qlora` | LoRA adapters or every weight |
+| `backend` | `trl` \| `unsloth` | `trl` | training backend (unsloth needs the extra) |
 | `lora_rank` | int | `16` | LoRA rank |
 | `lora_alpha` | int | `32` | LoRA alpha |
 | `lora_dropout` | float | `0.05` | LoRA dropout |
@@ -96,8 +98,22 @@ judge role shares a provider or a declared `family` with any other role. Rationa
 | `epochs` | int | `3` | training epochs |
 | `batch_size` | int | `1` | per-device batch size |
 | `gradient_accumulation` | int | `16` | effective batch = 16 |
-| `quantization` | `4bit` \| `8bit` \| `none` | `4bit` | QLoRA quantization |
+| `quantization` | `4bit` \| `8bit` \| `none` | `4bit` | quantization (unsloth: 4bit or none) |
+| `lr_scheduler_type` | string | `cosine` | TRL scheduler |
+| `warmup_steps` | int | `5` | warmup steps |
+| `max_grad_norm` | float | `1.0` | gradient clipping |
+| `max_length` | int | `1024` | max sequence length |
+| `packing` | bool | `false` | sequence packing (rejected for KD) |
+| `assistant_only_loss` | bool | `false` | mask loss to assistant turns |
+| `attn_implementation` | `sdpa` \| `flash_attention_2` \| `eager` | `sdpa` | attention kernel |
+| `eval_batch_size` | int | `4` | eval forward batch |
+| `generate_batch_size` | int | `4` | task-eval generation batch |
+| `save_steps` | int | `100` | checkpoint cadence |
+| `seed` | int | `42` | training seed |
 | `output_dir` | string | `experiments` | run output root |
+| `kd_alpha` | float | `0.5` | KD loss weight (0-1) |
+| `kd_temperature` | float | `2.0` | KD temperature (> 0) |
+| `kd_topk` | int | `8` | teacher alternatives per token (1-20) |
 
 See [ADR-0010](../adr/0010-qlora-training-single-rtx-3080.md) and the
 [training reference](training.md).

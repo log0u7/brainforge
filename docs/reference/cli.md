@@ -4,6 +4,11 @@ Global options: `--config/-c` selects the configuration file (default
 `config/config.json`, overridable with `BRAINFORCE_CONFIG`). Output uses
 rich tables; failures exit 1 with a reason on stderr.
 
+BrainForge distills a multi-teacher pipeline into a student model: cases
+in, verified dataset out, trained model out. Domains are pluggable
+(`security` and `coding` are reference packs; `ticket_triage` is a
+non-security example). See the [architecture explanation](../explanation/architecture.md).
+
 ## config
 
 | Command | Description |
@@ -44,7 +49,8 @@ brainforge pipeline run security_dataset \
   --provider mock \
   --no-rag \
   --fresh \
-  --experiment first-run
+  --experiment first-run \
+  --kd
 ```
 
 | Option | Default | Description |
@@ -57,6 +63,7 @@ brainforge pipeline run security_dataset \
 | `--rag/--no-rag` | on | use the local RAG index when present |
 | `--rag-backend` | `fastembed` | `fastembed` or `hashing` |
 | `--experiment <name>` | none | create `experiments/<date>-<name>/` (config, dataset, metrics, report) |
+| `--kd` | off | record judge top-k logprobs into `<dataset>.kd.jsonl` (see [KD](../explanation/knowledge-distillation.md)) |
 | `--config/-c` | `config/config.json` | configuration file |
 
 ## rag
@@ -82,9 +89,77 @@ brainforge pipeline run security_dataset \
 | Command | Description |
 |---|---|
 | `brainforge train prepare <file.jsonl> [-o dir]` | validate, split, export for TRL (+ `stats.json`) |
-| `brainforge train run` | QLoRA training (phase 2 stub, explicit error) |
-| `brainforge train evaluate` | student evaluation (phase 2 stub) |
-| `brainforge train export` | model export (phase 2 stub) |
+| `brainforge train run` | train the student (QLoRA, full fine-tuning or KD distillation); requires CUDA + the training extra |
+| `brainforge train evaluate` | student evaluation: loss + perplexity on a split (CUDA + training extra) |
+| `brainforge train chat` | interactive chat with a trained student (CUDA + training extra) |
+| `brainforge train task-eval` | task-level evaluation (verdict/CWE accuracy for the security domain) |
+| `brainforge train export` | export a trained student: merged HF weights or quantized GGUF |
 
-`train run` reads the `training` config section; see the
-[configuration reference](configuration.md).
+`train run` options:
+
+| Option | Default | Description |
+|---|---|---|
+| `--dataset-dir/-d` | `datasets/prepared` | directory with `train.jsonl` (+ optional `validation.jsonl`) |
+| `--epochs/-e` | config | override config epochs |
+| `--base-model/-b` | config | override config base model |
+| `--strategy` | config | `qlora` (4-bit + LoRA) or `full` (all weights, bf16) |
+| `--backend` | config | `trl` or `unsloth` (needs the `unsloth` extra) |
+| `--kd` | off | distillation training; requires `kd.jsonl` in the dataset dir |
+| `--output/-o` | `<config.output_dir>/<run>` | output directory |
+| `--resume/--no-resume` | off | resume from the latest checkpoint |
+| `--config/-c` | `config/config.json` | configuration file |
+
+`train export` options:
+
+| Option | Default | Description |
+|---|---|---|
+| `--model/-m` | latest run | adapter directory |
+| `--output/-o` | `models/export` | export directory |
+| `--format/-f` | `merged` | `merged` (HF weights) or `gguf` (quantized GGUF + Modelfile) |
+| `--quant` | `Q4_K_M` | GGUF quantization type (`--format gguf`) |
+| `--ollama <name>` | none | register the GGUF with Ollama (`--format gguf`) |
+| `--llama-cpp-path` | auto | path to a llama.cpp checkout (`--format gguf`) |
+
+## quickstart
+
+```bash
+brainforge quickstart run --domain ticket_triage --input data/raw --provider mock
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `--domain/-D` | required | domain pack; the first configured pipeline for that domain is used |
+| `--input/-i` | `data/raw` | cases directory |
+| `--provider` | none | provider override (e.g. `mock`) |
+| `--base-model/-b` | config | override config base model |
+| `--epochs/-e` | 1 | training epochs |
+| `--strategy` | `qlora` | `qlora` or `full` |
+| `--backend` | `trl` | `trl` or `unsloth` |
+| `--kd` | off | use the `kd.jsonl` sidecar if present |
+| `--output/-o` | `datasets/<domain>.jsonl` | dataset output path |
+| `--config/-c` | `config/config.json` | configuration file |
+
+Chains `pipeline run` -> `train prepare` -> `train run` -> `train
+evaluate`, then prints next steps. The train step requires CUDA and the
+training extra; with `--provider mock` the whole chain is a zero-cost dry
+run that stops cleanly at the training gate.
+
+## abliterate
+
+```bash
+brainforge abliterate run --model Qwen/Qwen3-8B \
+  --calibration calibration.jsonl --output models/abliterated
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `--model/-m` | required | HF model id or local directory |
+| `--calibration` | required | JSONL of `{prompt, label}` with `label` in `harmful`/`benign` |
+| `--output/-o` | `models/abliterated` | abliterated model directory |
+| `--layers` | `all` | `all` or comma-separated layer indices |
+
+Experimental. Removes a single refusal direction (mean hidden-state
+difference between harmful and benign calibration prompts) from attention
+output and MLP down projections; writes `ablation_stats.json` with
+direction norms before/after and the suppression ratio. Quality is a
+heuristic, not a guarantee. See the [KD/abliteration notes](../explanation/knowledge-distillation.md).
