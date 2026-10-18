@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Knowledge distillation (experimental): `pipeline run --kd` records the
+  judge's per-token top-k logprobs into a `<dataset>.kd.jsonl` sidecar, and
+  `train run --kd` trains with `alpha * T^2 * CE(student_T, teacher_topk_T)
+  + (1 - alpha) * CE(gold)`. New `TrainingConfig` fields `kd_alpha` (0.5),
+  `kd_temperature` (2.0), `kd_topk` (8). Providers serve logprobs through
+  the OpenAI-compatible chat completions API (`logprobs=true`); the mock
+  provider produces word-level positions for offline runs. In KD mode the
+  dataset record stores the teacher's exact output (not a re-serialization)
+  so sidecar positions align with the student's gold tokens; teacher
+  positions are mapped onto student tokens by character midpoint, so
+  student and teacher may use different tokenizers. Top-k tokens absent
+  from the student vocabulary are dropped with the teacher distribution
+  renormalized. Packing is rejected for KD training.
 - Abliteration (experimental): `brainforge abliterate run --model <id|dir>
   --calibration <prompts.jsonl> --output <dir> [--layers all|0,2,...]`
   computes a single refusal direction (mean hidden-state difference between

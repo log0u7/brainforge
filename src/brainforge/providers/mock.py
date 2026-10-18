@@ -2,7 +2,13 @@ import json
 
 from pydantic import BaseModel
 
-from brainforge.providers.base import ChatRequest, ChatResponse, Provider, Usage
+from brainforge.providers.base import (
+    ChatRequest,
+    ChatResponse,
+    PositionLogprobs,
+    Provider,
+    Usage,
+)
 
 _MAX_DEPTH = 20
 
@@ -27,6 +33,27 @@ class MockProvider(Provider):
             model=model,
             usage=Usage(input_tokens=64, output_tokens=64),
         )
+
+    def structured_logprobs(
+        self, request: ChatRequest, model: str, schema: type[BaseModel], top_logprobs: int = 8
+    ) -> ChatResponse:
+        response = self.structured(request, model, schema)
+        response.logprobs = self._fake_positions(response.content or "", top_logprobs)
+        return response
+
+    def _fake_positions(self, content: str, top_logprobs: int) -> list[PositionLogprobs]:
+        """Word-level tokens with flat probabilities; tokens rebuild the content."""
+        words = content.split(" ")
+        tokens = [word + " " for word in words[:-1]] + [words[-1]] if words else []
+        positions = []
+        for token in tokens:
+            topk = [(token, -0.05)]
+            for alternative in ("}", "{", '"'):
+                if len(topk) >= top_logprobs:
+                    break
+                topk.append((alternative, -4.0))
+            positions.append(PositionLogprobs(token=token, logprob=-0.05, topk=topk))
+        return positions
 
     def generate(self, schema: type[BaseModel]) -> dict:
         js = schema.model_json_schema()

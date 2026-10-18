@@ -66,6 +66,14 @@ def run(
     backend: Literal["trl", "unsloth"] | None = typer.Option(
         None, "--backend", help="Override config training backend (trl or unsloth)"
     ),
+    kd: bool = typer.Option(
+        False,
+        "--kd",
+        help=(
+            "Distillation training: SFT + KL to teacher top-k logprobs"
+            " (requires a kd.jsonl sidecar in the dataset dir)"
+        ),
+    ),
     output: Path = typer.Option(
         None,
         "--output",
@@ -79,7 +87,10 @@ def run(
     ),
     config: str = typer.Option(None, "--config", "-c"),
 ) -> None:
-    """Run QLoRA or full fine-tuning (requires a CUDA GPU and the training extra)."""
+    """Train the student: QLoRA, full fine-tuning or KD distillation.
+
+    Requires a CUDA GPU and the training extra.
+    """
     from brainforge.config import load_config
 
     cfg = load_config(config)
@@ -100,7 +111,9 @@ def run(
         output_dir = latest_run_dir(base=Path(training.output_dir))
     else:
         output_dir = output or Path(training.output_dir) / run_name
-    if training.backend == "unsloth":
+    if kd:
+        from brainforge.training.kd import train_kd as train_fn
+    elif training.backend == "unsloth":
         from brainforge.training.unsloth_backend import train_unsloth as train_fn
     else:
         from brainforge.training.qlora import train_qlora as train_fn

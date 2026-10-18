@@ -44,6 +44,7 @@ def execute_pipeline(
     rag_backend: str = "fastembed",
     rejected_dir: Path | None = None,
     usage_log_dir: Path | None = DEFAULT_LOG_DIR,
+    kd: bool = False,
 ) -> tuple[dict, int]:
     cache_path = None if fresh else DEFAULT_CACHE_DIR
     roles = RoleRegistry(cfg, ModelRegistry(cfg, cache_path=cache_path))
@@ -63,13 +64,18 @@ def execute_pipeline(
         retriever=retriever,
         usage_logger=usage_logger,
         provider_override=provider_override,
+        kd=kd,
     )
     from brainforge.dataset.case_builder import build_cases_from_path
 
     cases = build_cases_from_path(input_dir)
     if not cases:
         raise BrainforgeError(f"no cases found in {input_dir}")
-    return run_pipeline(engine, cases, output, rejected_dir), len(cases)
+    kd_sidecar = Path(f"{output}".removesuffix(".jsonl") + ".kd.jsonl") if kd else None
+    return (
+        run_pipeline(engine, cases, output, rejected_dir, kd_sidecar=kd_sidecar),
+        len(cases),
+    )
 
 
 @app.command("run")
@@ -82,6 +88,14 @@ def run(
     rag: bool = typer.Option(True, "--rag/--no-rag", help="Use the local RAG index if present"),
     rag_backend: str = typer.Option("fastembed", "--rag-backend"),
     experiment: str | None = typer.Option(None, "--experiment", help="Create an experiment report"),
+    kd: bool = typer.Option(
+        False,
+        "--kd",
+        help=(
+            "Record judge top-k logprobs into a <dataset>.kd.jsonl sidecar"
+            " (requires a provider that serves logprobs)"
+        ),
+    ),
     config: str = CONFIG_OPTION,
 ) -> None:
     """Execute a pipeline over the cases in --input and write the dataset."""
@@ -107,6 +121,7 @@ def run(
             rag=rag,
             rag_backend=rag_backend,
             rejected_dir=DEFAULT_DATA_DIR / "rejected",
+            kd=kd,
         )
     except BrainforgeError as exc:
         err_console.print(f"[red]pipeline failed:[/red] {exc}")

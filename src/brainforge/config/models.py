@@ -113,6 +113,9 @@ class TrainingConfig(BaseModel):
     attn_implementation: Literal["sdpa", "flash_attention_2", "eager"] = "sdpa"
     eval_batch_size: int = Field(default=4, ge=1)
     generate_batch_size: int = Field(default=4, ge=1)
+    kd_alpha: float = Field(default=0.5, ge=0, le=1)
+    kd_temperature: float = Field(default=2.0, gt=0)
+    kd_topk: int = Field(default=8, ge=1, le=20)
 
 
 class Config(BaseModel):

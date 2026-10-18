@@ -98,35 +98,44 @@ def _lora_config(config: TrainingConfig) -> Any:
     )
 
 
+def _trainer_kwargs(
+    config: TrainingConfig, output_dir: Path, has_eval: bool, gradient_checkpointing: bool = True
+) -> dict[str, Any]:
+    """Training knobs shared by the trl, unsloth and kd backends."""
+    return {
+        "output_dir": str(output_dir),
+        "num_train_epochs": config.epochs,
+        "learning_rate": config.learning_rate,
+        "per_device_train_batch_size": config.batch_size,
+        "per_device_eval_batch_size": config.eval_batch_size,
+        "gradient_accumulation_steps": config.gradient_accumulation,
+        "lr_scheduler_type": config.lr_scheduler_type,
+        "warmup_steps": config.warmup_steps,
+        "max_grad_norm": config.max_grad_norm,
+        "gradient_checkpointing": gradient_checkpointing,
+        "bf16": True,
+        "logging_steps": 1,
+        "eval_strategy": "steps" if has_eval else "no",
+        "eval_steps": 10,
+        "save_strategy": "steps",
+        "save_steps": config.save_steps,
+        "save_total_limit": 2,
+        "seed": config.seed,
+        "report_to": [],
+    }
+
+
 def _sft_config(
     config: TrainingConfig, output_dir: Path, has_eval: bool, gradient_checkpointing: bool = True
 ) -> Any:
     from trl import SFTConfig
 
     return SFTConfig(
-        output_dir=str(output_dir),
-        num_train_epochs=config.epochs,
-        learning_rate=config.learning_rate,
-        per_device_train_batch_size=config.batch_size,
-        per_device_eval_batch_size=config.eval_batch_size,
-        gradient_accumulation_steps=config.gradient_accumulation,
-        lr_scheduler_type=config.lr_scheduler_type,
-        warmup_steps=config.warmup_steps,
-        max_grad_norm=config.max_grad_norm,
+        **_trainer_kwargs(config, output_dir, has_eval, gradient_checkpointing),
         max_length=config.max_length,
         packing=config.packing,
         assistant_only_loss=config.assistant_only_loss,
         model_init_kwargs={"attn_implementation": config.attn_implementation},
-        gradient_checkpointing=gradient_checkpointing,
-        bf16=True,
-        logging_steps=1,
-        eval_strategy="steps" if has_eval else "no",
-        eval_steps=10,
-        save_strategy="steps",
-        save_steps=config.save_steps,
-        save_total_limit=2,
-        seed=config.seed,
-        report_to=[],
     )
 
 

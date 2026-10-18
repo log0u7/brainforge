@@ -158,8 +158,10 @@ def abliterate(
                 skipped.append(f"layer {index}: {edit_path}")
                 continue
             weight = module.weight.data
-            projection = weight @ r_hat.to(weight.dtype)
-            module.weight.data.copy_(weight - torch.outer(projection, r_hat.to(weight.dtype)))
+            r = r_hat.to(weight.dtype)
+            # W' = W - r (r^T W): removes the direction from every output row
+            # (the residual stream side), works for any in/out sizes.
+            module.weight.data.copy_(weight - torch.outer(r, r @ weight))
         edited.append(index)
 
     after_norm = float((mean_hidden(harmful) - mean_hidden(benign)).norm())
