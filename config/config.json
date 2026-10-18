@@ -56,6 +56,11 @@
       "family": "qwen",
       "knowledge_cutoff": "2026-05"
     },
+    "review": {
+      "provider": "mlgw",
+      "model": "qwen3-coder-480b",
+      "family": "qwen"
+    },
     "judge": {
       "provider": "zen",
       "model": "glm-5.2",
@@ -89,6 +94,10 @@
       "model": "ctf",
       "temperature": 0.3
     },
+    "review_teacher": {
+      "model": "review",
+      "temperature": 0.2
+    },
     "judge": {
       "model": "judge",
       "temperature": 0.0
@@ -120,6 +129,11 @@
     },
     "ctf": {
       "domain": "ctf",
+      "mode": "standard",
+      "min_confidence": 0.5
+    },
+    "code_review": {
+      "domain": "code_review",
       "mode": "standard",
       "min_confidence": 0.5
     }

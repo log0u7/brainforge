@@ -1,4 +1,5 @@
 from brainforge.domains.base import DomainPack, GateResult
+from brainforge.domains.code_review.pack import CodeReviewPack
 from brainforge.domains.coding.pack import CodingPack
 from brainforge.domains.ctf.pack import CtfPack
 from brainforge.domains.generic import GenericPack
@@ -31,6 +32,7 @@ register(SecurityPack())
 register(CodingPack())
 register(TicketTriagePack())
 register(CtfPack())
+register(CodeReviewPack())
 
 __all__ = [
     "DomainPack",

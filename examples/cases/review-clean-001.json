@@ -1,0 +1,17 @@
+{
+  "id": "review-clean-001",
+  "source": {
+    "type": "pull-request",
+    "repository": "example-app",
+    "path": "api/report.py",
+    "date": "2026-09-01"
+  },
+  "input": {
+    "code": "diff --git a/api/report.py b/api/report.py\n--- a/api/report.py\n+++ b/api/report.py\n@@ -3,8 +3,10 @@\n from flask import request\n \n def monthly_report(month):\n-    rows = db.query(f\"SELECT * FROM sales WHERE month = '{month}'\")\n+    rows = db.query(\n+        \"SELECT * FROM sales WHERE month = ?\",\n+        (request.args.get(\"month\", month),),\n+    )\n     return render_template(\"report.html\", rows=rows)\n",
+    "description": "PR #63: parameterize the monthly report query and default the month from query args. The author already switched to a bound parameter after a previous review comment.",
+    "question": "Review this pull request for security issues."
+  },
+  "metadata": {
+    "language": "python"
+  }
+}

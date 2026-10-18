@@ -1,0 +1,17 @@
+{
+  "id": "review-sqli-001",
+  "source": {
+    "type": "pull-request",
+    "repository": "example-app",
+    "path": "api/user.py",
+    "date": "2026-08-15"
+  },
+  "input": {
+    "code": "diff --git a/api/user.py b/api/user.py\nnew file mode 100644\n--- /dev/null\n+++ b/api/user.py\n@@ -0,0 +1,4 @@\n+def get_user(uid):\n+    return db.query(f\"SELECT * FROM users WHERE id = {uid}\")\n",
+    "description": "PR #42: add a user lookup endpoint. The author was in a hurry and asked for a quick review before merge.",
+    "question": "Review this pull request for security issues."
+  },
+  "metadata": {
+    "language": "python"
+  }
+}
