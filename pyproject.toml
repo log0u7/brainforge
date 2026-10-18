@@ -1,7 +1,7 @@
 [project]
 name = "brainforge"
 version = "0.3.0"
-description = "Agentic tooling for building security & coding datasets and training small local language models."
+description = "Verified multi-teacher LLM distillation into training datasets, then local fine-tuning (QLoRA/full/KD) with GGUF/Ollama export."
 readme = "README.md"
 license = "Apache-2.0"
 authors = [{ name = "log0u7", email = "logout@aconitus-napellus" }]
