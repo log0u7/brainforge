@@ -2,7 +2,7 @@ from collections.abc import Callable
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import typer
 
@@ -78,6 +78,9 @@ def run(
         0, "--epochs", "-e", help="Override config epochs (0 = keep config)"
     ),
     base_model: str = typer.Option("", "--base-model", "-b", help="Override config base model"),
+    strategy: Literal["qlora", "full"] | None = typer.Option(
+        None, "--strategy", help="Override config training strategy (qlora or full)"
+    ),
     output: Path = typer.Option(
         None,
         "--output",
@@ -102,6 +105,8 @@ def run(
         updates["epochs"] = epochs
     if base_model:
         updates["base_model"] = base_model
+    if strategy:
+        updates["strategy"] = strategy
     if updates:
         training = training.model_copy(update=updates)
     run_name = datetime.now().strftime("run-%Y%m%d-%H%M%S-%f")

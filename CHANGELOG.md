@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Full fine-tuning strategy: `TrainingConfig.strategy` (`qlora` default,
+  `full`) and `train run --strategy {qlora,full}`. `full` trains every
+  weight in bf16 without quantization or a LoRA adapter (needs more VRAM);
+  `qlora` behavior is unchanged. `train_summary.json` records the strategy.
 - `ticket_triage` domain pack: IT helpdesk triage (classification, business
   priority, team routing, first-response draft) with dedicated teacher and
   judge schemas, quality gate, and example cases. Registered alongside

@@ -142,18 +142,21 @@ def train_qlora(
         seed=config.seed,
         report_to=[],
     )
-    trainer = SFTTrainer(
-        model=config.base_model,
-        args=sft_args,
-        train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
-        quantization_config=_quantization_config(config.quantization),
-        peft_config=_lora_config(config),
-    )
+    sft_kwargs: dict[str, Any] = {
+        "model": config.base_model,
+        "args": sft_args,
+        "train_dataset": train_dataset,
+        "eval_dataset": eval_dataset,
+    }
+    if config.strategy == "qlora":
+        sft_kwargs["quantization_config"] = _quantization_config(config.quantization)
+        sft_kwargs["peft_config"] = _lora_config(config)
+    trainer = SFTTrainer(**sft_kwargs)
     trainer.train(resume_from_checkpoint=str(resume) if resume else None)
     trainer.save_model(str(output_dir))
     summary = {
         "base_model": config.base_model,
+        "strategy": config.strategy,
         "quantization": config.quantization,
         "epochs": config.epochs,
         "train_rows": len(train_dataset),

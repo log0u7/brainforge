@@ -355,6 +355,15 @@
           "title": "Quantization",
           "type": "string"
         },
+        "strategy": {
+          "default": "qlora",
+          "enum": [
+            "qlora",
+            "full"
+          ],
+          "title": "Strategy",
+          "type": "string"
+        },
         "save_steps": {
           "default": 100,
           "minimum": 1,
@@ -488,6 +497,7 @@
         "batch_size": 1,
         "gradient_accumulation": 16,
         "quantization": "4bit",
+        "strategy": "qlora",
         "save_steps": 100,
         "seed": 42,
         "output_dir": "experiments",
