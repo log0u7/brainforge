@@ -1,5 +1,6 @@
 from brainforge.domains.base import DomainPack, GateResult
 from brainforge.domains.coding.pack import CodingPack
+from brainforge.domains.ctf.pack import CtfPack
 from brainforge.domains.generic import GenericPack
 from brainforge.domains.security.pack import SecurityPack
 from brainforge.domains.ticket_triage.pack import TicketTriagePack
@@ -29,6 +30,7 @@ def get_or_generic(name: str) -> DomainPack:
 register(SecurityPack())
 register(CodingPack())
 register(TicketTriagePack())
+register(CtfPack())
 
 __all__ = [
     "DomainPack",

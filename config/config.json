@@ -50,6 +50,12 @@
       "model": "qwen3.5-9b",
       "family": "qwen"
     },
+    "ctf": {
+      "provider": "openrouter",
+      "model": "qwen3.5-9b",
+      "family": "qwen",
+      "knowledge_cutoff": "2026-05"
+    },
     "judge": {
       "provider": "zen",
       "model": "glm-5.2",
@@ -77,6 +83,10 @@
     },
     "ticket_teacher_2": {
       "model": "ticket2",
+      "temperature": 0.3
+    },
+    "ctf_teacher": {
+      "model": "ctf",
       "temperature": 0.3
     },
     "judge": {
@@ -107,6 +117,11 @@
     "ticket_triage_maximum": {
       "domain": "ticket_triage",
       "mode": "maximum"
+    },
+    "ctf": {
+      "domain": "ctf",
+      "mode": "standard",
+      "min_confidence": 0.5
     }
   },
 
