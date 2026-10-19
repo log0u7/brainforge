@@ -81,11 +81,20 @@ def append_record(path: Path | str, record: DatasetRecord) -> None:
 
 
 def write_jsonl(path: Path | str, records: list[DatasetRecord]) -> None:
+    """Replace the file with exactly these records, atomically.
+
+    Writes a sibling temp file then renames, so a crash mid-write can never
+    leave a truncated dataset behind.
+    """
+    import os
+
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    with target.open("w", encoding="utf-8") as handle:
+    tmp = target.with_name(f".{target.name}.tmp")
+    with tmp.open("w", encoding="utf-8") as handle:
         for record in records:
             handle.write(json.dumps(record.model_dump(), ensure_ascii=False) + "\n")
+    os.replace(tmp, target)
 
 
 def read_jsonl(path: Path | str) -> list[dict]:

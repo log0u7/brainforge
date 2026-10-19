@@ -316,13 +316,15 @@ def run_pipeline(
     """Run cases through the engine, optionally in parallel (pipeline.concurrency).
 
     Results are collected in submission order so dataset output stays
-    deterministic; file writes stay in the main thread. When ``kd_sidecar``
-    is given, accepted records carry their teacher top-k logprobs (the KD
-    training signal) into that sidecar file.
+    deterministic. The dataset and the KD sidecar are buffered and written
+    once, atomically, after the last case: the files always reflect exactly
+    this run, so a crash plus rerun can neither duplicate lines nor leave a
+    stale record behind (re-runs are cheap anyway thanks to the sqlite
+    response cache). Rejected-case artifacts keep streaming per case.
     """
     from concurrent.futures import ThreadPoolExecutor
 
-    from brainforge.dataset.writer import append_record, write_rejected
+    from brainforge.dataset.writer import write_jsonl, write_rejected
 
     workers = max(getattr(engine.pipeline, "concurrency", 1) or 1, 1)
     if workers > 1:
@@ -334,6 +336,8 @@ def run_pipeline(
     rejected_count = 0
     fallback_count = 0
     error_count = 0
+    records: list[DatasetRecord] = []
+    sidecar_lines: list[str] = []
     sidecar_path = Path(kd_sidecar) if kd_sidecar is not None else None
     for case, result in zip(cases, results, strict=True):
         if result.provider_error is not None:
@@ -349,25 +353,22 @@ def run_pipeline(
                 )
             continue
         if result.accepted and result.record is not None:
-            append_record(output_path, result.record)
+            records.append(result.record)
             accepted_count += 1
             if sidecar_path is not None and result.kd_positions:
-                sidecar_path.parent.mkdir(parents=True, exist_ok=True)
-                with sidecar_path.open("a", encoding="utf-8") as handle:
-                    handle.write(
-                        json.dumps(
-                            {
-                                "id": case.id,
-                                "model": result.kd_model,
-                                "positions": result.kd_positions,
-                            },
-                            ensure_ascii=False,
-                        )
-                        + "\n"
+                sidecar_lines.append(
+                    json.dumps(
+                        {
+                            "id": case.id,
+                            "model": result.kd_model,
+                            "positions": result.kd_positions,
+                        },
+                        ensure_ascii=False,
                     )
+                )
         elif result.record is not None:
             # rejected case that became an abstention training example
-            append_record(output_path, result.record)
+            records.append(result.record)
             fallback_count += 1
             if rejected_dir is not None:
                 write_rejected(
@@ -389,6 +390,10 @@ def run_pipeline(
                     result.judge_result,
                     result.metadata,
                 )
+    write_jsonl(output_path, records)
+    if sidecar_path is not None:
+        sidecar_path.parent.mkdir(parents=True, exist_ok=True)
+        sidecar_path.write_text("".join(f"{line}\n" for line in sidecar_lines), encoding="utf-8")
     return {
         "accepted": accepted_count,
         "rejected": rejected_count,
