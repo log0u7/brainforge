@@ -161,7 +161,7 @@ Any OpenAI-compatible endpoint works, including Ollama on
 |---|---|
 | [Tutorial](docs/tutorials/first-model.md) | first student model in minutes, no keys |
 | [How-to guides](docs/how-to/configure-providers.md) | providers, RAG, generation, dataset management, domain packs, shipping to Ollama, ADRs |
-| [Reference](docs/reference/configuration.md) | configuration, providers, CLI, dataset format, quality gates, RAG, training, CI |
+| [Reference](docs/reference/configuration.md) | configuration, providers, CLI, dataset format, quality gates, RAG, training, CI, research references |
 | [Explanation](docs/explanation/architecture.md) | architecture, contamination, judge correlation, knowledge distillation |
 | [Decision records](docs/adr/index.md) | 15 MADR ADRs behind the design |
 
@@ -172,7 +172,6 @@ make install     # uv sync
 make test        # pytest (unit)
 make lint        # ruff check + format check
 make config      # config validate + schema check
-make docs-serve  # local documentation
 ```
 
 Integration tests are opt-in: `BRAINFORCE_IT=1 uv run pytest -m integration`

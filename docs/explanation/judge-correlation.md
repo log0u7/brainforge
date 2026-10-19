@@ -66,6 +66,8 @@ BrainForge addresses correlation at three levels:
 
 - [ADR-0002](../adr/0002-multi-teacher-ensemble-independent-judge.md): the
   decision record.
+- [References: LLM-as-a-Judge](../reference/references.md): the bias findings
+  behind the structural separation.
 - [How-to: configure providers](../how-to/configure-providers.md): setting up
   a compliant judge.
 - `src/brainforge/config/models.py` (`check_judge_independence`),
