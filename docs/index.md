@@ -17,6 +17,7 @@ are trying to do.
 | add a new domain (tickets, CTF, review...) | [How-to: add a domain pack](how-to/add-domain-pack.md) |
 | ship a trained model to Ollama | [How-to: ship to Ollama](how-to/ship-to-ollama.md) |
 | look up a config option, CLI flag or record field | [Reference](reference/configuration.md) |
+| look up the research papers and standards behind the design | [References](reference/references.md) |
 | understand *why* it is built this way | [Explanation](explanation/architecture.md) |
 | read the design decisions and their trade-offs | [Decision records](adr/index.md) |
 

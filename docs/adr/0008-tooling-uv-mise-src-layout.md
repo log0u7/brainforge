@@ -77,5 +77,5 @@ integration-marked tests by default.
 
 ## Links
 
-* [CONTRIBUTING](https://gitlab.com/6admin.io/brainforge/-/blob/main/CONTRIBUTING.md)
+* [CONTRIBUTING](../../CONTRIBUTING.md)
 * `mise.toml`, `pyproject.toml`, `.gitlab-ci.yml`

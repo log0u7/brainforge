@@ -84,6 +84,7 @@ class PipelineDef(BaseModel):
     min_confidence: float = Field(default=0.5, ge=0, le=1)
     reject_unresolved: bool = True
     reject_recitation_risk: bool = False
+    fallback_examples: bool = False
     concurrency: int = Field(default=1, ge=1)
 
 

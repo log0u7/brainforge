@@ -41,6 +41,38 @@ def build_record(
     )
 
 
+def build_fallback_record(
+    case: Case,
+    domain: str,
+    student_input: str,
+    reasons: list[str],
+    metadata: dict,
+) -> DatasetRecord:
+    """Abstention record teaching the student to fall back instead of guessing.
+
+    Emitted for cases the pipeline judged unreliable (gate rejection, teacher
+    disagreement, low confidence): the assistant target is a canonical
+    ``insufficient_information`` verdict, a value every domain pack accepts.
+    """
+    canonical = {
+        "verdict": "insufficient_information",
+        "reasoning": "; ".join(reasons),
+        "confidence": 0.0,
+    }
+    return DatasetRecord(
+        id=case.id,
+        domain=domain,
+        messages=[
+            ChatMessage(role="user", content=student_input),
+            ChatMessage(
+                role="assistant",
+                content=json.dumps(canonical, ensure_ascii=False, indent=2),
+            ),
+        ],
+        metadata=metadata,
+    )
+
+
 def append_record(path: Path | str, record: DatasetRecord) -> None:
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)

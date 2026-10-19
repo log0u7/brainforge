@@ -76,6 +76,8 @@ produce.
 
 - [ADR-0003](../adr/0003-contamination-controls-postcutoff-holdout.md): the
   decision record with rejected alternatives.
+- [References: pretraining data detection](../reference/references.md): the
+  measurement work behind `recitation_risk`.
 - [Dataset format reference](../reference/dataset-format.md): where
   `recitation_risk` lives in a record.
 - [How-to: manage datasets](../how-to/manage-datasets.md): the commands to

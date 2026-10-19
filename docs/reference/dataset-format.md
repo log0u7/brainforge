@@ -67,6 +67,32 @@ single assistant turn), so exclude them from KD datasets.
 | `rag` | object | `{used, chunks: [{source, doc_id, chunk_id, hash, score}]}` |
 | `quality` | object | `{passed, reasons}` from the quality gate |
 | `created_at` | string | ISO timestamp |
+| `fallback` | bool | present and `true` on abstention records (opt-in `fallback_examples`) |
+| `fallback_reason` | string | gate reasons that triggered the fallback; required when `fallback` is true |
+
+## Fallback records (teaching abstention)
+
+With `pipeline.fallback_examples: true`, a rejected case is written as a
+two-turn abstention record instead of being dropped:
+
+```json
+{
+  "id": "case-post",
+  "domain": "security",
+  "messages": [
+    {"role": "user", "content": "<the usual student input>"},
+    {"role": "assistant", "content": "{\n  \"verdict\": \"insufficient_information\",\n  \"reasoning\": \"unresolved_disagreement\",\n  \"confidence\": 0.0\n}"}
+  ],
+  "metadata": {"fallback": true, "fallback_reason": "unresolved_disagreement", "...": "same provenance keys"}
+}
+```
+
+The assistant target is a canonical `insufficient_information` verdict (a
+value every domain pack accepts) plus the gate reasons, so the student learns
+to fall back exactly when the ensemble judged the case unreliable. The
+rejected-case audit trail in `data/rejected/` is kept either way. Provider
+failures never become fallback records. See
+[ADR-0016](../adr/0016-graceful-failure-fallback.md).
 
 ## Validation rules (`brainforge dataset validate`)
 
@@ -76,7 +102,8 @@ single assistant turn), so exclude them from KD datasets.
 - each `tool` message follows an `assistant` message;
 - for two-turn records, assistant content parses as JSON;
 - metadata contains `source`, `teachers`, `quality`, `recitation_risk`;
-- `metadata.quality.passed` is `true`.
+- `metadata.quality.passed` is `true`, unless `metadata.fallback` is true, in
+  which case `metadata.fallback_reason` is required instead.
 
 Invalid records are listed with index, id and reasons; the command exits 1.
 
