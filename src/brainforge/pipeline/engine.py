@@ -78,9 +78,27 @@ class PipelineEngine:
                 f"pipeline '{pipeline_name}' must end with its judge role "
                 f"(found '{self.steps[-1]}')"
             )
+        self.retry_critic = self._resolve_retry_critic(roles, pipeline_name)
         self.provider_override = provider_override
         self.kd = kd
         self.kd_topk = kd_topk
+
+    def _resolve_retry_critic(self, roles: RoleRegistry, pipeline_name: str) -> str | None:
+        """Validate the optional escalation role: it must exist and be a critic."""
+        name = self.pipeline.retry_with_critic
+        if name is None:
+            return None
+        if name not in self.config.roles:
+            raise ValueError(
+                f"pipeline '{pipeline_name}': retry_with_critic role '{name}' "
+                "is not defined in the configuration"
+            )
+        if roles.resolve(name).kind is not RoleKind.CRITIC:
+            raise ValueError(
+                f"pipeline '{pipeline_name}': retry_with_critic role '{name}' "
+                "must resolve to a critic role"
+            )
+        return name
 
     def run_case(self, case: Case) -> CaseResult:
         context = PipelineContext(case=case)
@@ -103,15 +121,32 @@ class PipelineEngine:
         final_binding = self.roles.resolve(final_role)
         canonical = context.previous_results[final_role]
         gate = self.pack.quality_gate(final_binding.kind, canonical, self.pipeline.min_confidence)
-        metadata = self._metadata(case, context, gate)
-        accepted = gate.passed
-        reasons = list(gate.reasons)
-        if self.pipeline.reject_unresolved and is_unresolved(canonical):
-            accepted = False
-            reasons.append("unresolved_disagreement")
-        if metadata["recitation_risk"] and self.pipeline.reject_recitation_risk:
-            accepted = False
-            reasons.append("recitation_risk")
+        accepted, reasons = self._gate_decision(case, canonical, gate)
+        if not accepted and (critic := self.retry_critic) is not None:
+            # Escalation: the adversarial critique gets a look, then the judge
+            # re-arbitrates with it. The critic never sees the first verdict
+            # (_teacher_results filters judge outputs), so it is not anchored.
+            first_pass_reasons = list(reasons)
+            retry_error = self._run_escalation(case, context, critic, final_role)
+            if retry_error is None:
+                canonical = context.previous_results[final_role]
+                gate = self.pack.quality_gate(
+                    final_binding.kind, canonical, self.pipeline.min_confidence
+                )
+                accepted, reasons = self._gate_decision(case, canonical, gate)
+                metadata = self._metadata(case, context, gate)
+                metadata["critic_retry"] = True
+                metadata["first_pass_reasons"] = first_pass_reasons
+            else:
+                return CaseResult(
+                    case_id=case.id,
+                    accepted=False,
+                    gate_reasons=[f"provider_error: {retry_error}"],
+                    teacher_results=self._teacher_results(context),
+                    provider_error=retry_error,
+                )
+        else:
+            metadata = self._metadata(case, context, gate)
         if accepted:
             record = self._record(case, canonical, metadata, raw_assistant=context.raw_assistant)
             return CaseResult(
@@ -143,6 +178,32 @@ class PipelineEngine:
             judge_result=canonical,
             metadata=metadata,
         )
+
+    def _gate_decision(
+        self, case: Case, canonical: dict, gate: "GateResult"
+    ) -> tuple[bool, list[str]]:
+        """Gate plus rejection policy: (accepted, reasons)."""
+        accepted = gate.passed
+        reasons = list(gate.reasons)
+        if self.pipeline.reject_unresolved and is_unresolved(canonical):
+            accepted = False
+            reasons.append("unresolved_disagreement")
+        recitation_risk, _reason = self._recitation_risk(case)
+        if recitation_risk and self.pipeline.reject_recitation_risk:
+            accepted = False
+            reasons.append("recitation_risk")
+        return accepted, reasons
+
+    def _run_escalation(
+        self, case: Case, context: PipelineContext, critic: str, final_role: str
+    ) -> str | None:
+        """Run critic then judge again; returns an error string on provider failure."""
+        for step in (critic, final_role):
+            try:
+                context.previous_results[step] = self._run_step(step, case, context)
+            except ProviderError as exc:
+                return str(exc)
+        return None
 
     def _teacher_results(self, context: PipelineContext) -> dict:
         return {

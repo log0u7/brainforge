@@ -69,6 +69,8 @@ single assistant turn), so exclude them from KD datasets.
 | `created_at` | string | ISO timestamp |
 | `fallback` | bool | present and `true` on abstention records (opt-in `fallback_examples`) |
 | `fallback_reason` | string | gate reasons that triggered the fallback; required when `fallback` is true |
+| `critic_retry` | bool | present and `true` when the record followed a critic escalation |
+| `first_pass_reasons` | list | gate reasons of the rejected first pass; present with `critic_retry` |
 
 ## Fallback records (teaching abstention)
 

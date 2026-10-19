@@ -120,6 +120,18 @@
           "title": "Fallback Examples",
           "type": "boolean"
         },
+        "retry_with_critic": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Retry With Critic"
+        },
         "concurrency": {
           "default": 1,
           "minimum": 1,

@@ -39,6 +39,18 @@ retries, then `ProviderError`), but the engine isolates it per case: the case
 is recorded with a `provider_error` reason and the remaining cases still run.
 Run summaries report skipped cases in an `errors` counter.
 
+## Escalation (critic retry)
+
+With `pipeline.retry_with_critic: "<critic role>"`, a rejected first pass is
+not final: the engine runs that critic role, then the judge again with the
+critique in context, and re-applies the gate. The critic never sees the first
+judge verdict (only teacher outputs), so it is not anchored by the rejection.
+The role must exist and resolve to a critic kind (a name containing "critic"
+or "general" does, per `infer_role_kind`); otherwise engine construction
+fails. Records produced after a retry carry `metadata.critic_retry: true` and
+`metadata.first_pass_reasons`. If the retry also fails, the case is rejected
+(or becomes a fallback record when `fallback_examples` is on).
+
 ## Security pack gates
 
 Teacher (`SecurityTeacherAnalysis`):

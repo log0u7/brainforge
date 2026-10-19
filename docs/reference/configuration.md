@@ -74,6 +74,7 @@ critics, anything else is a teacher. Inference keeps configs minimal; explicit
 | `reject_unresolved` | bool | `true` | route `insufficient_information` verdicts to rejected |
 | `reject_recitation_risk` | bool | `false` | also reject pre-cutoff cases (tag-only otherwise) |
 | `fallback_examples` | bool | `false` | turn rejected cases into abstention training records (see [quality gates](quality-gates.md#fallback-records-opt-in)) |
+| `retry_with_critic` | string \| null | `null` | critic role to run (then re-judge) when the first pass is rejected; must resolve to a critic role |
 
 Mode presets come from the domain pack (`security`: cheap = security teacher +
 judge, standard = + coding teacher, maximum = + general critic).
