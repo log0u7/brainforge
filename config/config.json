@@ -128,7 +128,8 @@
       "domain": "security",
       "mode": "standard",
       "min_confidence": 0.5,
-      "fallback_examples": false
+      "fallback_examples": false,
+      "retry_with_critic": null
     },
     "security_dataset_maximum": {
       "domain": "security",

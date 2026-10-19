@@ -219,7 +219,7 @@ def test_run_pipeline_counts_errors_separately(postcutoff_case, tmp_path):
     output = tmp_path / "out.jsonl"
     stats = run_pipeline(engine, [postcutoff_case], output, tmp_path / "rejected")
     assert stats == {"accepted": 0, "rejected": 0, "fallback": 0, "errors": 1}
-    assert not output.exists() or read_jsonl(output) == []
+    assert read_jsonl(output) == []
 
 
 def test_provider_error_does_not_abort_the_batch(postcutoff_case, tmp_path):
@@ -270,7 +270,7 @@ def test_provider_error_case_is_not_a_fallback_example(postcutoff_case, tmp_path
     output = tmp_path / "out.jsonl"
     stats = run_pipeline(engine, [postcutoff_case], output, tmp_path / "rejected")
     assert stats == {"accepted": 0, "rejected": 0, "fallback": 0, "errors": 1}
-    assert not output.exists()
+    assert read_jsonl(output) == []
 
 
 def test_fallback_record_user_message_is_the_student_input(postcutoff_case):
@@ -284,3 +284,103 @@ def test_fallback_record_user_message_is_the_student_input(postcutoff_case):
     assert record.messages[0].role == "user"
     assert record.messages[0].content == "Analyze this"
     assert [m.role for m in record.messages] == ["user", "assistant"]
+
+
+def confirmed_responses():
+    return {
+        "mock-security": {
+            "summary": "s",
+            "vulnerability_found": True,
+            "confidence": 0.9,
+            "evidence": [{"description": "e"}],
+            "reasoning": "r",
+        },
+        "mock-coding": {"summary": "s", "behavior": "b", "confidence": 0.9, "reasoning": "r"},
+        "mock-judge": {
+            "verdict": "confirmed",
+            "confidence": 0.9,
+            "reasoning": "r",
+            "cwe": "CWE-78",
+            "evidence": [{"description": "e"}],
+            "disagreement": False,
+        },
+    }
+
+
+def test_rerun_does_not_duplicate_records(postcutoff_case, tmp_path):
+    """A crash plus rerun used to append a second copy of every record."""
+    config = scripted_config()
+    engine = build_engine(config, ScriptedProvider(confirmed_responses()))
+    output = tmp_path / "out.jsonl"
+    first = run_pipeline(engine, [postcutoff_case], output, tmp_path / "rejected")
+    second = run_pipeline(engine, [postcutoff_case], output, tmp_path / "rejected")
+    assert first["accepted"] == 1
+    assert second["accepted"] == 1
+    assert len(read_jsonl(output)) == 1
+
+
+def test_rerun_reflects_changed_responses(postcutoff_case, tmp_path):
+    """Re-running after a prompt/config tweak must not keep stale records."""
+    config = scripted_config()
+    output = tmp_path / "out.jsonl"
+    run_pipeline(
+        build_engine(config, ScriptedProvider(confirmed_responses())),
+        [postcutoff_case],
+        output,
+        tmp_path / "rejected",
+    )
+    # same cases, but the ensemble now rejects: the stale record must go
+    run_pipeline(
+        build_engine(config, ScriptedProvider(unresolved_responses())),
+        [postcutoff_case],
+        output,
+        tmp_path / "rejected",
+    )
+    assert read_jsonl(output) == []
+
+
+def test_partial_output_is_replaced_not_appended(postcutoff_case, tmp_path):
+    """A half-written dataset from a crashed run must be fully replaced."""
+    config = scripted_config()
+    output = tmp_path / "out.jsonl"
+    output.write_text('{"id": "case-crashed", "domain": "security"}\n', encoding="utf-8")
+    run_pipeline(
+        build_engine(config, ScriptedProvider(confirmed_responses())),
+        [postcutoff_case],
+        output,
+        tmp_path / "rejected",
+    )
+    records = read_jsonl(output)
+    assert [record["id"] for record in records] == ["case-post"]
+
+
+class LogprobsScriptedProvider(ScriptedProvider):
+    """Scripted provider that also serves per-token top-k logprobs."""
+
+    def complete_logprobs(self, request, model, top_logprobs=8):
+        from brainforge.providers.base import PositionLogprobs
+
+        data = self.responses[model]
+        content = json.dumps(data)
+        positions = [
+            PositionLogprobs(token=word, logprob=-0.1, topk=[(word, -0.1)])
+            for word in content.split(" ")
+        ]
+        return ChatResponse(
+            content=content,
+            data=data,
+            provider=self.name,
+            model=model,
+            logprobs=positions,
+        )
+
+
+def test_rerun_does_not_duplicate_kd_sidecar(postcutoff_case, tmp_path):
+    config = scripted_config()
+    engine = build_engine(config, LogprobsScriptedProvider(confirmed_responses()))
+    engine.kd = True
+    output = tmp_path / "out.jsonl"
+    sidecar = tmp_path / "out.kd.jsonl"
+    for _ in range(2):
+        run_pipeline(engine, [postcutoff_case], output, tmp_path / "rejected", kd_sidecar=sidecar)
+    assert len(sidecar.read_text(encoding="utf-8").strip().splitlines()) == 1

@@ -85,6 +85,7 @@ class PipelineDef(BaseModel):
     reject_unresolved: bool = True
     reject_recitation_risk: bool = False
     fallback_examples: bool = False
+    retry_with_critic: str | None = None
     concurrency: int = Field(default=1, ge=1)
 
 

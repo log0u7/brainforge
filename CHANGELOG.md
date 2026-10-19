@@ -18,12 +18,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `train task-eval` treats abstention as a third outcome class and reports
   `abstain_rate` and `abstain_recall` (of the records the judge could not
   resolve, how many the model refused too).
+- Critic escalation: `PipelineDef.retry_with_critic` (default null) names a
+  critic role that runs, followed by a second judge pass, when the first pass
+  is rejected. The critic never sees the first judge verdict. Records from a
+  retry carry `critic_retry` and `first_pass_reasons` in metadata.
 
 ### Changed
 
 - Provider failures are isolated per case: the case is recorded with a
   `provider_error` reason and the batch continues instead of aborting. Run
   summaries gain `fallback` and `errors` counters.
+- `run_pipeline` writes the dataset and the KD sidecar once, atomically, at
+  the end of the run (temp file plus rename). A crash plus rerun can no
+  longer duplicate lines, and a rerun after a config or prompt tweak no
+  longer keeps stale records. The dataset file always exists after a run,
+  empty when nothing is accepted.
 - New `docs/reference/references.md` maps each research paper and standard to
   what it informs (judge independence, contamination, QLoRA, KD, RAG,
   graceful failure). Stale links fixed: ADR-0008 pointed at the retired
