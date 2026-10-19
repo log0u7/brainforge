@@ -18,7 +18,26 @@ Engine, per record:
 
 Dataset validation, per file: schema-valid record, user/assistant ordering,
 JSON assistant content, provenance keys present, `quality.passed` true.
+A record carrying `fallback: true` is the one exception: it must carry
+`fallback_reason` instead of a passing gate (see
+[fallback records](dataset-format.md#fallback-records-teaching-abstention)).
 See [dataset format](dataset-format.md).
+
+## Fallback records (opt-in)
+
+With `pipeline.fallback_examples: true`, a rejected case is not dropped: it
+becomes an abstention training record whose assistant target is a canonical
+`insufficient_information` verdict. The rejected-case audit trail
+(`data/rejected/`) is kept either way. A provider failure is not case
+unreliability, so it never produces a fallback record; the case is skipped with
+a `provider_error` reason and the batch continues.
+
+## Provider failures
+
+A provider or parse failure fails loudly inside the provider layer (two parse
+retries, then `ProviderError`), but the engine isolates it per case: the case
+is recorded with a `provider_error` reason and the remaining cases still run.
+Run summaries report skipped cases in an `errors` counter.
 
 ## Security pack gates
 

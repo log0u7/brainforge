@@ -43,3 +43,4 @@ one file per decision, in [MADR 3.0](https://adr.github.io/madr/) format.
 | [0013](0013-full-fine-tuning-strategy.md) | Full fine-tuning as a second strategy after QLoRA | accepted |
 | [0014](0014-abliteration-single-direction.md) | Abliteration: single-direction refusal removal, experimental | accepted |
 | [0015](0015-knowledge-distillation-sidecar.md) | Knowledge distillation: teacher top-k sidecar plus custom loss, experimental | accepted |
+| [0016](0016-graceful-failure-fallback.md) | Graceful failure: fallback examples in SFT and per-case provider isolation | accepted |

@@ -163,7 +163,7 @@ Any OpenAI-compatible endpoint works, including Ollama on
 | [How-to guides](docs/how-to/configure-providers.md) | providers, RAG, generation, dataset management, domain packs, shipping to Ollama, ADRs |
 | [Reference](docs/reference/configuration.md) | configuration, providers, CLI, dataset format, quality gates, RAG, training, CI, research references |
 | [Explanation](docs/explanation/architecture.md) | architecture, contamination, judge correlation, knowledge distillation |
-| [Decision records](docs/adr/index.md) | 15 MADR ADRs behind the design |
+| [Decision records](docs/adr/index.md) | 16 MADR ADRs behind the design |
 
 ## Development
 

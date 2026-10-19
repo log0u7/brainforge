@@ -191,7 +191,7 @@ def test_run_pipeline_writes_accepted_and_rejected(postcutoff_case, precutoff_ca
     output = tmp_path / "datasets" / "security.jsonl"
     rejected = tmp_path / "rejected"
     stats = run_pipeline(engine, [postcutoff_case, precutoff_case], output, rejected)
-    assert stats == {"accepted": 1, "rejected": 1}
+    assert stats == {"accepted": 1, "rejected": 1, "fallback": 0, "errors": 0}
     records = read_jsonl(output)
     assert len(records) == 1
     assert records[0]["id"] == "case-post"
@@ -205,7 +205,7 @@ def test_run_pipeline_without_rejected_dir(postcutoff_case, precutoff_case, tmp_
     engine = PipelineEngine(config, "security_dataset", roles, get_pack("security"))
     output = tmp_path / "out.jsonl"
     stats = run_pipeline(engine, [precutoff_case], output, None)
-    assert stats == {"accepted": 0, "rejected": 1}
+    assert stats == {"accepted": 0, "rejected": 1, "fallback": 0, "errors": 0}
 
 
 class DelayedScriptedProvider(ScriptedProvider):
@@ -265,7 +265,7 @@ def test_run_pipeline_concurrency_preserves_order(postcutoff_case, precutoff_cas
     )
     output = tmp_path / "out.jsonl"
     stats = run_pipeline(engine, [postcutoff_case, precutoff_case], output)
-    assert stats == {"accepted": 1, "rejected": 1}
+    assert stats == {"accepted": 1, "rejected": 1, "fallback": 0, "errors": 0}
     records = read_jsonl(output)
     assert [record["id"] for record in records] == ["case-post"]
     assert provider.max_active > 1

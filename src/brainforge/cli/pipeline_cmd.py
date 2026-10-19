@@ -126,10 +126,18 @@ def run(
     except BrainforgeError as exc:
         err_console.print(f"[red]pipeline failed:[/red] {exc}")
         raise typer.Exit(code=1) from exc
-    console.print(
-        f"[green]{pipeline_name}[/green]: {stats['accepted']} accepted, "
-        f"{stats['rejected']} rejected ({case_count} cases) -> {output_path}"
+    summary = (
+        f"{stats['accepted']} accepted, {stats['rejected']} rejected"
+        f" ({case_count} cases) -> {output_path}"
     )
+    if stats.get("fallback"):
+        summary = (
+            f"{stats['accepted']} accepted, {stats['fallback']} fallback, "
+            f"{stats['rejected']} rejected ({case_count} cases) -> {output_path}"
+        )
+    if stats.get("errors"):
+        summary += f" [yellow]({stats['errors']} provider errors skipped)[/yellow]"
+    console.print(f"[green]{pipeline_name}[/green]: {summary}")
     if experiment:
         from brainforge.dataset.writer import read_jsonl
         from brainforge.experiments.manager import create_experiment

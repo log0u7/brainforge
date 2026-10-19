@@ -28,26 +28,43 @@ def make_record(verdict: str, cwe: str | None = "CWE-78", domain: str = "securit
 
 def test_expected_from_record_parses_judge_verdict():
     expected = expected_from_record(make_record("confirmed"))
-    assert expected == {"vulnerability_found": True, "cwe": "CWE-78"}
+    assert expected == {"vulnerability_found": True, "abstain": False, "cwe": "CWE-78"}
 
 
 def test_expected_from_record_rejected():
     assert expected_from_record(make_record("rejected", cwe=None)) == {
         "vulnerability_found": False,
+        "abstain": False,
         "cwe": None,
     }
 
 
+def test_expected_from_record_marks_abstention():
+    expected = expected_from_record(make_record("insufficient_information", cwe=None))
+    assert expected["abstain"] is True
+    assert expected["vulnerability_found"] is False
+
+
 def test_prediction_from_text_parses_json():
     text = '```json\n{"verdict": "confirmed", "cwe": "CWE-79"}\n```'
-    assert prediction_from_text(text) == {"vulnerability_found": True, "cwe": "CWE-79"}
+    assert prediction_from_text(text) == {
+        "vulnerability_found": True,
+        "abstain": False,
+        "cwe": "CWE-79",
+    }
 
 
 def test_prediction_from_text_unparseable_is_miss():
     assert prediction_from_text("garbage, no json here") == {
         "vulnerability_found": None,
+        "abstain": False,
         "cwe": None,
     }
+
+
+def test_prediction_from_text_marks_abstention():
+    text = json.dumps({"verdict": "insufficient_information", "reasoning": "not enough info"})
+    assert prediction_from_text(text)["abstain"] is True
 
 
 def test_prediction_from_text_propagates_unexpected_errors(monkeypatch):
@@ -73,17 +90,20 @@ def test_score_task_metrics():
     # 4 records: TP, TN, 1 FP, 1 FN
     pairs = [
         (
-            {"vulnerability_found": True, "cwe": "CWE-78"},
-            {"vulnerability_found": True, "cwe": "CWE-78"},
-        ),
-        ({"vulnerability_found": False, "cwe": None}, {"vulnerability_found": False, "cwe": None}),
-        (
-            {"vulnerability_found": True, "cwe": "CWE-79"},
-            {"vulnerability_found": False, "cwe": None},
+            {"vulnerability_found": True, "abstain": False, "cwe": "CWE-78"},
+            {"vulnerability_found": True, "abstain": False, "cwe": "CWE-78"},
         ),
         (
-            {"vulnerability_found": None, "cwe": None},
-            {"vulnerability_found": True, "cwe": "CWE-78"},
+            {"vulnerability_found": False, "abstain": False, "cwe": None},
+            {"vulnerability_found": False, "abstain": False, "cwe": None},
+        ),
+        (
+            {"vulnerability_found": True, "abstain": False, "cwe": "CWE-79"},
+            {"vulnerability_found": False, "abstain": False, "cwe": None},
+        ),
+        (
+            {"vulnerability_found": None, "abstain": False, "cwe": None},
+            {"vulnerability_found": True, "abstain": False, "cwe": "CWE-78"},
         ),
     ]
     metrics = score_task(pairs)
@@ -92,6 +112,33 @@ def test_score_task_metrics():
     assert metrics["false_positive_rate"] == 0.25
     assert metrics["false_negative_rate"] == 0.25
     assert metrics["cwe_accuracy"] == 0.5
+    assert metrics["abstain_recall"] is None
+
+
+def test_score_task_counts_abstention():
+    # judge abstained on one record; the student abstains too -> correct.
+    # on the second, the student guesses instead of abstaining -> false positive.
+    pairs = [
+        (
+            {"vulnerability_found": False, "abstain": True, "cwe": None},
+            {"vulnerability_found": False, "abstain": True, "cwe": None},
+        ),
+        (
+            {"vulnerability_found": True, "abstain": False, "cwe": "CWE-78"},
+            {"vulnerability_found": False, "abstain": True, "cwe": None},
+        ),
+        (
+            {"vulnerability_found": False, "abstain": True, "cwe": None},
+            {"vulnerability_found": True, "abstain": False, "cwe": "CWE-78"},
+        ),
+    ]
+    metrics = score_task(pairs)
+    assert metrics["n_records"] == 3
+    assert metrics["accuracy"] == 1 / 3
+    assert metrics["false_positive_rate"] == 1 / 3
+    assert metrics["false_negative_rate"] == 1 / 3
+    assert metrics["abstain_recall"] == 0.5
+    assert metrics["abstain_rate"] == 2 / 3
 
 
 def test_run_task_eval_rejects_non_security():

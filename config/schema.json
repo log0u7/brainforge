@@ -115,6 +115,11 @@
           "title": "Reject Recitation Risk",
           "type": "boolean"
         },
+        "fallback_examples": {
+          "default": false,
+          "title": "Fallback Examples",
+          "type": "boolean"
+        },
         "concurrency": {
           "default": 1,
           "minimum": 1,

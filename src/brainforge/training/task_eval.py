@@ -14,7 +14,7 @@ from brainforge.providers.base import extract_json
 
 
 def expected_from_record(record: dict) -> dict:
-    """Extract {vulnerability_found, cwe} from the record's judge answer."""
+    """Extract {vulnerability_found, abstain, cwe} from the record's judge answer."""
     messages = record.get("messages") or []
     if not messages:
         raise BrainforgeError(f"record '{record.get('id')}' has no messages")
@@ -27,24 +27,45 @@ def expected_from_record(record: dict) -> dict:
         ) from exc
     return {
         "vulnerability_found": data.get("verdict") == "confirmed",
+        "abstain": data.get("verdict") == "insufficient_information",
         "cwe": data.get("cwe"),
     }
 
 
 def prediction_from_text(text: str) -> dict:
-    """Map a raw model answer to {vulnerability_found, cwe}; None = unparseable miss."""
+    """Map a raw model answer to {vulnerability_found, abstain, cwe}; None = unparseable miss."""
     try:
         data = extract_json(text)
     except ProviderError:
-        return {"vulnerability_found": None, "cwe": None}
+        return {"vulnerability_found": None, "abstain": False, "cwe": None}
     return {
         "vulnerability_found": data.get("verdict") == "confirmed",
+        "abstain": data.get("verdict") == "insufficient_information",
         "cwe": data.get("cwe"),
     }
 
 
+def _answer_class(side: dict) -> str:
+    """One of confirmed / rejected / abstain / unparseable."""
+    if side.get("abstain"):
+        return "abstain"
+    found = side.get("vulnerability_found")
+    if found is True:
+        return "confirmed"
+    if found is None:
+        return "unparseable"
+    return "rejected"
+
+
 def score_task(pairs: list[tuple[dict, dict]]) -> dict:
-    """Compute accuracy, FP/FN rates and CWE accuracy from (prediction, expected) pairs."""
+    """Compute accuracy, FP/FN rates, CWE accuracy and abstention metrics.
+
+    Abstention is a third outcome class (``insufficient_information``): a model
+    that abstains where the judge abstained is correct, an abstention on a
+    confirmed case is a false negative, and a guess on an abstained case is a
+    false positive. ``abstain_recall`` is the graceful-failure metric: of the
+    records the judge could not resolve, how many did the model refuse too.
+    """
     if not pairs:
         raise BrainforgeError("no evaluation pairs")
     n = len(pairs)
@@ -53,17 +74,30 @@ def score_task(pairs: list[tuple[dict, dict]]) -> dict:
     false_negatives = 0
     cwe_correct = 0
     cwe_compared = 0
+    abstain_expected = 0
+    abstain_predicted = 0
+    abstain_correct = 0
     for prediction, expected in pairs:
-        predicted = prediction["vulnerability_found"]
-        actual = expected["vulnerability_found"]
-        if predicted is not None and predicted == actual:
+        predicted = _answer_class(prediction)
+        actual = _answer_class(expected)
+        if actual == "abstain":
+            abstain_expected += 1
+        if predicted == "abstain":
+            abstain_predicted += 1
+        if predicted == actual:
             correct += 1
-        elif (predicted is True and actual is False) or (predicted is None and actual is False):
-            false_positives += 1
-        elif (predicted is False and actual is True) or (predicted is None and actual is True):
+            if actual == "abstain":
+                abstain_correct += 1
+        elif actual == "confirmed":
+            # a real finding the model did not confirm: wrong guess, abstention
+            # or unparseable output all count as a miss
             false_negatives += 1
+        else:
+            # claimed a finding the judge did not confirm, including a guess
+            # on a case the judge abstained on
+            false_positives += 1
         expected_cwe = expected.get("cwe")
-        if actual and expected_cwe:
+        if expected.get("vulnerability_found") and expected_cwe:
             cwe_compared += 1
             if prediction.get("cwe") == expected_cwe:
                 cwe_correct += 1
@@ -73,6 +107,8 @@ def score_task(pairs: list[tuple[dict, dict]]) -> dict:
         "false_positive_rate": false_positives / n,
         "false_negative_rate": false_negatives / n,
         "cwe_accuracy": (cwe_correct / cwe_compared) if cwe_compared else None,
+        "abstain_rate": abstain_predicted / n,
+        "abstain_recall": (abstain_correct / abstain_expected) if abstain_expected else None,
     }
 
 

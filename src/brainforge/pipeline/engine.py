@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 from brainforge.case import Case
 from brainforge.config.models import Config, PipelineDef
 from brainforge.domains.base import DomainPack
+from brainforge.errors import ProviderError
 from brainforge.pipeline.judge import compute_agreement, is_unresolved
 from brainforge.providers.base import ChatMessage, ChatRequest, Provider
 from brainforge.providers.observability import UsageLogger, estimate_cost
@@ -40,6 +41,7 @@ class CaseResult:
     metadata: dict = field(default_factory=dict)
     kd_positions: list | None = None
     kd_model: str | None = None
+    provider_error: str | None = None
 
 
 class PipelineEngine:
@@ -84,7 +86,19 @@ class PipelineEngine:
         context = PipelineContext(case=case)
         context.rag_context = self._retrieve(case)
         for step in self.steps:
-            context.previous_results[step] = self._run_step(step, case, context)
+            try:
+                context.previous_results[step] = self._run_step(step, case, context)
+            except ProviderError as exc:
+                # Infrastructure failure, not case unreliability: skip the case
+                # instead of aborting the whole batch, and never fabricate a
+                # fallback record from it.
+                return CaseResult(
+                    case_id=case.id,
+                    accepted=False,
+                    gate_reasons=[f"provider_error: {step}: {exc}"],
+                    teacher_results=self._teacher_results(context),
+                    provider_error=str(exc),
+                )
         final_role = self.steps[-1]
         final_binding = self.roles.resolve(final_role)
         canonical = context.previous_results[final_role]
@@ -109,6 +123,17 @@ class PipelineEngine:
                 metadata=metadata,
                 kd_positions=context.kd_positions or None,
                 kd_model=(metadata["judge"]["model"] if metadata.get("judge") else None),
+            )
+        if self.pipeline.fallback_examples:
+            record = self._fallback_record(case, metadata, reasons)
+            return CaseResult(
+                case_id=case.id,
+                accepted=False,
+                record=record,
+                gate_reasons=reasons,
+                teacher_results=self._teacher_results(context),
+                judge_result=canonical,
+                metadata=metadata,
             )
         return CaseResult(
             case_id=case.id,
@@ -266,6 +291,20 @@ class PipelineEngine:
             metadata=metadata,
         )
 
+    def _fallback_record(self, case: Case, metadata: dict, reasons: list[str]) -> "DatasetRecord":
+        from brainforge.dataset.writer import build_fallback_record
+
+        fallback_metadata = dict(metadata)
+        fallback_metadata["fallback"] = True
+        fallback_metadata["fallback_reason"] = "; ".join(reasons)
+        return build_fallback_record(
+            case=case,
+            domain=self.pipeline.domain,
+            student_input=self.pack.student_input(case),
+            reasons=reasons,
+            metadata=fallback_metadata,
+        )
+
 
 def run_pipeline(
     engine: PipelineEngine,
@@ -293,8 +332,22 @@ def run_pipeline(
         results = [engine.run_case(case) for case in cases]
     accepted_count = 0
     rejected_count = 0
+    fallback_count = 0
+    error_count = 0
     sidecar_path = Path(kd_sidecar) if kd_sidecar is not None else None
     for case, result in zip(cases, results, strict=True):
+        if result.provider_error is not None:
+            error_count += 1
+            if rejected_dir is not None:
+                write_rejected(
+                    rejected_dir,
+                    engine.pipeline_name,
+                    case,
+                    result.gate_reasons,
+                    result.judge_result,
+                    result.metadata,
+                )
+            continue
         if result.accepted and result.record is not None:
             append_record(output_path, result.record)
             accepted_count += 1
@@ -312,6 +365,19 @@ def run_pipeline(
                         )
                         + "\n"
                     )
+        elif result.record is not None:
+            # rejected case that became an abstention training example
+            append_record(output_path, result.record)
+            fallback_count += 1
+            if rejected_dir is not None:
+                write_rejected(
+                    rejected_dir,
+                    engine.pipeline_name,
+                    case,
+                    result.gate_reasons,
+                    result.judge_result,
+                    result.metadata,
+                )
         else:
             rejected_count += 1
             if rejected_dir is not None:
@@ -323,4 +389,9 @@ def run_pipeline(
                     result.judge_result,
                     result.metadata,
                 )
-    return {"accepted": accepted_count, "rejected": rejected_count}
+    return {
+        "accepted": accepted_count,
+        "rejected": rejected_count,
+        "fallback": fallback_count,
+        "errors": error_count,
+    }

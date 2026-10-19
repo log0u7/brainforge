@@ -127,7 +127,8 @@
     "security_dataset": {
       "domain": "security",
       "mode": "standard",
-      "min_confidence": 0.5
+      "min_confidence": 0.5,
+      "fallback_examples": false
     },
     "security_dataset_maximum": {
       "domain": "security",

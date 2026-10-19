@@ -285,6 +285,12 @@ def test_pipeline_concurrency_default():
         PipelineDef(domain="security", concurrency=0)
 
 
+def test_pipeline_fallback_examples_defaults_off():
+    from brainforge.config.models import PipelineDef
+
+    assert PipelineDef(domain="security").fallback_examples is False
+
+
 def test_training_defaults(config_file):
     config = load_config(config_file)
     assert config.training.base_model == "Qwen/Qwen3-8B"

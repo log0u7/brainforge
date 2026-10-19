@@ -33,7 +33,12 @@ def validate_record(record: dict) -> list[str]:
     for key in ("source", "teachers", "quality", "recitation_risk"):
         if key not in metadata:
             errors.append(f"metadata is missing '{key}'")
-    if metadata.get("quality", {}).get("passed") is not True:
+    if metadata.get("fallback"):
+        # Abstention record: the gate did not pass (that is why it is a
+        # fallback), so require the reason instead of a passing gate.
+        if not metadata.get("fallback_reason"):
+            errors.append("fallback record without fallback_reason")
+    elif metadata.get("quality", {}).get("passed") is not True:
         errors.append("metadata quality gate did not pass")
     return errors
 

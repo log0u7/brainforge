@@ -73,6 +73,7 @@ critics, anything else is a teacher. Inference keeps configs minimal; explicit
 | `min_confidence` | float | `0.5` | quality-gate confidence threshold |
 | `reject_unresolved` | bool | `true` | route `insufficient_information` verdicts to rejected |
 | `reject_recitation_risk` | bool | `false` | also reject pre-cutoff cases (tag-only otherwise) |
+| `fallback_examples` | bool | `false` | turn rejected cases into abstention training records (see [quality gates](quality-gates.md#fallback-records-opt-in)) |
 
 Mode presets come from the domain pack (`security`: cheap = security teacher +
 judge, standard = + coding teacher, maximum = + general critic).
