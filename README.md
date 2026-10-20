@@ -1,5 +1,7 @@
 # BrainForge
 
+![brainforge - the teachers pour in, the judge weighs, the student is forged](brainforge-v0.png)
+
 [![CI](https://github.com/log0u7/brainforge/actions/workflows/ci.yml/badge.svg)](https://github.com/log0u7/brainforge/actions/workflows/ci.yml)
 [![python](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org)
 [![license](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
