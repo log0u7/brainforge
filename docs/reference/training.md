@@ -53,6 +53,11 @@ Selected with `training.backend` or `train run --backend {trl,unsloth}`.
 Both backends share dataset preparation, splits, resume and the
 `train_summary.json` contract (which records the backend and strategy).
 
+AirLLM is evaluated and not adopted
+([ADR-0017](../adr/0017-airllm-not-adopted.md)): layer streaming lowers VRAM
+but not for a 7-9B model that already fits, and its custom training API is
+incompatible with the PEFT/TRL, KD and GGUF contracts.
+
 ## Knowledge distillation (experimental)
 
 Two commands:
