@@ -39,6 +39,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   GitLab host, README advertised a `make docs-serve` target that does not
   exist.
 
+### Fixed
+
+- Force `pillow>=13.0.0` to clear its known CVEs despite fastembed's `<13`
+  cap, and bump `certifi` to 2026.10.19.
+- Audit the uv lock with `pip-audit --no-deps --disable-pip` so pip's
+  resolver cannot reject the Pillow override.
+
 ## [0.3.0] - 2026-10-18
 
 BrainForge becomes a generic distillation and fine-tuning framework: born

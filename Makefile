@@ -23,7 +23,9 @@ audit:
 	# PYSEC-2026-4217 (fsspec<=2026.2.0, transitive via torch/datasets http extra):
 	# unfixable while the unsloth extra requires datasets<5.0 and datasets 4.8.x
 	# caps fsspec at 2026.2.0. Re-check when unsloth supports datasets>=5.1.
-	uvx pip-audit -r requirements-audit.txt --strict --ignore-vuln PYSEC-2026-4217
+	# --no-deps --disable-pip: audit the uv lock as-is; pip would reject the
+	# pillow override against fastembed's <13 metadata.
+	uvx pip-audit -r requirements-audit.txt --strict --ignore-vuln PYSEC-2026-4217 --no-deps --disable-pip
 
 build:
 	uv build
