@@ -157,5 +157,6 @@ jobs:
       - name: Export runtime requirements
         run: uv export --format requirements-txt --no-dev --no-hashes --no-emit-project -o requirements-audit.txt
       - name: Run pip-audit
-        # PYSEC-2026-4217: fsspec<=2026.2.0 via unsloth->datasets<5.0; blocked upstream, same waiver as Makefile audit
-        run: uvx pip-audit -r requirements-audit.txt --strict --ignore-vuln PYSEC-2026-4217
+        # PYSEC-2026-4217: fsspec<=2026.2.0 via unsloth->datasets<5.0; blocked upstream, same waiver as Makefile audit.
+        # --no-deps --disable-pip: pip would reject the pillow override against fastembed's <13 metadata.
+        run: uvx pip-audit -r requirements-audit.txt --strict --ignore-vuln PYSEC-2026-4217 --no-deps --disable-pip

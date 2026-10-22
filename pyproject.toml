@@ -32,6 +32,10 @@ unsloth = [
 [project.scripts]
 brainforge = "brainforge.cli:main"
 
+[tool.uv]
+# fastembed caps pillow<13; force the patched major for pip-audit.
+override-dependencies = ["pillow>=13.0.0"]
+
 [dependency-groups]
 dev = [
     "pytest>=8.3",
