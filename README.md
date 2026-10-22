@@ -6,50 +6,30 @@
 [![python](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org)
 [![license](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
 
-**Status:** pre-1.0. Configuration and CLI may change. No model-quality
-benchmark is published yet.
+**Status:** pre-1.0. Configuration and CLI may change. No model-quality benchmark is published yet.
 
 ## What it is
 
-BrainForge turns domain cases into a gate-checked, provenance-tagged JSONL
-dataset with a multi-teacher LLM pipeline. It can then fine-tune a small open
-student on that dataset (QLoRA or full fine-tuning) and export it to HF, GGUF,
-or Ollama.
+BrainForge turns domain cases into a gate-checked, provenance-tagged JSONL dataset with a multi-teacher LLM pipeline. It can then fine-tune a small open student on that dataset (QLoRA or full fine-tuning) and export it to HF, GGUF, or Ollama.
 
-It is a self-hosted Python package and CLI. Datasets, the RAG index, cache, and
-usage logs stay local. Prompts and retrieved context go to configured providers.
+It is a self-hosted Python package and CLI. Datasets, the RAG index, cache, and usage logs stay local. Prompts and retrieved context go to configured providers.
 
-**Use it if** you need auditable provenance, provider-separated adjudication,
-or a local student model for a domain you control.
+**Use it if** you need auditable provenance, provider-separated adjudication, or a local student model for a domain you control.
 
-**Not for** human-labeled ground truth, a hosted labeling UI, CPU-only training,
-or a guarantee of model-quality gains. **Verified here** means schema-valid,
-gate-checked, and provenance-complete, not human-reviewed ground truth.
+**Not for** human-labeled ground truth, a hosted labeling UI, CPU-only training, or a guarantee of model-quality gains. **Verified here** means schema-valid, gate-checked, and provenance-complete, not human-reviewed ground truth.
 
 ## How it works
 
-1. **Generate.** Cases come from JSON or source files, optionally enriched with
-   local RAG context. One or more teacher roles produce structured analyses.
-2. **Challenge (optional).** A critic can attack the teachers' output before a
-   second judge pass. `retry_with_critic` enables this escalation when the
-   first judge rejects a case. Standard presets use two teachers and a judge;
-   maximum presets use three teachers and a judge.
-3. **Adjudicate and gate.** The judge runs last. With the default `enforced`
-   setting, it must use a different provider from every non-judge role, plus a
-   different declared model family when both sides declare one. Domain gates
-   check schema, evidence, format, confidence, and optional recitation risk;
-   unresolved verdicts are rejected by default (`reject_unresolved`). Accepted
-   records get provenance; rejected cases are quarantined with reasons.
-4. **Train.** Prepare source-grouped splits, fine-tune with QLoRA or full FT on
-   CUDA, and export merged HF weights, GGUF, or an Ollama model.
+1. **Generate.** Cases come from JSON or source files, optionally enriched with local RAG context. One or more teacher roles produce structured analyses.
+2. **Challenge (optional and preset-dependent).** A critic can attack the teachers' output before the judge. The ticket standard uses `ticket_teacher`, the `general_teacher` critic, and the judge. Security and coding standards use two teachers and the judge. Maximum modes add the `general_teacher` critic for security and coding, and ticket maximum also adds `ticket_teacher_2`. `retry_with_critic` runs a critic only after the first judge rejects a case.
+3. **Adjudicate and gate.** The judge runs last. With the default `enforced` setting, it must use a different provider from every non-judge role, plus a different declared model family when both sides declare one. Domain gates check schema, evidence, format, confidence, and optional recitation risk; unresolved verdicts are rejected by default (`reject_unresolved`). Accepted records get provenance; rejected cases are quarantined with reasons.
+4. **Train.** Prepare source-grouped splits, fine-tune with QLoRA or full FT on CUDA, and export merged HF weights, GGUF, or an Ollama model.
 
-Dataset-only users can stop after stage 3: the JSONL is the product, and
-training is optional.
+Dataset-only users can stop after stage 3: the JSONL is the product, and training is optional.
 
 ## Quickstart: no keys, no GPU
 
-Requirements: Python 3.12+, [uv](https://docs.astral.sh/uv/), and Git. `mise` is
-optional.
+Requirements: Python 3.12+, [uv](https://docs.astral.sh/uv/), and Git. `mise` is optional.
 
 ```bash
 git clone https://github.com/log0u7/brainforge.git
@@ -60,13 +40,13 @@ uv run brainforge config validate
 
 Expected: `configuration is valid`.
 
-Run one ticket case through the full generation and judge path with the
-deterministic mock provider:
+Run one ticket case through the full generation and judge path with the deterministic mock provider:
 
 ```bash
 uv run brainforge pipeline run ticket_triage \
   --input examples/cases/ticket-password-reset-001.json \
-  --provider mock --no-rag
+  --provider mock --no-rag \
+  --output datasets/ticket_triage.jsonl
 ```
 
 ```text
@@ -80,16 +60,18 @@ uv run brainforge dataset inspect datasets/ticket_triage.jsonl
 ```
 
 ```text
-records         1
-recitation_risk 1 (100.0%)
-post-cutoff     0 (0.0%)
-duplicates      0
+      Dataset: datasets/ticket_triage.jsonl
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Metric                            ┃ Value      ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│ records                           │ 1          │
+│ recitation_risk                   │ 1 (100.0%) │
+│ post-cutoff (primary eval signal) │ 0 (0.0%)   │
+│ duplicates                        │ 0          │
+└───────────────────────────────────┴────────────┘
 ```
 
-The mock provider proves plumbing, not labels: it fills role schemas
-deterministically. `general_teacher` has no cutoff, so the record is tagged
-`recitation_risk`; the post-cutoff split is empty, so this run says nothing
-about generalization.
+The mock provider exercises the plumbing, not the labels: it fills role schemas deterministically. `general_teacher` has no cutoff, so the record is tagged `recitation_risk`; the post-cutoff split is empty, so this run says nothing about generalization. The CLI calls the post-cutoff count the primary eval signal; it is a holdout split, not a published benchmark.
 
 Export training splits:
 
@@ -114,15 +96,16 @@ required.
 
 ### Train on a GPU
 
-Training and task evaluation require CUDA and the training extra. Chat and
-export also need the training extra:
+Training, task evaluation, and merged or GGUF export require CUDA and the
+training extra. Chat needs the training extra and enough memory:
 
 ```bash
 uv sync --extra training
 ```
 
-The shipped pipeline uses an OpenRouter teacher, an MLGW teacher, and a Zen
-judge. Configure all three, or pin `steps` to `ticket_teacher` and `judge`; see
+The shipped ticket standard uses an OpenRouter teacher, an MLGW general critic,
+and a Zen judge. Configure all three, or pin `steps` to `ticket_teacher` and
+`judge` to skip the critic; see
 [configure providers](docs/how-to/configure-providers.md).
 
 Create `data/raw` and put real cases there, then run:
@@ -142,16 +125,18 @@ and [training reference](docs/reference/training.md).
 
 | Capability | Detail |
 |---|---|
-| Providers and cost control | OpenRouter, OpenCode Zen (`chat_completions` only), MLGW, any OpenAI-compatible endpoint, and a deterministic mock. Env-expanded keys, retries, SQLite response cache, and usage logs with cost estimates when pricing is configured. |
-| Multi-teacher ensemble | One or more teacher roles, optional critic, and a separate judge. Presets for cheap, standard, and maximum modes; `retry_with_critic` adds criticism and a second judge pass after a rejection. |
+| Providers and cost control | OpenRouter, OpenCode Zen (`chat_completions` only), MLGW, an OpenAI-compatible `chat_completions` endpoint, and a deterministic mock. Env-expanded keys, retries, SQLite response cache, and usage logs with cost estimates when pricing is configured. |
+| Multi-teacher ensemble | One or more teacher roles, an optional critic, and a separate judge. Presets for cheap, standard, and maximum modes; `retry_with_critic` adds criticism and a second judge pass after a rejection. |
 | Dataset contract | JSONL messages plus source, source date, teachers, judge, gate result, recitation risk and reason, RAG chunks, and agreement where the domain schema supports it. |
 | Gates and dataset tooling | Per-domain rules, rejected-case quarantine with reasons, validation, duplicate and contamination inspection, source-grouped splits, and a post-cutoff holdout. |
 | Local RAG | fastembed ONNX embeddings on CPU (or hashing embeddings), SQLite plus NumPy store, chunk provenance, and `--no-rag` to bypass it. |
 | Training and export | QLoRA with 4-bit weights and LoRA, full fine-tuning, TRL or opt-in Unsloth, resume support, merged HF weights, GGUF, and Ollama. |
 | Domain packs | Security and coding reference packs; ticket, CTF, review, audit, and agentic examples; generic fallback for prototypes. |
-| Experimental | Knowledge distillation from judge logprobs (`--kd`) and abliteration. Both are documented but not benchmarked. |
 
-## Why multi-teacher
+Knowledge distillation (`--kd`) and abliteration are experimental: documented,
+but not benchmarked.
+
+## Why a multi-teacher pipeline
 
 | Question | Single teacher | BrainForge |
 |---|---|---|
@@ -219,18 +204,24 @@ context go to configured providers.
 | `openrouter` | Hosted models through OpenRouter model IDs |
 | `zen` | OpenCode Zen; `chat_completions` only; `responses` and `anthropic` fail at build |
 | `mlgw` | Local OpenAI-compatible gateway; default `http://localhost:8080/v1` |
-| `openai` / `local` | Any OpenAI-compatible chat endpoint, including Ollama on `http://localhost:11434/v1` |
+| `openai` / `local` | Any OpenAI-compatible `chat_completions` endpoint, including Ollama on `http://localhost:11434/v1` |
 | `mock` | Deterministic, no network; tests and dry runs |
 
 ## Documentation
 
+Start at [docs/index.md](docs/index.md) for the full map.
+
 | Section | Content |
 |---|---|
-| [Tutorial](docs/tutorials/first-model.md) | Build a dataset without keys or a GPU, then train on CUDA |
-| [How-to guides](docs/how-to/configure-providers.md) | Providers, RAG, generation, dataset management, domain packs, Ollama, and ADRs |
-| [Reference](docs/reference/configuration.md) | Configuration, providers, CLI, dataset format, quality gates, RAG, training, CI, and research references |
-| [Explanation](docs/explanation/architecture.md) | Architecture, contamination, judge correlation, and knowledge distillation |
-| [Decision records](docs/adr/index.md) | MADR records for the design decisions |
+| [Tutorial](docs/tutorials/first-model.md) | Prepare a dataset without keys or a GPU, then train on CUDA |
+| [Providers](docs/how-to/configure-providers.md) | OpenRouter, Zen, MLGW, and local endpoints |
+| [Dataset generation](docs/how-to/generate-dataset.md) | Cases, teachers, critic, judge, and gates |
+| [Domain packs](docs/how-to/add-domain-pack.md) | Add a domain with its own schemas and rules |
+| [Training](docs/reference/training.md) | QLoRA, full FT, evaluation, export |
+| [CLI and config](docs/reference/cli.md) | Commands, flags, and configuration |
+| [Dataset format and gates](docs/reference/dataset-format.md) | Record fields, splits, quality gates |
+| [Architecture](docs/explanation/architecture.md) | How the pipeline fits together |
+| [Decision records](docs/adr/index.md) | What was chosen, what was rejected |
 
 ## Development, security, license
 
