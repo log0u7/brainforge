@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- README, documentation index, and first-model tutorial now state the verified
+  scope, known limits, and actual quickstart output. The tutorial uses one
+  mock case and separates the CUDA training step; unverified quality, speed,
+  and test-count claims are removed.
 - Provider failures are isolated per case: the case is recorded with a
   `provider_error` reason and the batch continues instead of aborting. Run
   summaries gain `fallback` and `errors` counters.

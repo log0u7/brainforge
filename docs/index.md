@@ -9,7 +9,7 @@ are trying to do.
 
 | I want to... | Go to |
 |---|---|
-| try the full loop in 10 minutes, no API keys | [Tutorial: build your first model](tutorials/first-model.md) |
+| try the mock loop without API keys or a GPU | [Tutorial: build your first student](tutorials/first-model.md) |
 | connect OpenRouter, Zen or MLGW | [How-to: configure providers](how-to/configure-providers.md) |
 | index my own documents (business history, KB) for retrieval | [How-to: index and search with RAG](how-to/index-and-search-rag.md) |
 | generate a dataset with real teachers | [How-to: generate a dataset](how-to/generate-dataset.md) |
@@ -25,13 +25,16 @@ are trying to do.
 
 Cases built from local data (code, CVEs, tickets, documentation) are
 enriched with local RAG context, analyzed by independent teacher LLMs, and
-arbitrated by a judge that shares neither provider nor model family with
-them. A quality gate filters the results into a provenance-complete JSONL
-dataset, with contamination tagging driven by teacher knowledge cutoffs and
-a post-cutoff holdout as the primary benchmark. Prepared splits feed a
-student fine-tune (QLoRA first, full FT for the decision model), exported
-to GGUF/Ollama and distributable with llmp2p. Security is the reference
-domain where this rigor was proven; every other domain inherits it.
+arbitrated by a judge. By default the judge must use a different provider
+from every non-judge role, plus a different declared model family when both
+sides declare one. A quality gate filters the results into a
+provenance-complete JSONL dataset. Source dates and teacher knowledge
+cutoffs drive recitation-risk tagging; post-cutoff cases form a holdout
+split, not a benchmark. Prepared splits feed a student fine-tune (QLoRA
+first, full FT for the decision model), exported to GGUF/Ollama and
+distributable with llmp2p. Dataset-only users can stop before training.
+Security and coding are the reference packs; other domains inherit the same
+machinery. Verified means gate-checked, not human-reviewed ground truth.
 
 ## Documentation map
 
