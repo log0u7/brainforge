@@ -1,53 +1,45 @@
-# Tutorial: build your first student model
+# Tutorial: from cases to a prepared dataset
 
-In this tutorial you run the complete BrainForge loop on a non-security
-domain (IT ticket triage): from one raw case to a distilled dataset, then to
-a trained student on a CUDA GPU. The first half uses the mock provider, so it
-needs no API keys and no GPU. The second half needs real providers and a GPU.
+In this tutorial you run the dataset path on a non-security domain (IT ticket
+triage): from one raw case to a prepared set of training splits. The path uses
+the mock provider, so it needs no API keys and no GPU. A final optional section
+trains on CUDA. The mock labels are not evidence of model quality.
 
 **What "verified" means here:** schema-valid, gate-checked, and
-provenance-complete. It does not mean human-reviewed ground truth, and the
-mock labels are not evidence of model quality.
+provenance-complete. It does not mean human-reviewed ground truth, and the mock
+labels are not evidence of model quality.
 
 ## Prerequisites
 
 - Python 3.12+ and [uv](https://docs.astral.sh/uv/) (`mise` is optional)
 - The BrainForge repository cloned
-- For training: a CUDA GPU and `uv sync --extra training`
+- For the optional training section: a CUDA GPU and `uv sync --extra training`
 
-## 1. Install
+## 1. Install and validate
 
 ```bash
 cd brainforge
 uv sync
-```
-
-**Checkpoint:** `uv run brainforge --help` prints the command groups
-(`config`, `models`, `roles`, `teacher`, `pipeline`, `rag`, `dataset`,
-`train`, `quickstart`, `abliterate`).
-
-## 2. Validate the configuration
-
-```bash
 uv run brainforge config validate
 ```
 
 **Checkpoint:** `configuration is valid`. The shipped config includes the
 `ticket_triage` pipeline used below.
 
-## 3. Run the pipeline (mock provider)
+## 2. Run the pipeline (mock provider)
 
 ```bash
 uv run brainforge pipeline run ticket_triage \
   --input examples/cases/ticket-password-reset-001.json \
-  --provider mock --no-rag
+  --provider mock --no-rag \
+  --output datasets/ticket_triage.jsonl
 ```
 
 The mock provider fills each role's JSON Schema deterministically, so the
-teacher, judge, and quality-gate path runs offline. It proves the plumbing,
-not the labels. Three ticket examples ship in `examples/cases/` (password
-reset, VPN outage, invoice question); this tutorial uses one to keep the
-output small.
+teacher, critic, judge, and quality-gate path runs offline. It exercises the
+plumbing, not the labels. Three ticket examples ship in `examples/cases/`
+(password reset, VPN outage, invoice question); this tutorial uses one to keep
+the output small.
 
 **Checkpoint:**
 
@@ -55,31 +47,37 @@ output small.
 ticket_triage: 1 accepted, 0 rejected (1 cases) -> datasets/ticket_triage.jsonl
 ```
 
-## 4. Inspect the dataset
+## 3. Inspect the dataset
 
 ```bash
 uv run brainforge dataset inspect datasets/ticket_triage.jsonl
 ```
 
-**Checkpoint:** the CLI reports one record, `recitation_risk 1 (100.0%)`, no
-post-cutoff cases, and no duplicates. It does not print per-record verdicts;
-read the JSONL for those.
-
 **Checkpoint:**
 
 ```text
-records         1
-recitation_risk 1 (100.0%)
-post-cutoff     0 (0.0%)
-duplicates      0
+      Dataset: datasets/ticket_triage.jsonl
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Metric                            ┃ Value      ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│ records                           │ 1          │
+│ recitation_risk                   │ 1 (100.0%) │
+│ post-cutoff (primary eval signal) │ 0 (0.0%)   │
+│ duplicates                        │ 0          │
+└───────────────────────────────────┴────────────┘
 ```
 
-The `general_teacher` role in the ticket standard preset has no knowledge
-cutoff, so the record is conservatively tagged `recitation_risk`. The
-post-cutoff split is empty, so this run says nothing about generalization.
-With the mock provider, all verdicts are mock values.
+The CLI calls the post-cutoff count the primary eval signal; it is a holdout
+split, not a published benchmark. Here it is empty, so the run says nothing
+about generalization.
 
-## 5. Export training splits
+The `general_teacher` role in the ticket standard has no knowledge cutoff, so
+the record is conservatively tagged `recitation_risk`. The record's
+`teacher_agreement` is empty because ticket triage does not expose the boolean
+verdict signals that the agreement helper understands. With the mock provider,
+all verdicts are mock values.
+
+## 4. Prepare training splits
 
 ```bash
 uv run brainforge train prepare datasets/ticket_triage.jsonl \
@@ -99,48 +97,51 @@ prepared dataset -> datasets/prepared-ticket
 20); add more recent sources
 ```
 
-`test_postcutoff.jsonl` can be empty. The warning means the dataset has too
-few cases the teachers could not have memorized; add more recent sources with
+`test_postcutoff.jsonl` can be empty. The warning means the dataset has too few
+cases the teachers could not have memorized; add more recent sources with
 declared dates before trusting evaluation numbers.
 
-## 6. Train for real (GPU)
+## 5. Train for real (GPU, optional)
 
 ```bash
 uv sync --extra training
 uv run brainforge quickstart run --domain ticket_triage --input data/raw
 ```
 
-Configure the providers first (OpenRouter, MLGW, and OpenCode Zen for the
-ticket preset); see
+Configure providers first. The shipped ticket standard uses an OpenRouter
+teacher, an MLGW general critic, and a Zen judge. Configure all three, or pin
+`steps` to `ticket_teacher` and `judge` to skip the critic; see
 [configure providers](../how-to/configure-providers.md). Create `data/raw` and
 put real cases there.
 
 `quickstart` chains pipeline, prepare, training, and best-effort evaluation.
 **Checkpoint:** a run directory under `experiments/` with the adapter and
 `train_summary.json`, then an `evaluated` line when the post-cutoff holdout is
-non-empty. A mock run on a GPU still produces mock labels, so use real
-providers for a useful student.
+non-empty. A mock run on a GPU still produces mock labels, so use real providers
+for a useful student. Training, task evaluation, and merged or GGUF export
+require CUDA and the training extra.
 
-## 7. Ship it (optional)
+## 6. Ship it (optional)
 
 ```bash
-uv run brainforge train export --model experiments/quickstart-... \
+RUN="$(ls -td experiments/quickstart-* | head -1)"
+uv run brainforge train export --model "$RUN" \
   --format gguf --ollama triage-bot
 ollama run triage-bot
 ```
 
-GGUF export needs a local `llama.cpp` checkout. Distribute the GGUF with
-llmp2p (`llmp2p import --ollama models/export`, then `llmp2p seed`). See
-[ship to Ollama](../how-to/ship-to-ollama.md).
+GGUF export needs a local `llama.cpp` checkout. Ollama and llmp2p are optional.
+Distribute the GGUF with llmp2p (`llmp2p import --ollama models/export`, then
+`llmp2p seed`). See [ship to Ollama](../how-to/ship-to-ollama.md).
 
 ## What you learned
 
 - A domain pack (here `ticket_triage`) defines teacher and judge schemas,
   prompts, and quality gates; the engine runs any domain the same way.
-- The mock provider makes the verification path free and offline, but it
-  cannot tell you whether the labels are good.
-- `quickstart` chains everything; a first cheap pass is not an evaluation.
-  Use the post-cutoff holdout and your own review.
+- The mock provider makes the verification path free and offline, but it cannot
+  tell you whether the labels are good.
+- `quickstart` chains everything; a first cheap pass is not an evaluation. Use
+  the post-cutoff holdout and your own review.
 - Judge independence, contamination tagging, and provenance are shared
   machinery, not security-only features. They are also not a guarantee of
   accuracy.
