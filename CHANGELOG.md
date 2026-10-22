@@ -29,6 +29,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   scope, known limits, and actual quickstart output. The tutorial uses one
   mock case and separates the CUDA training step; unverified quality, speed,
   and test-count claims are removed.
+- AirLLM evaluated and not adopted (ADR-0017): layer streaming helps models
+  that do not fit VRAM, but its custom training API is incompatible with the
+  PEFT/TRL, KD, merge and GGUF contracts, and throughput rules out local
+  dataset generation.
 - Provider failures are isolated per case: the case is recorded with a
   `provider_error` reason and the batch continues instead of aborting. Run
   summaries gain `fallback` and `errors` counters.
