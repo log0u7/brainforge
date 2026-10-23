@@ -25,10 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- README, documentation index, and first-model tutorial now state the verified
-  scope, known limits, and actual quickstart output. The tutorial uses one
-  mock case and separates the CUDA training step; unverified quality, speed,
-  and test-count claims are removed.
+- Rewrite the README for evaluators: dataset-first quickstart, verified
+  mechanics, explicit limits, and intent-based docs routing. The docs hub and
+  first-model tutorial use the same commands, vocabulary, and qualifiers.
 - AirLLM evaluated and not adopted (ADR-0017): layer streaming helps models
   that do not fit VRAM, but its custom training API is incompatible with the
   PEFT/TRL, KD, merge and GGUF contracts, and throughput rules out local
