@@ -30,6 +30,7 @@ before planning a deployment.
 | understand contamination tagging | [Contamination](explanation/contamination.md) |
 | understand *why* it is built this way | [Architecture](explanation/architecture.md) |
 | read the design decisions and trade-offs | [Decision records](adr/index.md) |
+| trace the research behind a design choice | [Research and references](reference/references.md) |
 | check what is not supported or not tested | [Status and known limits](../README.md#status-and-known-limits) |
 
 ## The system in one paragraph
@@ -57,7 +58,7 @@ Explanation  understanding-oriented: the why and the trade-offs
 ADR          decision records: what was chosen, what was rejected
 ```
 
-Start with the tutorial; use Reference to look things up; read Explanation when
-a design choice surprises you. Most pages link to their reference and
+Start with the README quickstart, then the tutorial; use Reference to look
+things up; read Explanation when a design choice surprises you. Most pages link to their reference and
 explanation backing; ADRs include confirmation commands or tests where
 available.

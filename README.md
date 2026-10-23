@@ -21,7 +21,7 @@ It is a self-hosted Python package and CLI. Datasets, the RAG index, cache, and 
 ## How it works
 
 1. **Generate.** Cases come from JSON or source files, optionally enriched with local RAG context. One or more teacher roles produce structured analyses.
-2. **Challenge (optional and preset-dependent).** A critic can attack the teachers' output before the judge. The ticket standard uses `ticket_teacher`, the `general_teacher` critic, and the judge. Security and coding standards use two teachers and the judge. Maximum modes add the `general_teacher` critic for security and coding, and ticket maximum also adds `ticket_teacher_2`. `retry_with_critic` runs a critic only after the first judge rejects a case.
+2. **Challenge (optional and preset-dependent).** A critic can attack the teachers' output before the judge. The ticket standard uses `ticket_teacher`, the `general_teacher` critic, and the judge. Security and coding standards use two teachers and the judge. Maximum modes add the `general_teacher` critic for security and coding, and ticket maximum also adds `ticket_teacher_2`. `retry_with_critic` runs a critic only after the first pass is rejected.
 3. **Adjudicate and gate.** The judge runs last. With the default `enforced` setting, it must use a different provider from every non-judge role, plus a different declared model family when both sides declare one. Domain gates check schema, evidence, format, confidence, and optional recitation risk; unresolved verdicts are rejected by default (`reject_unresolved`). Accepted records get provenance; rejected cases are quarantined with reasons.
 4. **Train.** Prepare source-grouped splits, fine-tune with QLoRA or full FT on CUDA, and export merged HF weights, GGUF, or an Ollama model.
 
@@ -218,8 +218,8 @@ Start at [docs/index.md](docs/index.md) for the full map.
 | [Dataset generation](docs/how-to/generate-dataset.md) | Cases, teachers, critic, judge, and gates |
 | [Domain packs](docs/how-to/add-domain-pack.md) | Add a domain with its own schemas and rules |
 | [Training](docs/reference/training.md) | QLoRA, full FT, evaluation, export |
-| [CLI and config](docs/reference/cli.md) | Commands, flags, and configuration |
-| [Dataset format and gates](docs/reference/dataset-format.md) | Record fields, splits, quality gates |
+| [CLI](docs/reference/cli.md) and [config](docs/reference/configuration.md) | Commands, flags, and configuration |
+| [Dataset format](docs/reference/dataset-format.md) and [quality gates](docs/reference/quality-gates.md) | Record fields, splits, quality gates |
 | [Architecture](docs/explanation/architecture.md) | How the pipeline fits together |
 | [Decision records](docs/adr/index.md) | What was chosen, what was rejected |
 
