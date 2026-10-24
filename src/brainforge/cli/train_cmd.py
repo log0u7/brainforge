@@ -318,7 +318,7 @@ def task_eval(
         0, "--batch-size", help="Generation batch size (0 = config default)"
     ),
 ) -> None:
-    """Task-level evaluation: verdict + CWE accuracy on a held-out split."""
+    """Task-level evaluation: verdict + CWE accuracy (security) or verdict + flag accuracy (CTF)."""
     from brainforge.config import load_config
     from brainforge.training.task_eval import evaluate_model_on_records
 

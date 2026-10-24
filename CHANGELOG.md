@@ -30,6 +30,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `training.assistant_only_loss` is off (those tokens would be scored into
   the loss); `docs/reference/training.md` documents when to enable the
   flag and its chat-template requirement.
+- CTF task evaluation: `train task-eval` scores the CTF domain
+  (verbatim verdict classes solved/partial/abstain/unparseable plus
+  `flag_accuracy` against the gate-checked judge flag) alongside the
+  security metrics; mixed-domain evaluations are rejected explicitly.
+- The first-benchmark specification: `docs/explanation/benchmark.md`
+  defines the base-vs-student run on the post-cutoff holdout, its
+  metrics, honesty rules (n, single seed, observational) and the
+  GPU-host runbook; `train task-eval` accepts a Hub model id for the
+  base-model side (report persisted only next to local weights).
 
 ## [0.4.0] - 2026-10-24
 

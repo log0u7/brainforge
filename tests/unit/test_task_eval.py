@@ -173,3 +173,130 @@ def test_run_task_eval_preserves_record_order():
     result = run_task_eval(records, generate)
     assert result["accuracy"] == 1.0
     assert result["false_positive_rate"] == 0.0
+
+
+def make_ctf_record(verdict: str, flag: str | None = "FLAG{a}", domain: str = "ctf") -> dict:
+    expected = {"verdict": verdict, "confidence": 0.9, "reasoning": "r", "disagreement": False}
+    if flag:
+        expected["flag"] = flag
+    return {
+        "id": f"rec-ctf-{verdict}",
+        "domain": domain,
+        "messages": [
+            {"role": "user", "content": "solve this challenge"},
+            {"role": "assistant", "content": json.dumps(expected)},
+        ],
+        "metadata": {},
+    }
+
+
+def test_expected_from_record_ctf_solved():
+    expected = expected_from_record(make_ctf_record("solved", flag="FLAG{a}"))
+    assert expected["verdict"] == "solved"
+    assert expected["abstain"] is False
+    assert expected["flag"] == "FLAG{a}"
+
+
+def test_expected_from_record_ctf_abstains():
+    expected = expected_from_record(make_ctf_record("insufficient_information", flag=None))
+    assert expected["abstain"] is True
+    assert expected["flag"] is None
+
+
+def test_prediction_from_text_ctf_parses_verdict_and_flag():
+    text = json.dumps({"verdict": "solved", "flag": "FLAG{a}"})
+    prediction = prediction_from_text(text, domain="ctf")
+    assert prediction["verdict"] == "solved"
+    assert prediction["flag"] == "FLAG{a}"
+
+
+def test_prediction_from_text_ctf_unparseable_is_miss():
+    prediction = prediction_from_text("not json at all", domain="ctf")
+    assert prediction["verdict"] is None
+    assert prediction["flag"] is None
+
+
+def test_score_task_ctf_matches_verdict_and_flag():
+    pairs = [
+        (
+            {"verdict": "solved", "abstain": False, "flag": "FLAG{a}"},
+            {"verdict": "solved", "abstain": False, "flag": "FLAG{a}"},
+        ),
+        (
+            {"verdict": "solved", "abstain": False, "flag": "FLAG{bad}"},
+            {"verdict": "solved", "abstain": False, "flag": "FLAG{a}"},
+        ),
+        (
+            {"verdict": "solved", "abstain": False, "flag": "FLAG{x}"},
+            {"verdict": "partial", "abstain": False, "flag": None},
+        ),
+        (
+            {"verdict": "insufficient_information", "abstain": True, "flag": None},
+            {"verdict": "insufficient_information", "abstain": True, "flag": None},
+        ),
+    ]
+    result = score_task(pairs, domain="ctf")
+    assert result["n_records"] == 4
+    # verdict classes: solved==solved (even with a wrong flag), solved!=partial,
+    # abstain==abstain -> 3/4; the wrong flag shows in flag_accuracy instead
+    assert result["accuracy"] == 0.75
+    assert result["flag_accuracy"] == 0.5
+    assert result["false_negative_rate"] == 0.0
+    assert result["false_positive_rate"] == 0.25
+    assert result["abstain_recall"] == 1.0
+
+
+def test_score_task_ctf_flag_accuracy_none_without_flags():
+    pairs = [
+        (
+            {"verdict": "solved", "abstain": False, "flag": None},
+            {"verdict": "solved", "abstain": False, "flag": None},
+        ),
+    ]
+    result = score_task(pairs, domain="ctf")
+    assert result["flag_accuracy"] is None
+
+
+def test_run_task_eval_accepts_ctf():
+    records = [make_ctf_record("solved", flag="FLAG{a}"), make_ctf_record("partial", flag=None)]
+    replies = [
+        json.dumps({"verdict": "solved", "flag": "FLAG{a}"}),
+        json.dumps({"verdict": "partial"}),
+    ]
+    result = run_task_eval(records, generate=lambda messages: replies)
+    assert result["accuracy"] == 1.0
+    assert result["domains"] == ["ctf"]
+
+
+def test_run_task_eval_rejects_mixed_domains():
+    records = [make_record("confirmed", domain="security"), make_ctf_record("solved")]
+    with pytest.raises(BrainforgeError, match="mixed"):
+        run_task_eval(records, generate=lambda messages: ["{}"] * len(messages))
+
+
+def test_evaluate_base_model_by_hub_id_skips_file_write(tmp_path, monkeypatch):
+    import brainforge.training.task_eval as te
+
+    split = tmp_path / "split.jsonl"
+    split.write_text(json.dumps(make_record("confirmed", cwe="CWE-78")) + "\n", encoding="utf-8")
+    stub_reply = json.dumps({"verdict": "confirmed", "cwe": "CWE-78"})
+    monkeypatch.setattr(
+        te, "_build_generator", lambda *a, **k: lambda messages: [stub_reply] * len(messages)
+    )
+    result = te.evaluate_model_on_records("Qwen/Qwen3-0.6B", split)
+    assert result["accuracy"] == 1.0
+    assert not (tmp_path / "Qwen").exists()
+
+
+def test_evaluate_writes_task_eval_json_for_local_dir(tmp_path, monkeypatch):
+    import brainforge.training.task_eval as te
+
+    split = tmp_path / "split.jsonl"
+    split.write_text(json.dumps(make_record("confirmed", cwe="CWE-78")) + "\n", encoding="utf-8")
+    stub_reply = json.dumps({"verdict": "confirmed", "cwe": "CWE-78"})
+    monkeypatch.setattr(
+        te, "_build_generator", lambda *a, **k: lambda messages: [stub_reply] * len(messages)
+    )
+    result = te.evaluate_model_on_records(tmp_path, split)
+    assert result["accuracy"] == 1.0
+    assert (tmp_path / "task_eval.json").is_file()

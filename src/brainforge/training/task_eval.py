@@ -14,7 +14,12 @@ from brainforge.providers.base import extract_json
 
 
 def expected_from_record(record: dict) -> dict:
-    """Extract {vulnerability_found, abstain, cwe} from the record's judge answer."""
+    """Extract the judge-verified ground truth from the record's assistant answer.
+
+    Security records yield {vulnerability_found, abstain, cwe}; CTF records
+    yield {verdict, abstain, flag} with the judge verdict kept verbatim
+    (solved / partial / insufficient_information).
+    """
     messages = record.get("messages") or []
     if not messages:
         raise BrainforgeError(f"record '{record.get('id')}' has no messages")
@@ -25,6 +30,12 @@ def expected_from_record(record: dict) -> dict:
         raise BrainforgeError(
             f"record '{record.get('id')}' has unparseable assistant JSON: {exc}"
         ) from exc
+    if record.get("domain") == "ctf":
+        return {
+            "verdict": data.get("verdict"),
+            "abstain": data.get("verdict") == "insufficient_information",
+            "flag": data.get("flag"),
+        }
     return {
         "vulnerability_found": data.get("verdict") == "confirmed",
         "abstain": data.get("verdict") == "insufficient_information",
@@ -32,12 +43,20 @@ def expected_from_record(record: dict) -> dict:
     }
 
 
-def prediction_from_text(text: str) -> dict:
-    """Map a raw model answer to {vulnerability_found, abstain, cwe}; None = unparseable miss."""
+def prediction_from_text(text: str, domain: str = "security") -> dict:
+    """Map a raw model answer to the domain's prediction shape; None = unparseable miss."""
     try:
         data = extract_json(text)
     except ProviderError:
+        if domain == "ctf":
+            return {"verdict": None, "abstain": False, "flag": None}
         return {"vulnerability_found": None, "abstain": False, "cwe": None}
+    if domain == "ctf":
+        return {
+            "verdict": data.get("verdict"),
+            "abstain": data.get("verdict") == "insufficient_information",
+            "flag": data.get("flag"),
+        }
     return {
         "vulnerability_found": data.get("verdict") == "confirmed",
         "abstain": data.get("verdict") == "insufficient_information",
@@ -45,10 +64,17 @@ def prediction_from_text(text: str) -> dict:
     }
 
 
-def _answer_class(side: dict) -> str:
-    """One of confirmed / rejected / abstain / unparseable."""
+def _answer_class(side: dict, domain: str = "security") -> str:
+    """Security: confirmed / rejected / abstain / unparseable.
+
+    CTF keeps the verdict verbatim (solved / partial / abstain /
+    unparseable) so a partial solve does not pass as a full one.
+    """
     if side.get("abstain"):
         return "abstain"
+    if domain == "ctf":
+        verdict = side.get("verdict")
+        return "unparseable" if verdict is None else str(verdict)
     found = side.get("vulnerability_found")
     if found is True:
         return "confirmed"
@@ -57,14 +83,19 @@ def _answer_class(side: dict) -> str:
     return "rejected"
 
 
-def score_task(pairs: list[tuple[dict, dict]]) -> dict:
-    """Compute accuracy, FP/FN rates, CWE accuracy and abstention metrics.
+def score_task(pairs: list[tuple[dict, dict]], domain: str = "security") -> dict:
+    """Compute accuracy, FP/FN rates, CWE/flag accuracy and abstention metrics.
 
     Abstention is a third outcome class (``insufficient_information``): a model
     that abstains where the judge abstained is correct, an abstention on a
     confirmed case is a false negative, and a guess on an abstained case is a
     false positive. ``abstain_recall`` is the graceful-failure metric: of the
     records the judge could not resolve, how many did the model refuse too.
+
+    For the CTF domain the verdict classes stay verbatim (solved / partial /
+    abstain / unparseable) and ``flag_accuracy`` compares predicted flags
+    wherever both sides carry one; the judge flag is the gate-checked ground
+    truth on verified-tier records.
     """
     if not pairs:
         raise BrainforgeError("no evaluation pairs")
@@ -74,12 +105,14 @@ def score_task(pairs: list[tuple[dict, dict]]) -> dict:
     false_negatives = 0
     cwe_correct = 0
     cwe_compared = 0
+    flag_correct = 0
+    flag_compared = 0
     abstain_expected = 0
     abstain_predicted = 0
     abstain_correct = 0
     for prediction, expected in pairs:
-        predicted = _answer_class(prediction)
-        actual = _answer_class(expected)
+        predicted = _answer_class(prediction, domain)
+        actual = _answer_class(expected, domain)
         if actual == "abstain":
             abstain_expected += 1
         if predicted == "abstain":
@@ -88,28 +121,37 @@ def score_task(pairs: list[tuple[dict, dict]]) -> dict:
             correct += 1
             if actual == "abstain":
                 abstain_correct += 1
-        elif actual == "confirmed":
-            # a real finding the model did not confirm: wrong guess, abstention
+        elif actual == "confirmed" or (domain == "ctf" and actual == "solved"):
+            # a real solve the model did not reproduce: wrong guess, abstention
             # or unparseable output all count as a miss
             false_negatives += 1
         else:
-            # claimed a finding the judge did not confirm, including a guess
-            # on a case the judge abstained on
+            # claimed more than the judge verified, including a guess on a
+            # case the judge abstained on
             false_positives += 1
         expected_cwe = expected.get("cwe")
-        if expected.get("vulnerability_found") and expected_cwe:
+        if domain != "ctf" and expected.get("vulnerability_found") and expected_cwe:
             cwe_compared += 1
             if prediction.get("cwe") == expected_cwe:
                 cwe_correct += 1
-    return {
+        if domain == "ctf":
+            expected_flag = expected.get("flag")
+            predicted_flag = prediction.get("flag")
+            if expected_flag is not None and predicted_flag is not None:
+                flag_compared += 1
+                if predicted_flag == expected_flag:
+                    flag_correct += 1
+    metrics = {
         "n_records": n,
         "accuracy": correct / n,
         "false_positive_rate": false_positives / n,
         "false_negative_rate": false_negatives / n,
         "cwe_accuracy": (cwe_correct / cwe_compared) if cwe_compared else None,
+        "flag_accuracy": (flag_correct / flag_compared) if flag_compared else None,
         "abstain_rate": abstain_predicted / n,
         "abstain_recall": (abstain_correct / abstain_expected) if abstain_expected else None,
     }
+    return metrics
 
 
 def run_task_eval(
@@ -124,22 +166,28 @@ def run_task_eval(
     if not records:
         raise BrainforgeError("empty evaluation dataset")
     domains = {str(record["domain"]) for record in records if record.get("domain") is not None}
-    unexpected = domains - {"security"}
+    unexpected = domains - {"security", "ctf"}
     if unexpected:
         raise BrainforgeError(
-            f"task evaluation only supports the security domain, found: {sorted(unexpected)}"
+            "task evaluation only supports the security and ctf domains, "
+            f"found: {sorted(unexpected)}"
         )
+    if len(domains) > 1:
+        raise BrainforgeError(
+            f"mixed domains not supported: run one domain per evaluation, found: {sorted(domains)}"
+        )
+    domain = domains.pop() if domains else "security"
     prompts = [
         [m["content"] for m in record.get("messages", []) if m["role"] == "user"]
         for record in records
     ]
     texts = generate(prompts)
     pairs = [
-        (prediction_from_text(text), expected_from_record(record))
+        (prediction_from_text(text, domain=domain), expected_from_record(record))
         for record, text in zip(records, texts, strict=True)
     ]
-    result = score_task(pairs)
-    result["domains"] = sorted(domains)
+    result = score_task(pairs, domain=domain)
+    result["domains"] = [domain]
     return result
 
 
@@ -158,7 +206,10 @@ def evaluate_model_on_records(
     records = read_jsonl(dataset_path)
     generate = _build_generator(model_path, quantization, max_new_tokens, batch_size)
     result = run_task_eval(records, generate)
-    (model_path / "task_eval.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+    # Hub ids (base-model evaluation) resolve outside the local filesystem:
+    # the report is only persisted next to locally stored weights.
+    if model_path.is_dir():
+        (model_path / "task_eval.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     return result
 
 
