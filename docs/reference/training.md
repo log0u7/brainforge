@@ -67,6 +67,18 @@ AirLLM is evaluated and not adopted
 but not for a 7-9B model that already fits, and its custom training API is
 incompatible with the PEFT/TRL, KD and GGUF contracts.
 
+## Multi-turn data and assistant-only loss
+
+The `agentic` pack emits records that interleave assistant tool calls with
+`tool` observations (see the [dataset format](dataset-format.md)). With the
+default `training.assistant_only_loss=false`, the SFT loss scores every
+completion-side token, tool observations included. Set it to `true` to mask
+the loss to assistant turns: it requires a chat template with generation
+markers, and TRL swaps in patched training templates for known families
+(Qwen3, DeepSeek-V3) when tool calling is enabled. `brainforge train run`
+warns when the training split holds tool turns or multi-assistant records
+while the flag is off.
+
 ## Knowledge distillation (experimental)
 
 Two commands:
@@ -102,7 +114,7 @@ per run with `--base-model`.
 | `max_grad_norm` | 1.0 | |
 | `max_length` | 1024 | |
 | `packing` | false | rejected for KD |
-| `assistant_only_loss` | false | |
+| `assistant_only_loss` | false | mask the loss to assistant turns (agentic multi-turn data) |
 | `attn_implementation` | `sdpa` | `sdpa`/`flash_attention_2`/`eager` |
 | `eval_batch_size` / `generate_batch_size` | 4 / 4 | |
 | `save_steps` | 100 | |

@@ -75,6 +75,11 @@ def train_student(
     kd: bool = False,
 ) -> dict:
     """Dispatch to the configured training backend (kd, unsloth or trl)."""
+    from brainforge.training.prepare import tool_turn_warning
+
+    warning = tool_turn_warning(Path(dataset_dir) / "train.jsonl", training.assistant_only_loss)
+    if warning:
+        console.print(f"[yellow]warning:[/yellow] {warning}")
     if kd:
         from brainforge.training.kd import train_kd as train_fn
     elif training.backend == "unsloth":
