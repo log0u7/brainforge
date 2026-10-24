@@ -146,15 +146,13 @@ def run_task_eval(
 def evaluate_model_on_records(
     model_path: Path | str,
     dataset_path: Path | str,
-    quantization: str = "4bit",
+    quantization: str = "auto",
     max_new_tokens: int = 512,
     batch_size: int = 4,
 ) -> dict:
     """Load the trained model and run task evaluation on a JSONL dataset split."""
     from brainforge.dataset.writer import read_jsonl
-    from brainforge.training.qlora import _require_cuda
 
-    _require_cuda()
     model_path = Path(model_path)
     dataset_path = Path(dataset_path)
     records = read_jsonl(dataset_path)
@@ -180,9 +178,12 @@ def _build_generator(
 ) -> Callable[[list], list[str]]:
     import torch
 
+    from brainforge.training.hardware import plan_for_inference
     from brainforge.training.models import load_student_model
 
-    model, tokenizer = load_student_model(model_path, quantization, attn_implementation)
+    model, tokenizer = load_student_model(
+        model_path, plan_for_inference(quantization, attn_implementation)
+    )
     # Left padding keeps every prompt in the batch aligned at the same position.
     tokenizer.padding_side = "left"
 

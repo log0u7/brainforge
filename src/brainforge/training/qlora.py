@@ -19,6 +19,8 @@ from brainforge.errors import BrainforgeError
 if TYPE_CHECKING:
     from datasets import Dataset
 
+    from brainforge.training.hardware import TrainingPlan
+
 _CHECKPOINT_RE = re.compile(r"^checkpoint-(\d+)$")
 
 
@@ -35,20 +37,6 @@ def _latest_checkpoint(output_dir: Path) -> Path:
             " run 'brainforge train run' without --resume first"
         )
     return max(steps, key=lambda pair: pair[0])[1]
-
-
-def _require_cuda() -> None:
-    try:
-        import torch
-    except ImportError as exc:
-        raise BrainforgeError(
-            "torch is not installed; install the training extra first: uv sync --extra training"
-        ) from exc
-    if not torch.cuda.is_available():
-        raise BrainforgeError(
-            "no CUDA device available; QLoRA training requires a GPU"
-            " (see docs/how-to/register-gpu-runner.md)"
-        )
 
 
 def extract_messages(records: list[dict]) -> list[dict]:
@@ -71,6 +59,11 @@ def _messages_dataset(split_path: Path) -> "Dataset":
 
 
 def _quantization_config(quantization: str) -> Any:
+    if quantization == "auto":
+        raise BrainforgeError(
+            "quantization 'auto' reached the loader unresolved;"
+            " resolve it with brainforge.training.hardware.resolve_quantization first"
+        )
     import torch
     from transformers import BitsAndBytesConfig
 
@@ -99,7 +92,11 @@ def _lora_config(config: TrainingConfig) -> Any:
 
 
 def _trainer_kwargs(
-    config: TrainingConfig, output_dir: Path, has_eval: bool, gradient_checkpointing: bool = True
+    config: TrainingConfig,
+    output_dir: Path,
+    has_eval: bool,
+    plan: "TrainingPlan",
+    gradient_checkpointing: bool = True,
 ) -> dict[str, Any]:
     """Training knobs shared by the trl, unsloth and kd backends."""
     return {
@@ -113,7 +110,8 @@ def _trainer_kwargs(
         "warmup_steps": config.warmup_steps,
         "max_grad_norm": config.max_grad_norm,
         "gradient_checkpointing": gradient_checkpointing,
-        "bf16": True,
+        "bf16": plan.dtype == "bfloat16",
+        "fp16": plan.dtype == "float16",
         "logging_steps": 1,
         "eval_strategy": "steps" if has_eval else "no",
         "eval_steps": 10,
@@ -126,16 +124,20 @@ def _trainer_kwargs(
 
 
 def _sft_config(
-    config: TrainingConfig, output_dir: Path, has_eval: bool, gradient_checkpointing: bool = True
+    config: TrainingConfig,
+    output_dir: Path,
+    has_eval: bool,
+    plan: "TrainingPlan",
+    gradient_checkpointing: bool = True,
 ) -> Any:
     from trl import SFTConfig
 
     return SFTConfig(
-        **_trainer_kwargs(config, output_dir, has_eval, gradient_checkpointing),
+        **_trainer_kwargs(config, output_dir, has_eval, plan, gradient_checkpointing),
         max_length=config.max_length,
         packing=config.packing,
         assistant_only_loss=config.assistant_only_loss,
-        model_init_kwargs={"attn_implementation": config.attn_implementation},
+        model_init_kwargs={"attn_implementation": plan.attn_implementation},
     )
 
 
@@ -145,12 +147,14 @@ def train_qlora(
     output_dir: Path | str,
     resume: bool | str | Path = False,
 ) -> dict:
-    """Run QLoRA fine-tuning on a prepared dataset and save the adapter."""
+    """Run QLoRA/LoRA/full fine-tuning on a prepared dataset and save the adapter."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     if resume:
         resume = _latest_checkpoint(output_dir)
-    _require_cuda()
+    from brainforge.training.hardware import plan_for_config
+
+    plan = plan_for_config(config)
     from trl import SFTTrainer
 
     dataset_dir = Path(dataset_dir)
@@ -158,15 +162,16 @@ def train_qlora(
     validation_path = dataset_dir / "validation.jsonl"
     eval_dataset = _messages_dataset(validation_path) if validation_path.exists() else None
 
-    sft_args = _sft_config(config, output_dir, eval_dataset is not None)
+    sft_args = _sft_config(config, output_dir, eval_dataset is not None, plan)
     sft_kwargs: dict[str, Any] = {
         "model": config.base_model,
         "args": sft_args,
         "train_dataset": train_dataset,
         "eval_dataset": eval_dataset,
     }
-    if config.strategy == "qlora":
-        sft_kwargs["quantization_config"] = _quantization_config(config.quantization)
+    if plan.peft:
+        if plan.quantization != "none":
+            sft_kwargs["quantization_config"] = _quantization_config(plan.quantization)
         sft_kwargs["peft_config"] = _lora_config(config)
     trainer = SFTTrainer(**sft_kwargs)
     trainer.train(resume_from_checkpoint=str(resume) if resume else None)
@@ -175,7 +180,12 @@ def train_qlora(
         "base_model": config.base_model,
         "backend": "trl",
         "strategy": config.strategy,
-        "quantization": config.quantization,
+        "quantization": plan.quantization,
+        "device": plan.device,
+        "device_kind": plan.device_kind,
+        "dtype": plan.dtype,
+        "attn_implementation": plan.attn_implementation,
+        "effective_strategy": plan.effective_strategy,
         "epochs": config.epochs,
         "train_rows": len(train_dataset),
         "validation_rows": len(eval_dataset) if eval_dataset else 0,
@@ -191,7 +201,7 @@ def train_qlora(
 def evaluate(
     model_path: Path | str,
     eval_dataset: Path | str,
-    quantization: str = "4bit",
+    quantization: str = "auto",
     batch_size: int = 4,
     attn_implementation: str = "sdpa",
 ) -> dict:
@@ -200,7 +210,9 @@ def evaluate(
     Forward passes are batched (padded) and the reported ``perplexity`` is the
     true corpus perplexity: exp of the token-weighted mean negative log-likelihood.
     """
-    _require_cuda()
+    from brainforge.training.hardware import plan_for_inference, torch_dtype
+
+    plan = plan_for_inference(quantization, attn_implementation)
     import torch
     from peft import AutoPeftModelForCausalLM
     from transformers import AutoTokenizer
@@ -216,12 +228,11 @@ def evaluate(
         )
     load_kwargs: dict[str, Any] = {
         "device_map": "auto",
-        "torch_dtype": torch.bfloat16,
+        "torch_dtype": torch_dtype(plan),
         "attn_implementation": attn_implementation,
     }
-    quant_config = _quantization_config(quantization)
-    if quant_config is not None:
-        load_kwargs["quantization_config"] = quant_config
+    if plan.quantization != "none":
+        load_kwargs["quantization_config"] = _quantization_config(plan.quantization)
     model = AutoPeftModelForCausalLM.from_pretrained(str(model_path), **load_kwargs)
     model.eval()
 
@@ -254,6 +265,11 @@ def evaluate(
         "n_records": len(rows),
         "eval_loss": eval_loss,
         "perplexity": math.exp(eval_loss),
+        "device": plan.device,
+        "device_kind": plan.device_kind,
+        "dtype": plan.dtype,
+        "quantization": plan.quantization,
+        "attn_implementation": plan.attn_implementation,
     }
     (model_path / "eval.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     return result
@@ -261,7 +277,9 @@ def evaluate(
 
 def export(model_path: Path | str, output_dir: Path | str) -> dict:
     """Merge the LoRA adapter into the base model and save it standalone."""
-    _require_cuda()
+    from brainforge.training.hardware import plan_for_inference, torch_dtype
+
+    plan = plan_for_inference("none")
     from peft import AutoPeftModelForCausalLM
     from transformers import AutoTokenizer
 
@@ -269,7 +287,10 @@ def export(model_path: Path | str, output_dir: Path | str) -> dict:
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     model = AutoPeftModelForCausalLM.from_pretrained(
-        str(model_path), device_map="auto", torch_dtype="bfloat16", attn_implementation="sdpa"
+        str(model_path),
+        device_map="auto",
+        torch_dtype=torch_dtype(plan),
+        attn_implementation=plan.attn_implementation,
     )
     merged = model.merge_and_unload()
     merged.save_pretrained(str(output_dir))

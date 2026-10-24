@@ -362,9 +362,22 @@
           "title": "Gradient Accumulation",
           "type": "integer"
         },
-        "quantization": {
-          "default": "4bit",
+        "device": {
+          "default": "auto",
           "enum": [
+            "auto",
+            "cuda",
+            "xpu",
+            "mps",
+            "cpu"
+          ],
+          "title": "Device",
+          "type": "string"
+        },
+        "quantization": {
+          "default": "auto",
+          "enum": [
+            "auto",
             "4bit",
             "8bit",
             "none"
@@ -382,8 +395,9 @@
           "type": "string"
         },
         "backend": {
-          "default": "trl",
+          "default": "auto",
           "enum": [
+            "auto",
             "trl",
             "unsloth"
           ],
@@ -542,9 +556,10 @@
         "epochs": 3,
         "batch_size": 1,
         "gradient_accumulation": 16,
-        "quantization": "4bit",
+        "device": "auto",
+        "quantization": "auto",
         "strategy": "qlora",
-        "backend": "trl",
+        "backend": "auto",
         "save_steps": 100,
         "seed": 42,
         "output_dir": "experiments",

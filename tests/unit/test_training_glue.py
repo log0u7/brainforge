@@ -183,7 +183,7 @@ def test_evaluate_signature_accepts_quantization():
 
     params = inspect.signature(evaluate).parameters
     assert "quantization" in params
-    assert params["quantization"].default == "4bit"
+    assert params["quantization"].default == "auto"
 
 
 def test_smoke_cpu_skips_without_torch(monkeypatch, capsys):

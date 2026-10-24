@@ -1,21 +1,31 @@
 """Shared student-model loading for chat and task evaluation."""
 
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from brainforge.errors import BrainforgeError
+
+if TYPE_CHECKING:
+    from brainforge.training.hardware import TrainingPlan
 
 
 def load_student_model(
     model_path: Path | str,
-    quantization: str | None = None,
-    attn_implementation: str = "sdpa",
+    plan: "TrainingPlan | None" = None,
 ) -> tuple[Any, Any]:
-    """Load a merged model or LoRA adapter directory; returns (model, tokenizer)."""
+    """Load a merged model or LoRA adapter directory; returns (model, tokenizer).
+
+    ``plan`` comes from :func:`brainforge.training.hardware.plan_for_inference`;
+    it is resolved automatically when omitted.
+    """
     model_path = Path(model_path)
     if not model_path.exists():
         raise BrainforgeError(f"model directory not found: {model_path}")
-    import torch
+    from brainforge.training.hardware import plan_for_inference, torch_dtype
+    from brainforge.training.qlora import _quantization_config
+
+    if plan is None:
+        plan = plan_for_inference()
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained(str(model_path))
@@ -23,15 +33,11 @@ def load_student_model(
         raise BrainforgeError(f"tokenizer at {model_path} has no chat template")
     load_kwargs: dict[str, Any] = {
         "device_map": "auto",
-        "torch_dtype": torch.bfloat16,
-        "attn_implementation": attn_implementation,
+        "torch_dtype": torch_dtype(plan),
+        "attn_implementation": plan.attn_implementation,
     }
-    if quantization is not None:
-        from brainforge.training.qlora import _quantization_config
-
-        quant_config = _quantization_config(quantization)
-        if quant_config is not None:
-            load_kwargs["quantization_config"] = quant_config
+    if plan.quantization != "none":
+        load_kwargs["quantization_config"] = _quantization_config(plan.quantization)
     if (model_path / "adapter_config.json").is_file():
         from peft import AutoPeftModelForCausalLM
 

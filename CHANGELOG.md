@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Portable training: `brainforge train check` prefights hardware, model
+  compatibility (architecture, chat template, pre-quantized and remote-code
+  rejection, gated-model `HF_TOKEN` guidance) and a memory estimate without
+  downloading model weights; `--json` and `--strict` modes for CI. Device
+  auto-detection covers CUDA/ROCm, Intel XPU, Apple MPS and CPU; TPU/NPU
+  fail fast with a `--device cpu` escape. `training.device`,
+  `training.quantization` and `training.backend` (new `auto` defaults)
+  resolve a per-run plan recorded in `train_summary.json` and `eval.json`.
+  `make train-check`, `make install-rocm` and `make install-xpu` targets.
+  Docs: new `docs/reference/hardware.md`; README, tutorial, training,
+  configuration, CLI and architecture pages updated. CUDA/ROCm/XPU paths are
+  implemented and unit-tested but not hardware-validated.
+- `huggingface-hub>=0.26` is now a direct dependency (preflight model
+  metadata checks; previously available only transitively).
 - Graceful failure: `PipelineDef.fallback_examples` (default false) turns a
   rejected case into an abstention training record (assistant target is a
   canonical `insufficient_information` verdict plus the gate reasons) instead
@@ -25,6 +39,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Training and evaluation no longer hard-require CUDA: the device plan
+  resolves automatically and `qlora` degrades to plain LoRA where 4-bit is
+  unavailable. `train evaluate` and `train task-eval` default to
+  `--quantization auto`; `train run` accepts `--device` and
+  `--quantization` overrides.
 - Rewrite the README for evaluators: dataset-first quickstart, verified
   mechanics, explicit limits, and intent-based docs routing. The docs hub and
   first-model tutorial use the same commands, vocabulary, and qualifiers.

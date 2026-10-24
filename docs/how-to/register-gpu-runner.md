@@ -8,6 +8,8 @@ Prerequisites:
 
 - NVIDIA driver installed and up to date (`nvidia-smi` works in PowerShell).
   No CUDA Toolkit is needed: the torch wheels ship the CUDA runtime.
+- For ROCm, Intel XPU, Apple MPS or CPU-only hosts, see the
+  [hardware reference](../reference/hardware.md) instead.
 - Git for Windows installed (provides the `bash` shell used by every GPU step).
 - At least 15 GB free disk (models + datasets; Qwen3-8B in 4-bit is ~6 GB).
 - Admin PowerShell open.

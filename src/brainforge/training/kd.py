@@ -23,11 +23,11 @@ from typing import Any
 from brainforge.config.models import TrainingConfig
 from brainforge.dataset.writer import read_jsonl
 from brainforge.errors import BrainforgeError
+from brainforge.training.hardware import torch_dtype
 from brainforge.training.qlora import (
     _latest_checkpoint,
     _lora_config,
     _quantization_config,
-    _require_cuda,
     _trainer_kwargs,
 )
 
@@ -232,8 +232,9 @@ def train_kd(
         )
     if config.packing:
         raise BrainforgeError("KD training does not support packing; set packing to false")
-    _require_cuda()
-    import torch
+    from brainforge.training.hardware import plan_for_config
+
+    plan = plan_for_config(config, kd=True)
     from datasets import Dataset
     from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments
 
@@ -262,12 +263,11 @@ def train_kd(
     train_dataset = Dataset.from_list(train_rows)
     eval_dataset = Dataset.from_list(eval_rows) if eval_rows else None
 
-    load_kwargs: dict[str, Any] = {"torch_dtype": torch.bfloat16}
-    quant_config = _quantization_config(config.quantization)
-    if quant_config is not None:
-        load_kwargs["quantization_config"] = quant_config
+    load_kwargs: dict[str, Any] = {"torch_dtype": torch_dtype(plan)}
+    if plan.quantization != "none":
+        load_kwargs["quantization_config"] = _quantization_config(plan.quantization)
     model: Any = AutoModelForCausalLM.from_pretrained(config.base_model, **load_kwargs)
-    if config.strategy == "qlora":
+    if plan.peft:
         from peft import get_peft_model
 
         model = get_peft_model(model, _lora_config(config))
@@ -277,7 +277,9 @@ def train_kd(
 
     trainer = _KDTrainer(
         model=model,
-        args=TrainingArguments(**_trainer_kwargs(config, output_dir, eval_dataset is not None)),
+        args=TrainingArguments(
+            **_trainer_kwargs(config, output_dir, eval_dataset is not None, plan)
+        ),
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
         data_collator=KDDataCollator(tokenizer),
@@ -291,6 +293,12 @@ def train_kd(
         "base_model": config.base_model,
         "backend": "kd",
         "strategy": config.strategy,
+        "quantization": plan.quantization,
+        "device": plan.device,
+        "device_kind": plan.device_kind,
+        "dtype": plan.dtype,
+        "attn_implementation": plan.attn_implementation,
+        "effective_strategy": plan.effective_strategy,
         "kd_alpha": config.kd_alpha,
         "kd_temperature": config.kd_temperature,
         "kd_positions": sum(len(row["kd_targets"]) for row in train_rows),

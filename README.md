@@ -16,14 +16,14 @@ It is a self-hosted Python package and CLI. Datasets, the RAG index, cache, and 
 
 **Use it if** you need auditable provenance, provider-separated adjudication, or a local student model for a domain you control.
 
-**Not for** human-labeled ground truth, a hosted labeling UI, CPU-only training, or a guarantee of model-quality gains. **Verified here** means schema-valid, gate-checked, and provenance-complete, not human-reviewed ground truth.
+**Not for** human-labeled ground truth, a hosted labeling UI, or a guarantee of model-quality gains. **Verified here** means schema-valid, gate-checked, and provenance-complete, not human-reviewed ground truth.
 
 ## How it works
 
 1. **Generate.** Cases come from JSON or source files, optionally enriched with local RAG context. One or more teacher roles produce structured analyses.
 2. **Challenge (optional and preset-dependent).** A critic can attack the teachers' output before the judge. The ticket standard uses `ticket_teacher`, the `general_teacher` critic, and the judge. Security and coding standards use two teachers and the judge. Maximum modes add the `general_teacher` critic for security and coding, and ticket maximum also adds `ticket_teacher_2`. `retry_with_critic` runs a critic only after the first pass is rejected.
 3. **Adjudicate and gate.** The judge runs last. With the default `enforced` setting, it must use a different provider from every non-judge role, plus a different declared model family when both sides declare one. Domain gates check schema, evidence, format, confidence, and optional recitation risk; unresolved verdicts are rejected by default (`reject_unresolved`). Accepted records get provenance; rejected cases are quarantined with reasons.
-4. **Train.** Prepare source-grouped splits, fine-tune with QLoRA or full FT on CUDA, and export merged HF weights, GGUF, or an Ollama model.
+4. **Train.** Prepare source-grouped splits, fine-tune with QLoRA or full FT on the best detected device (CUDA/ROCm, Intel XPU, Apple MPS, or CPU), and export merged HF weights, GGUF, or an Ollama model.
 
 Dataset-only users can stop after stage 3: the JSONL is the product, and training is optional.
 
@@ -94,13 +94,16 @@ prepared dataset -> datasets/prepared-ticket
 cases. This section stops before training: no CUDA and no model weights are
 required.
 
-### Train on a GPU
+### Train on your hardware
 
-Training, task evaluation, and merged or GGUF export require CUDA and the
-training extra. Chat needs the training extra and enough memory:
+Training, task evaluation, and merged or GGUF export require the training
+extra. The device resolves automatically: CUDA/ROCm first, then Intel XPU,
+Apple MPS, then CPU (4-bit quantization is CUDA/ROCm only). Run the preflight
+before a real run; it never downloads model weights:
 
 ```bash
 uv sync --extra training
+uv run brainforge train check
 ```
 
 The shipped ticket standard uses an OpenRouter teacher, an MLGW general critic,
@@ -115,8 +118,8 @@ uv run brainforge quickstart run --domain ticket_triage --input data/raw
 ```
 
 `quickstart` chains pipeline, prepare, training, and best-effort evaluation. It
-skips evaluation when the post-cutoff holdout is empty. A mock run on a GPU
-still produces mock labels, so use real providers for a useful student.
+skips evaluation when the post-cutoff holdout is empty. A mock run still
+produces mock labels, so use real providers for a useful student.
 
 For the step-by-step version, see the [tutorial](docs/tutorials/first-model.md)
 and [training reference](docs/reference/training.md).
@@ -130,7 +133,7 @@ and [training reference](docs/reference/training.md).
 | Dataset contract | JSONL messages plus source, source date, teachers, judge, gate result, recitation risk and reason, RAG chunks, and agreement where the domain schema supports it. |
 | Gates and dataset tooling | Per-domain rules, rejected-case quarantine with reasons, validation, duplicate and contamination inspection, source-grouped splits, and a post-cutoff holdout. |
 | Local RAG | fastembed ONNX embeddings on CPU (or hashing embeddings), SQLite plus NumPy store, chunk provenance, and `--no-rag` to bypass it. |
-| Training and export | QLoRA with 4-bit weights and LoRA, full fine-tuning, TRL or opt-in Unsloth, resume support, merged HF weights, GGUF, and Ollama. |
+| Training and export | QLoRA with 4-bit weights and LoRA, full fine-tuning, TRL or opt-in Unsloth, portable device selection (CUDA/ROCm, XPU, MPS, CPU) with preflight checks, resume support, merged HF weights, GGUF, and Ollama. |
 | Domain packs | Security and coding reference packs; ticket, CTF, review, audit, and agentic examples; generic fallback for prototypes. |
 
 Knowledge distillation (`--kd`) and abliteration are experimental: documented,
@@ -164,7 +167,7 @@ flowchart TD
   H -->|accepted| I["dataset.jsonl<br/>provenance + tags"]
   H -->|rejected| J["Rejected cases<br/>reasons + payload"]
   I --> K["train prepare<br/>splits + post-cutoff"]
-  K --> L["QLoRA or full FT<br/>CUDA"]
+  K --> L["QLoRA or full FT<br/>auto device"]
   L --> M["HF / GGUF / Ollama"]
 ```
 
@@ -190,7 +193,7 @@ context go to configured providers.
 |---|---|
 | Maturity and evidence | Pre-1.0. No published accuracy, latency, cost, or VRAM benchmark. Pin a commit and measure your own holdout. |
 | Mock mode | Deterministic schema filler for plumbing, tests, and demos. It is not evidence of label or model quality. |
-| Training | QLoRA, full FT, KD, and task evaluation need CUDA and the training extra. Chat needs the extra and enough memory. The CPU smoke test is one tiny LoRA step. No CPU, AMD, or Apple training path is tested. Full FT needs more VRAM than QLoRA. |
+| Training | QLoRA, full FT, KD, and task evaluation need the training extra. Chat needs the extra and enough memory. The CPU smoke test is one tiny LoRA step. CPU, ROCm, XPU, and MPS training paths are implemented and unit-tested but not hardware-validated; run `brainforge train check` on your machine first. Full FT needs more VRAM than QLoRA. |
 | Judge separation and agreement | Enforced with providers and declared families only. The same upstream weights behind two providers, a mislabeled family, `warn`, or `off` defeat it. Agreement is reported only for schemas with boolean verdict signals, so ticket datasets may show none. |
 | Contamination | Requires source dates and every teacher and critic cutoff. Missing dates or cutoffs fail safe to `recitation_risk`. The post-cutoff split can be empty or under 20 cases; it is a split, not a benchmark. |
 | Deduplication and RAG | Duplicate detection is inspection-only, with exact and near matching; it does not remove records. RAG is brute-force NumPy over SQLite, without an ANN index. |
@@ -213,11 +216,12 @@ Start at [docs/index.md](docs/index.md) for the full map.
 
 | Section | Content |
 |---|---|
-| [Tutorial](docs/tutorials/first-model.md) | Prepare a dataset without keys or a GPU, then train on CUDA |
+| [Tutorial](docs/tutorials/first-model.md) | Prepare a dataset without keys or a GPU, then train on any device |
 | [Providers](docs/how-to/configure-providers.md) | OpenRouter, Zen, MLGW, and local endpoints |
 | [Dataset generation](docs/how-to/generate-dataset.md) | Cases, teachers, critic, judge, and gates |
 | [Domain packs](docs/how-to/add-domain-pack.md) | Add a domain with its own schemas and rules |
 | [Training](docs/reference/training.md) | QLoRA, full FT, evaluation, export |
+| [Hardware](docs/reference/hardware.md) | Device support matrix and preflight |
 | [CLI](docs/reference/cli.md) and [config](docs/reference/configuration.md) | Commands, flags, and configuration |
 | [Dataset format](docs/reference/dataset-format.md) and [quality gates](docs/reference/quality-gates.md) | Record fields, splits, quality gates |
 | [Architecture](docs/explanation/architecture.md) | How the pipeline fits together |

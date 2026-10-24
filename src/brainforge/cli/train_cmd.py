@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -9,6 +10,7 @@ from brainforge.errors import BrainforgeError
 
 if TYPE_CHECKING:
     from brainforge.config.models import TrainingConfig
+    from brainforge.training.preflight import CheckReport
 
 app = typer.Typer(
     help="Training: prepare datasets, run QLoRA or full fine-tuning, evaluate, export.",
@@ -29,6 +31,40 @@ def latest_run_dir(base: Path | None = None) -> Path:
             f"no training runs found under {base}; run 'brainforge train run' first"
         )
     return max(candidates, key=lambda d: d.stat().st_mtime)
+
+
+def _print_check_report(report: "CheckReport") -> None:
+    if report.model is not None:
+        console.print(f"model: {report.model.id} ({report.model.source})")
+    if report.hardware is not None:
+        console.print(f"hardware: {report.hardware.kind} ({report.hardware.name})")
+    if report.plan is not None:
+        plan = report.plan
+        console.print(
+            f"plan: backend={plan.backend} device={plan.device} dtype={plan.dtype}"
+            f" quantization={plan.quantization} strategy={plan.effective_strategy}"
+        )
+    if report.estimate is None:
+        console.print("memory: estimate unavailable")
+    else:
+        estimate = report.estimate
+        available = (
+            f"{estimate.available_gb:.1f} GB" if estimate.available_gb is not None else "unknown"
+        )
+        console.print(
+            f"memory: ~{estimate.total_gb:.1f} GB total, {available} available"
+            " (estimate, not a guarantee)"
+        )
+    for check in report.checks:
+        console.print(f"  {check.status:<4} {check.id}: {check.message}")
+    counts = {
+        status: sum(1 for check in report.checks if check.status == status)
+        for status in ("pass", "warn", "fail", "skip")
+    }
+    console.print(
+        f"{counts['pass']} pass, {counts['warn']} warn, {counts['fail']} fail,"
+        f" {counts['skip']} skip"
+    )
 
 
 def train_student(
@@ -67,6 +103,62 @@ def prepare(
         console.print(f"  {name}: {count}")
 
 
+@app.command("check")
+@clamp_errors("training check")
+def check(
+    model: str = typer.Option(
+        "",
+        "--model",
+        "-m",
+        help="Hugging Face id or local model directory (default: config base_model)",
+    ),
+    strategy: Literal["qlora", "full"] | None = typer.Option(
+        None, "--strategy", help="Override config training strategy"
+    ),
+    quantization: Literal["auto", "4bit", "8bit", "none"] | None = typer.Option(
+        None, "--quantization", help="Override config quantization"
+    ),
+    backend: Literal["auto", "trl", "unsloth"] | None = typer.Option(
+        None, "--backend", help="Override config training backend"
+    ),
+    device: Literal["auto", "cuda", "xpu", "mps", "cpu"] | None = typer.Option(
+        None, "--device", help="Override config device"
+    ),
+    max_length: int = typer.Option(0, "--max-length", help="Override config max length"),
+    batch_size: int = typer.Option(0, "--batch-size", help="Override config batch size"),
+    lora_rank: int = typer.Option(0, "--lora-rank", help="Override config LoRA rank"),
+    dataset_dir: Path = typer.Option(
+        None, "--dataset-dir", help="Optional prepared split to validate"
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Emit a JSON report"),
+    strict: bool = typer.Option(False, "--strict", help="Treat warnings as failures"),
+    config: str = typer.Option(None, "--config", "-c"),
+) -> None:
+    """Check hardware, model compatibility and estimated memory before training."""
+    from brainforge.config import load_config
+    from brainforge.training.preflight import report_to_dict, run_preflight
+
+    training = load_config(config).training
+    report = run_preflight(
+        training,
+        model=model or None,
+        strategy=strategy,
+        quantization=quantization,
+        backend=backend,
+        device=device,
+        max_length=max_length or None,
+        batch_size=batch_size or None,
+        lora_rank=lora_rank or None,
+        dataset_dir=dataset_dir,
+        strict=strict,
+    )
+    if json_output:
+        typer.echo(json.dumps(report_to_dict(report), indent=2))
+    else:
+        _print_check_report(report)
+    raise typer.Exit(code=0 if report.ok else 1)
+
+
 @app.command("run")
 @clamp_errors("training")
 def run(
@@ -83,8 +175,14 @@ def run(
     strategy: Literal["qlora", "full"] | None = typer.Option(
         None, "--strategy", help="Override config training strategy (qlora or full)"
     ),
-    backend: Literal["trl", "unsloth"] | None = typer.Option(
-        None, "--backend", help="Override config training backend (trl or unsloth)"
+    backend: Literal["auto", "trl", "unsloth"] | None = typer.Option(
+        None, "--backend", help="Override config training backend"
+    ),
+    device: Literal["auto", "cuda", "xpu", "mps", "cpu"] | None = typer.Option(
+        None, "--device", help="Override config device"
+    ),
+    quantization: Literal["auto", "4bit", "8bit", "none"] | None = typer.Option(
+        None, "--quantization", help="Override config quantization"
     ),
     kd: bool = typer.Option(
         False,
@@ -109,7 +207,7 @@ def run(
 ) -> None:
     """Train the student: QLoRA, full fine-tuning or KD distillation.
 
-    Requires a CUDA GPU and the training extra.
+    Requires the training extra; the device and quantization resolve automatically.
     """
     from brainforge.config import load_config
 
@@ -124,6 +222,10 @@ def run(
         updates["strategy"] = strategy
     if backend:
         updates["backend"] = backend
+    if device:
+        updates["device"] = device
+    if quantization:
+        updates["quantization"] = quantization
     if updates:
         training = training.model_copy(update=updates)
     run_name = datetime.now().strftime("run-%Y%m%d-%H%M%S-%f")
@@ -178,7 +280,7 @@ def chat(
     ),
     max_new_tokens: int = typer.Option(512, "--max-new-tokens"),
 ) -> None:
-    """Interactive chat with a trained student model (requires CUDA + training extra)."""
+    """Interactive chat with a trained student model (requires the training extra)."""
     from brainforge.training.chat import chat_loop
 
     chat_loop(model or latest_run_dir(), max_new_tokens=max_new_tokens)
@@ -196,7 +298,9 @@ def task_eval(
         "-d",
         help="Eval split (JSONL)",
     ),
-    quantization: str = typer.Option("4bit", "--quantization", help="4bit, 8bit or none"),
+    quantization: Literal["auto", "4bit", "8bit", "none"] = typer.Option(
+        "auto", "--quantization", help="4bit, 8bit, none or auto (device default)"
+    ),
     max_new_tokens: int = typer.Option(512, "--max-new-tokens"),
     config: str = typer.Option(None, "--config", "-c"),
     batch_size: int = typer.Option(

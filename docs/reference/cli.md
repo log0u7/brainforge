@@ -90,11 +90,34 @@ brainforge pipeline run security_dataset \
 | Command | Description |
 |---|---|
 | `brainforge train prepare <file.jsonl> [-o dir]` | validate, split, export for TRL (+ `stats.json`) |
-| `brainforge train run` | train the student (QLoRA, full fine-tuning or KD distillation); requires CUDA + the training extra |
-| `brainforge train evaluate` | student evaluation: loss + perplexity on a split (CUDA + training extra) |
-| `brainforge train chat` | interactive chat with a trained student (CUDA + training extra) |
+| `brainforge train check` | preflight: hardware, model compatibility and memory estimate before training |
+| `brainforge train run` | train the student (QLoRA, full fine-tuning or KD distillation); requires the training extra |
+| `brainforge train evaluate` | student evaluation: loss + perplexity on a split (training extra) |
+| `brainforge train chat` | interactive chat with a trained student (training extra) |
 | `brainforge train task-eval` | task-level evaluation (verdict/CWE accuracy for the security domain) |
 | `brainforge train export` | export a trained student: merged HF weights or quantized GGUF |
+
+`train check` options:
+
+| Option | Default | Description |
+|---|---|---|
+| `--model/-m` | config base model | Hugging Face id or local model directory |
+| `--strategy` | config | `qlora` or `full` |
+| `--quantization` | config | `auto`, `4bit`, `8bit` or `none` |
+| `--backend` | config | `auto`, `trl` or `unsloth` |
+| `--device` | config | `auto`, `cuda`, `xpu`, `mps` or `cpu` |
+| `--max-length` | config | override sequence length for the memory estimate |
+| `--batch-size` | config | override training batch size |
+| `--lora-rank` | config | override LoRA rank |
+| `--dataset-dir` | none | optional prepared split to validate |
+| `--json` | off | emit a machine-readable JSON report |
+| `--strict` | off | treat warnings as failures |
+| `--config/-c` | `config/config.json` | configuration file |
+
+Exits 0 when nothing fails and no warning in `--strict` mode, 1 otherwise.
+It never downloads model weights: only `config.json`, tokenizer files and the
+chat template are fetched. Use `brainforge train check --json --strict` in CI
+before a GPU job.
 
 `train run` options:
 
@@ -103,8 +126,10 @@ brainforge pipeline run security_dataset \
 | `--dataset-dir/-d` | `datasets/prepared` | directory with `train.jsonl` (+ optional `validation.jsonl`) |
 | `--epochs/-e` | config | override config epochs |
 | `--base-model/-b` | config | override config base model |
-| `--strategy` | config | `qlora` (4-bit + LoRA) or `full` (all weights, bf16) |
-| `--backend` | config | `trl` or `unsloth` (needs the `unsloth` extra) |
+| `--strategy` | config | `qlora` (4-bit + LoRA) or `full` (all weights) |
+| `--backend` | config | `auto` (trl), `trl` or `unsloth` (needs the `unsloth` extra) |
+| `--device` | config | `auto`, `cuda`, `xpu`, `mps` or `cpu` |
+| `--quantization` | config | `auto`, `4bit`, `8bit` or `none` |
 | `--kd` | off | distillation training; requires `kd.jsonl` in the dataset dir |
 | `--output/-o` | `<config.output_dir>/<run>` | output directory |
 | `--resume/--no-resume` | off | resume from the latest checkpoint |
@@ -135,14 +160,16 @@ brainforge quickstart run --domain ticket_triage --input data/raw --provider moc
 | `--base-model/-b` | config | override config base model |
 | `--epochs/-e` | 1 | training epochs |
 | `--strategy` | `qlora` | `qlora` or `full` |
-| `--backend` | `trl` | `trl` or `unsloth` |
+| `--backend` | `auto` | `auto` (trl), `trl` or `unsloth` |
+| `--device` | `auto` | `auto`, `cuda`, `xpu`, `mps` or `cpu` |
+| `--quantization` | `auto` | `auto`, `4bit`, `8bit` or `none` |
 | `--kd` | off | use the `kd.jsonl` sidecar if present |
 | `--output/-o` | `datasets/<domain>.jsonl` | dataset output path |
 | `--config/-c` | `config/config.json` | configuration file |
 
 Chains `pipeline run` -> `train prepare` -> `train run` -> `train
-evaluate`, then prints next steps. The train step requires CUDA and the
-training extra; with `--provider mock` the whole chain is a zero-cost dry
+evaluate`, then prints next steps. The train step requires the training
+extra; with `--provider mock` the whole chain is a zero-cost dry
 run that stops cleanly at the training gate.
 
 ## abliterate

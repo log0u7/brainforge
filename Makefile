@@ -1,4 +1,4 @@
-.PHONY: install test lint format mypy secrets audit build ci mutate train-smoke train-smoke-cpu train-run config models rag dataset validate train evaluate clean
+.PHONY: install test lint format mypy secrets audit build ci mutate train-smoke train-smoke-cpu train-check train-run install-rocm install-xpu config models rag dataset validate train evaluate clean
 
 install:
 	uv sync
@@ -33,10 +33,28 @@ build:
 # Local equivalent of the CI pipeline (GitHub Actions / GitLab CI / Forgejo).
 ci: lint secrets test config build audit
 
-# GPU targets: need the training extra and a CUDA GPU (RTX 3080).
+# GPU targets: need the training extra and an accelerator (CUDA/ROCm/XPU/MPS).
 train-smoke:
 	uv sync --extra training
 	uv run python -m brainforge.training.smoke
+
+# Preflight: hardware, model compatibility and memory estimate; CI-friendly.
+train-check:
+	uv sync --extra training
+	uv run brainforge train check --strict
+
+# Accelerator-specific torch builds replace the PyPI (CUDA) default wheel.
+# Indexes verified for torch 2.13.0 + cp312 (2026-10).
+ROCM_INDEX ?= https://download.pytorch.org/whl/rocm7.1
+XPU_INDEX ?= https://download.pytorch.org/whl/xpu
+
+install-rocm:
+	uv sync --extra training
+	uv pip install --reinstall torch==2.13.0 --index-url $(ROCM_INDEX)
+
+install-xpu:
+	uv sync --extra training
+	uv pip install --reinstall torch==2.13.0 --index-url $(XPU_INDEX)
 
 # CPU smoke: tiny model, no GPU/bitsandbytes needed; skips gracefully offline.
 train-smoke-cpu:

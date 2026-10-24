@@ -100,9 +100,10 @@ class TrainingConfig(BaseModel):
     epochs: int = Field(default=3, ge=1)
     batch_size: int = Field(default=1, ge=1)
     gradient_accumulation: int = Field(default=16, ge=1)
-    quantization: Literal["4bit", "8bit", "none"] = "4bit"
+    device: Literal["auto", "cuda", "xpu", "mps", "cpu"] = "auto"
+    quantization: Literal["auto", "4bit", "8bit", "none"] = "auto"
     strategy: Literal["qlora", "full"] = "qlora"
-    backend: Literal["trl", "unsloth"] = "trl"
+    backend: Literal["auto", "trl", "unsloth"] = "auto"
     save_steps: int = Field(default=100, ge=1)
     seed: int = Field(default=42, ge=0)
     output_dir: str = "experiments"

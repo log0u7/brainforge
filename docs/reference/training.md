@@ -1,18 +1,24 @@
 # Training reference
 
-Training targets: a 7-9B student on a single RTX 3080 10GB
+Primary target: a 7-9B student on a single RTX 3080 10GB
 ([ADR-0010](../adr/0010-qlora-training-single-rtx-3080.md)), with an
 Unsloth backend for roughly 2x speed and lower VRAM. Three strategies
-(QLoRA, full fine-tuning, knowledge distillation) and two backends (trl,
-unsloth) compose freely; the dataset preparation is shared by all of them.
+(QLoRA, full fine-tuning, knowledge distillation) and three backends
+(auto, trl, unsloth) compose freely; the dataset preparation is shared by
+all of them.
 
-All training commands require CUDA and the training extra:
+All training commands require the training extra; the device, dtype and
+quantization resolve automatically for the detected hardware:
 
 ```bash
 uv sync --extra training
 ```
 
 For Unsloth: `uv sync --extra unsloth`.
+
+Run `brainforge train check` before a real run: it validates hardware, model
+compatibility and the memory estimate without downloading weights (see
+[hardware reference](hardware.md)).
 
 ## Prepare a dataset
 
@@ -35,23 +41,26 @@ Options: `--train-ratio`, `--val-ratio`, `--seed`, `--output/-o`.
 
 | Strategy | What trains | Quantization | VRAM | Use when |
 |---|---|---|---|---|
-| `qlora` (default) | LoRA adapters | 4-bit nf4 | ~10GB | first pass, fast iteration |
-| `full` | every weight | none (bf16) | model-size dependent | decision model after the dataset is proven |
+| `qlora` (default) | LoRA adapters | `auto`: 4-bit nf4 on CUDA/ROCm, none elsewhere | ~10GB on CUDA | first pass, fast iteration |
+| `full` | every weight | none (bf16/fp16 per device) | model-size dependent | decision model after the dataset is proven |
 
 Selected with `training.strategy` or `train run --strategy {qlora,full}`.
 The LoRA rank/alpha/dropout come from config for `qlora`; `full` ignores
-them.
+them. `qlora` with quantization `none` (the auto default off CUDA/ROCm)
+trains plain LoRA.
 
 ## Backends
 
 | Backend | Extra | Notes |
 |---|---|---|
-| `trl` (default) | `training` | Transformers + PEFT + bitsandbytes + TRL SFTTrainer |
-| `unsloth` | `unsloth` | patched kernels, ~2x speed; 4bit or unquantized loads only (8bit fails fast) |
+| `auto` (default) | `training` | resolves to `trl` (reserved for future selection logic) |
+| `trl` | `training` | Transformers + PEFT + bitsandbytes + TRL SFTTrainer |
+| `unsloth` | `unsloth` | patched kernels, ~2x speed; CUDA/ROCm only; 4bit or unquantized loads only (8bit fails fast) |
 
-Selected with `training.backend` or `train run --backend {trl,unsloth}`.
+Selected with `training.backend` or `train run --backend {auto,trl,unsloth}`.
 Both backends share dataset preparation, splits, resume and the
-`train_summary.json` contract (which records the backend and strategy).
+`train_summary.json` contract (which records the backend, strategy, device,
+dtype, quantization and attention implementation actually used).
 
 AirLLM is evaluated and not adopted
 ([ADR-0017](../adr/0017-airllm-not-adopted.md)): layer streaming lowers VRAM
@@ -81,8 +90,9 @@ per run with `--base-model`.
 |---|---|---|
 | `base_model` | `Qwen/Qwen3-8B` | HF model id or local dir |
 | `strategy` | `qlora` | `qlora` or `full` |
-| `backend` | `trl` | `trl` or `unsloth` |
-| `quantization` | `4bit` | `4bit`, `8bit`, `none` (unsloth: 4bit or none) |
+| `backend` | `auto` | `auto` (trl), `trl` or `unsloth` |
+| `device` | `auto` | `auto`, `cuda`, `xpu`, `mps` or `cpu` |
+| `quantization` | `auto` | `auto`, `4bit`, `8bit`, `none` (unsloth: 4bit or none; CUDA/ROCm only) |
 | `lora_rank` / `lora_alpha` / `lora_dropout` | 16 / 32 / 0.05 | LoRA shape (strategy `qlora`) |
 | `learning_rate` | 2e-4 | QLoRA sweet spot; full FT usually wants lower |
 | `epochs` | 3 | |
@@ -113,11 +123,13 @@ brainforge train export --model experiments/run-... --format merged
 ```
 
 - `train run` writes `experiments/run-<timestamp>/` with the adapter,
-  checkpoints and `train_summary.json`; `--resume` picks the latest
+  checkpoints and `train_summary.json` (which records the resolved device,
+  dtype, quantization and effective strategy); `--resume` picks the latest
   checkpoint numerically.
-- `train evaluate` computes corpus perplexity on a split (`eval.json`).
+- `train evaluate` computes corpus perplexity on a split (`eval.json`);
+  `--quantization auto` matches the training-time quantization policy.
 - `train task-eval` scores verdict/CWE accuracy against judge ground truth
-  (security domain only).
+  (security domain only); `--quantization auto` by default.
 - `train export --format merged` merges the adapter into standalone HF
   weights. `--format gguf` converts via llama.cpp to a quantized GGUF
   (default `Q4_K_M`, `--quant`) plus a `Modelfile`, and with `--ollama
@@ -134,17 +146,22 @@ brainforge train export --model experiments/run-... --format merged
 - The post-cutoff holdout stays the reference point across strategies;
   QLoRA-first then full-FT is a workflow, not a single number.
 
-## GPU smoke test
+## Device smoke test
 
-`src/brainforge/training/smoke.py` validates a GPU environment with one
-QLoRA forward/backward step on a tiny model:
+`src/brainforge/training/smoke.py` validates an accelerator environment with
+one QLoRA forward/backward step on a tiny model:
 
 ```bash
 uv sync --extra training
-uv run python -m brainforge.training.smoke        # skips cleanly without CUDA
+uv run python -m brainforge.training.smoke        # skips cleanly without an accelerator
 BRAINFORCE_SMOKE_MODEL=Qwen/Qwen3-0.6B ...        # override the probe model
 uv run python -m brainforge.training.smoke_cpu    # CPU path (tiny random model)
 ```
 
 The manual `gpu` CI job runs this on a self-hosted runner
 ([CI reference](ci.md)).
+
+## Device support
+
+Which devices train, how dtype and quantization resolve, and the preflight
+command: [hardware reference](hardware.md).
