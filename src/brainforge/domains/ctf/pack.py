@@ -104,7 +104,13 @@ class CtfPack(DomainPack):
             previous=format_previous_results(previous_results),
         )
 
-    def quality_gate(self, kind: RoleKind, data: dict, min_confidence: float = 0.5) -> GateResult:
+    def quality_gate(
+        self,
+        kind: RoleKind,
+        data: dict,
+        min_confidence: float = 0.5,
+        case: "Case | None" = None,
+    ) -> GateResult:
         reasons: list[str] = []
         confidence = data.get("confidence", 0)
         if confidence < min_confidence:
@@ -113,9 +119,30 @@ class CtfPack(DomainPack):
             reasons.extend(self._teacher_checks(data))
         elif kind == RoleKind.JUDGE:
             reasons.extend(self._judge_checks(data))
+            reasons.extend(self._flag_checks(data, case))
         if not data.get("summary") and not data.get("reasoning"):
             reasons.append("missing summary or reasoning")
         return GateResult(passed=not reasons, reasons=reasons)
+
+    def _flag_checks(self, data: dict, case: "Case | None") -> list[str]:
+        """Verify the judge verdict against a known flag (verified tier).
+
+        Cases carrying ``metadata.expected_flag`` state the ground truth:
+        a solved verdict must produce it and a mismatching flag rejects the
+        record. Cases without it (tier B) skip the check entirely.
+        """
+        reasons: list[str] = []
+        expected = (case.metadata.get("expected_flag") or "").strip() if case else ""
+        if not expected:
+            return reasons
+        flag = (data.get("flag") or "").strip()
+        if data.get("verdict") == "solved" and flag != expected:
+            reasons.append(
+                "flag does not match expected_flag (verified tier; ground truth is known)"
+            )
+        if flag == expected and data.get("verdict") != "solved":
+            reasons.append("flag matches expected_flag but the verdict is not solved")
+        return reasons
 
     def _teacher_checks(self, data: dict) -> list[str]:
         reasons = []

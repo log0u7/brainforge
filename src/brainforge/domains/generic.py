@@ -81,7 +81,9 @@ class GenericPack(DomainPack):
             "Answer as valid JSON."
         )
 
-    def quality_gate(self, kind: RoleKind, data: dict, min_confidence: float = 0.5) -> GateResult:
+    def quality_gate(
+        self, kind: RoleKind, data: dict, min_confidence: float = 0.5, case: "Case | None" = None
+    ) -> GateResult:
         reasons = []
         if data.get("confidence", 0) < min_confidence:
             reasons.append(f"confidence below threshold {min_confidence}")

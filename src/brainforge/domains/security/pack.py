@@ -129,7 +129,9 @@ class SecurityPack(DomainPack):
             previous=format_previous_results(previous_results),
         )
 
-    def quality_gate(self, kind: RoleKind, data: dict, min_confidence: float = 0.5) -> GateResult:
+    def quality_gate(
+        self, kind: RoleKind, data: dict, min_confidence: float = 0.5, case: "Case | None" = None
+    ) -> GateResult:
         reasons: list[str] = []
         confidence = data.get("confidence", 0)
         if confidence < min_confidence:

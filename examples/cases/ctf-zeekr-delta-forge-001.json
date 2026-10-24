@@ -1,0 +1,21 @@
+{
+  "id": "ctf-zeekr-delta-forge-001",
+  "source": {
+    "type": "ctfd",
+    "repository": "CTF-Archives/2026-Zeekr-Cybersecurity-Quals",
+    "path": "Delta.Forge",
+    "date": "2026-09-19",
+    "url": "https://github.com/CTF-Archives/2026-Zeekr-Cybersecurity-Quals/releases/tag/attachments"
+  },
+  "input": {
+    "code": "--- attachments/firmware/base_image.bin (binary/image, not excerpted) ---\n--- attachments/firmware/ecu_delta_container.bin (binary/image, not excerpted) ---\n--- attachments/protocol/calibration_stamp.txt ---\nCALIBRATION STAMP / DELTA FORGE\n\nFAMILY             GEELY-DELTA-FORGE-7\nROOT ID            C64A8C1BB751D6CC\nROOT SEQUENCE      0000\nFINAL SEQUENCE     000C\nBASE IMAGE SIZE    0x2000\nMANIFEST OFFSET    0x1F00\nMANIFEST LENGTH    0x60\n\nThe base image is immutable.\nThe delta container is the authorized update vector.\n\n--- attachments/protocol/forge_protocol.txt ---\nDELTA FORGE PROTOCOL / REVISION 7\n\nFirmware artifacts:\n  base_image.bin              immutable baseline image\n  ecu_delta_container.bin     encrypted patch vector\n\nContainer is a vector of records:\n  uint16 BE payload length, then payload bytes.\n\nFor sequence S, decrypt payload with:\n  SHA256(FAMILY || parent_id || uint16be(S)) repeated.\n\nA valid plaintext patch:\n  +00 EC 4F\n  +02 offset uint16 BE\n  +04 op uint8\n  +05 length uint8\n  +06 data[length]\n  +06+len chain hint uint16 BE\n  +08+len xor checksum uint8\n\nPatch operations on each byte:\n  A0 overwrite\n  A1 xor\n  A2 add mod 256\n  A3 rotate left by data byte mod 8\n\nChecksum is XOR of every prior plaintext byte.\n\nChain hint must equal first two bytes of:\n  SHA256(FAMILY || image_after_patch || uint16be(S))\nThe next parent_id is the first eight bytes of that digest.\n\nThere are twelve real patches. Other records are decoys.\n\nAfter sequence 12, decrypt the manifest at 0x1F00, length 0x60.\nMANIFEST_KEY =\n  SHA256(FAMILY || base_image[0x0000:0x1F00] ||\n         uint16be(12) || ASCII(\"MANIFEST\"))\n\nManifest is XOR-encrypted with the repeating key.\nStrip 0xA5 padding after decryption.\n",
+    "description": "CTF challenge statement (Chinese), 2026 Zeekr Cybersecurity Quals (CTF-Archives public dump). Statement:\n\n一辆测试车的 ECU 收到过一个“看起来像正常升级”的固件差分包。真正可用的补丁链被混在多条诱饵记录里，manifest 又被单独加密。你需要从基线镜像和加密差分向量中重建完整的补丁链，并恢复最终固件里的安全 manifest。 flag大写 flag 格式 GEELY{DELTA_...}\nHint:\n载体没有文件系统、magic number 或明文 manifest。真实页需要同时满足 CRC、状态、reserved marker 和 mosaic table。掩码依赖 family、page id 和 order，不能直接异或原始页数据。",
+    "question": "Solve this CTF challenge."
+  },
+  "metadata": {
+    "language": "zh",
+    "category": "forensics",
+    "tier": "unverified",
+    "flag_format": "GEELY{DELTA_...}"
+  }
+}

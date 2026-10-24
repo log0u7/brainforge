@@ -30,6 +30,7 @@ datasets/*
 !datasets/.gitkeep
 experiments/*
 !experiments/.gitkeep
+!experiments/ctf_ingest/
 
 # Secrets and env
 .env

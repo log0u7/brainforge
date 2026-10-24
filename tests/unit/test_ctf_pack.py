@@ -202,3 +202,49 @@ def test_quality_gate_judge_missing_reasoning():
     result = pack.quality_gate(RoleKind.JUDGE, {"confidence": 0.9, "verdict": "unsolved"})
     assert not result.passed
     assert any("missing reasoning" in reason for reason in result.reasons)
+
+
+def _judge_payload(flag="FLAG{known}"):
+    return {
+        "verdict": "solved",
+        "technique": "pwn/buffer-overflow",
+        "exploit_path": ["overflow", "ret2win"],
+        "flag": flag,
+        "writeup": "Overflow the buffer and jump to win().",
+        "confidence": 0.9,
+        "reasoning": "The binary prints the flag from win().",
+        "disagreement": False,
+    }
+
+
+def test_judge_gate_rejects_flag_mismatch_against_expected_flag(ctf_case):
+    pack = get_pack("ctf")
+    verified = ctf_case.model_copy(update={"metadata": {"expected_flag": "FLAG{known}"}})
+    result = pack.quality_gate(
+        RoleKind.JUDGE, _judge_payload(flag="FLAG{wrong}"), min_confidence=0.5, case=verified
+    )
+    assert not result.passed
+    assert any("expected_flag" in reason for reason in result.reasons)
+
+
+def test_judge_gate_accepts_matching_expected_flag(ctf_case):
+    pack = get_pack("ctf")
+    verified = ctf_case.model_copy(update={"metadata": {"expected_flag": "FLAG{known}"}})
+    result = pack.quality_gate(RoleKind.JUDGE, _judge_payload(), min_confidence=0.5, case=verified)
+    assert result.passed
+
+
+def test_judge_gate_rejects_flag_match_with_unsolved_verdict(ctf_case):
+    pack = get_pack("ctf")
+    verified = ctf_case.model_copy(update={"metadata": {"expected_flag": "FLAG{known}"}})
+    data = _judge_payload()
+    data["verdict"] = "insufficient_information"
+    result = pack.quality_gate(RoleKind.JUDGE, data, min_confidence=0.5, case=verified)
+    assert not result.passed
+    assert any("verdict" in reason for reason in result.reasons)
+
+
+def test_judge_gate_unaffected_without_expected_flag(ctf_case):
+    pack = get_pack("ctf")
+    result = pack.quality_gate(RoleKind.JUDGE, _judge_payload(), min_confidence=0.5, case=ctf_case)
+    assert result.passed

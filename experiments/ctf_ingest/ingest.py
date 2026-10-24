@@ -1,0 +1,329 @@
+#!/usr/bin/env python3
+"""Build BrainForge CTF cases from the local CTF corpus.
+
+Corpus layout (default ``~/projets/datasets/ctf-corpus``):
+
+* ``lictor-lab/<target>/``: ``service.c`` plus ``flag.txt`` (tier A:
+  expected flag known, material is ours and recent).
+* ``rop-emporium/rop_emporium_all_challenges/<name>/``: ELF binary plus
+  ``flag.txt`` (tier A). Challenges shipping an ``encrypted_flag.dat``
+  are skipped: their plaintext flag is not locally verifiable.
+* ``ctf-archives/<event>/<challenge>/``: public CTF dumps (tier B: no
+  expected flag, the statement and its flag format stay in metadata).
+
+Tier A cases carry ``metadata.expected_flag`` for the flag gate; tier B
+cases carry ``metadata.flag_format`` only. Writeups are verification
+references, never teacher inputs: none of the generated cases embeds a
+writeup.
+
+Outputs:
+
+* ``examples/cases/<id>.json`` case files (committed).
+* ``experiments/ctf_ingest/manifest.jsonl`` one line per case with its
+  verification status (committed).
+
+Usage: ``python experiments/ctf_ingest/ingest.py [--corpus DIR] [--repo DIR]``
+"""
+
+import argparse
+import json
+import re
+import subprocess
+from pathlib import Path
+
+CORPUS_DEFAULT = Path.home() / "projets" / "datasets" / "ctf-corpus"
+REPO_DEFAULT = Path(__file__).resolve().parents[2]
+
+TEXT_SUFFIXES = {
+    ".txt",
+    ".log",
+    ".json",
+    ".jsonl",
+    ".yaml",
+    ".yml",
+    ".pem",
+    ".csv",
+    ".md",
+    ".c",
+    ".py",
+    ".conf",
+}
+EXCERPT_CHARS = 1500
+DISASM_LINES = 60
+
+# ROP Emporium launched its challenge set before every teacher cutoff used
+# in BrainForge configs; the date is deliberately early so the
+# recitation-risk tagging sees the material as pre-cutoff.
+ROP_EMPORIUM_DATE = "2020-01-01"
+ZEKR_RELEASE_DATE = "2026-09-19"
+LICTOR_LAB_DATE = "2026-10-01"
+
+
+def run_recon(binary: Path) -> str:
+    """Bounded static recon text: file, ELF header, protections, disasm head."""
+    parts = [f"$ file -b {binary.name}", _out(["file", "-b", str(binary)])]
+    header = _out(["readelf", "-hW", str(binary)])
+    for key in ("Class:", "Machine:", "Type:"):
+        for line in header.splitlines():
+            if key in line:
+                parts.append(line.strip())
+    stack = _out(["readelf", "-lW", str(binary)])
+    nx = "GNU_STACK" in stack and "RWE" in [
+        seg.split()[6] for seg in stack.splitlines() if "GNU_STACK" in seg and len(seg.split()) > 6
+    ]
+    parts.append(f"NX: {'disabled' if nx else 'enabled'}")
+    dyn = _out(["readelf", "-dW", str(binary)])
+    parts.append(f"BIND_NOW: {'yes' if 'BIND_NOW' in dyn else 'no'}")
+    type_line = next((line for line in header.splitlines() if "Type:" in line), "")
+    pie = "DYN" in type_line
+    parts.append(f"PIE: {'yes' if pie else 'no'}")
+    symbols = _out(["nm", str(binary)]) if binary.exists() else ""
+    interesting = [
+        line
+        for line in symbols.splitlines()
+        if any(token in line for token in ("win", "system", "backdoor", "shell"))
+    ]
+    for line in interesting[:6]:
+        parts.append(line)
+    disasm = _out(["objdump", "-d", str(binary)])
+    parts.append("$ objdump -d (head)")
+    parts.extend(disasm.splitlines()[:DISASM_LINES])
+    return "\n".join(parts)[:4000]
+
+
+def _out(argv: list[str]) -> str:
+    try:
+        return subprocess.run(argv, capture_output=True, text=True, timeout=30, check=True).stdout
+    except (subprocess.SubprocessError, FileNotFoundError):
+        return ""
+
+
+def read_text(path: Path, limit: int = EXCERPT_CHARS) -> str:
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")[:limit]
+    except OSError:
+        return ""
+
+
+def case_json(case: dict) -> str:
+    return json.dumps(case, ensure_ascii=False, indent=2) + "\n"
+
+
+def lictor_cases(corpus: Path) -> list[tuple[dict, dict]]:
+    cases = []
+    for target in sorted((corpus / "lictor-lab").iterdir()):
+        source = target / "service.c"
+        flag = target / "flag.txt"
+        if not source.is_file() or not flag.is_file():
+            continue
+        flag_value = read_text(flag, 200).strip()
+        case_id = f"ctf-lictor-{target.name}-001"
+        case = {
+            "id": case_id,
+            "source": {
+                "type": "lictor-lab",
+                "repository": "log0u7/lictor lab",
+                "path": f"lab/targets/{target.name}",
+                "date": LICTOR_LAB_DATE,
+            },
+            "input": {
+                "code": read_text(source),
+                "description": (
+                    f"Binary exploitation lab target '{target.name}' (local service, "
+                    "source provided, compiled with stack protections per its header "
+                    "comment). A flag file is read by the service when the challenge "
+                    "is solved. Solve this CTF challenge."
+                ),
+                "question": "Solve this CTF challenge.",
+            },
+            "metadata": {
+                "language": "c",
+                "category": "pwn",
+                "tier": "verified",
+                "expected_flag": flag_value,
+            },
+        }
+        manifest = {
+            "id": case_id,
+            "tier": "verified",
+            "expected_flag": bool(flag_value),
+            "url": "https://github.com/log0u7/lictor",
+        }
+        cases.append((case, manifest))
+    return cases
+
+
+def rop_emporium_cases(corpus: Path) -> list[tuple[dict, dict]]:
+    base = corpus / "rop-emporium" / "rop_emporium_all_challenges"
+    cases = []
+    for challenge in sorted(base.iterdir()) if base.is_dir() else []:
+        binary = challenge / challenge.name
+        flag = challenge / "flag.txt"
+        if not binary.is_file() or not flag.is_file():
+            continue
+        case_id = f"ctf-rop-{challenge.name}-001"
+        case = {
+            "id": case_id,
+            "source": {
+                "type": "rop-emporium",
+                "repository": "ropemporium.com",
+                "path": f"challenges/{challenge.name}",
+                "date": ROP_EMPORIUM_DATE,
+                "url": f"https://ropemporium.com/challenge/{challenge.name}.html",
+            },
+            "input": {
+                "code": run_recon(binary),
+                "description": (
+                    f"ROP Emporium '{challenge.name}' challenge binary (x86_64 Linux). "
+                    "Recon output below. Solve this CTF challenge."
+                ),
+                "question": "Solve this CTF challenge.",
+            },
+            "metadata": {
+                "language": "c",
+                "category": "pwn",
+                "tier": "verified",
+                "expected_flag": read_text(flag, 200).strip(),
+            },
+        }
+        manifest = {
+            "id": case_id,
+            "tier": "verified",
+            "expected_flag": True,
+            "url": f"https://ropemporium.com/challenge/{challenge.name}.html",
+        }
+        cases.append((case, manifest))
+    return cases
+
+
+def zeekr_cases(corpus: Path) -> list[tuple[dict, dict]]:
+    event = corpus / "ctf-archives" / "2026-Zeekr-Cybersecurity-Quals"
+    readme = read_text(event / "README.md", 20000) if (event / "README.md").is_file() else ""
+    cases = []
+    base = event / "attachments"
+    for challenge in sorted(base.iterdir()) if base.is_dir() else []:
+        if not challenge.is_dir():
+            continue
+        slug = challenge.name.lower().replace(".", "-")
+        case_id = f"ctf-zeekr-{slug}-001"
+        statement = _statement_for(readme, challenge.name)
+        excerpts = _attachment_excerpts(challenge)
+        case = {
+            "id": case_id,
+            "source": {
+                "type": "ctfd",
+                "repository": "CTF-Archives/2026-Zeekr-Cybersecurity-Quals",
+                "path": challenge.name,
+                "date": ZEKR_RELEASE_DATE,
+                "url": (
+                    "https://github.com/CTF-Archives/"
+                    "2026-Zeekr-Cybersecurity-Quals/releases/tag/attachments"
+                ),
+            },
+            "input": {
+                "code": excerpts,
+                "description": (
+                    "CTF challenge statement (Chinese), 2026 Zeekr Cybersecurity "
+                    "Quals (CTF-Archives public dump). Statement:\n\n"
+                    + (statement or challenge.name)
+                ),
+                "question": "Solve this CTF challenge.",
+            },
+            "metadata": {
+                "language": "zh",
+                "category": "forensics",
+                "tier": "unverified",
+                "flag_format": _flag_format(statement),
+            },
+        }
+        manifest = {
+            "id": case_id,
+            "tier": "unverified",
+            "expected_flag": False,
+            "url": case["source"]["url"],
+        }
+        cases.append((case, manifest))
+    return cases
+
+
+def _statement_for(readme: str, name: str) -> str:
+    """Extract the statement block under the ``### <title>`` heading.
+
+    Challenge directories use dots (``Ghost.Fleet``) while README headings
+    use spaces (``### Ghost Fleet``); both sides are normalised to
+    alphanumeric-only lowercase before matching. The block runs until the
+    next heading.
+    """
+    normalized = "".join(char for char in name.lower() if char.isalnum())
+    lines = readme.splitlines()
+    start = None
+    for index, line in enumerate(lines):
+        if line.startswith("###") and normalized in "".join(
+            char for char in line.lower() if char.isalnum()
+        ):
+            start = index + 1
+            break
+    if start is None:
+        return ""
+    block = []
+    for line in lines[start:]:
+        if line.startswith("###"):
+            break
+        block.append(line)
+    text = "\n".join(block).strip()
+    cleaned = "\n".join(
+        line[2:] if line.startswith("> ") else ("" if line == ">" else line)
+        for line in text.splitlines()
+    )
+    cleaned = "\n".join(part for part in cleaned.splitlines() if part.strip()).strip()
+    return cleaned[:2000] if cleaned else ""
+
+
+def _flag_format(statement: str) -> str | None:
+    """First flag template in the statement, e.g. ``GEELY{<sha256_hex>}``."""
+    match = re.search(r"[A-Z][A-Za-z0-9_]{1,20}\{[^}]{0,120}\}", statement)
+    return match.group(0) if match else None
+
+
+def _attachment_excerpts(challenge: Path) -> str:
+    parts = []
+    for path in sorted(challenge.rglob("*")):
+        if path.is_dir():
+            continue
+        rel = path.relative_to(challenge)
+        if path.suffix.lower() in TEXT_SUFFIXES:
+            parts.append(f"--- {rel} ---\n{read_text(path)}")
+        else:
+            parts.append(f"--- {rel} (binary/image, not excerpted) ---")
+    return "\n".join(parts)[:8000]
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--corpus", type=Path, default=CORPUS_DEFAULT)
+    parser.add_argument("--repo", type=Path, default=REPO_DEFAULT)
+    args = parser.parse_args()
+
+    builders = (
+        ("lictor-lab", lictor_cases),
+        ("rop-emporium", rop_emporium_cases),
+        ("ctf-archives", zeekr_cases),
+    )
+    written = 0
+    manifest_lines = []
+    for source_name, builder in builders:
+        for case, manifest in builder(args.corpus):
+            target = args.repo / "examples" / "cases" / f"{case['id']}.json"
+            target.write_text(case_json(case), encoding="utf-8")
+            manifest_lines.append(
+                json.dumps({"source": source_name, **manifest}, ensure_ascii=False)
+            )
+            written += 1
+    manifest_path = Path(__file__).parent / "manifest.jsonl"
+    manifest_path.write_text("\n".join(manifest_lines) + "\n", encoding="utf-8")
+    print(f"wrote {written} cases -> {args.repo / 'examples' / 'cases'}")
+    print(f"manifest -> {manifest_path}")
+
+
+if __name__ == "__main__":
+    main()
