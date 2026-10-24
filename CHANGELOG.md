@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-24
+
 ### Added
 
 - Portable training: `brainforge train check` prefights hardware, model
@@ -69,6 +71,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Force `pillow>=13.0.0` to clear its known CVEs despite fastembed's `<13`
   cap, and bump `certifi` to 2026.10.19.
+- Bump `filelock` to 4.2.4 in the lock, clearing CVE-2026-112907,
+  CVE-2026-112913 and CVE-2026-112940 (fixed upstream in 4.2.1).
 - Audit the uv lock with `pip-audit --no-deps --disable-pip` so pip's
   resolver cannot reject the Pillow override.
 
