@@ -93,3 +93,21 @@ def test_train_student_prints_warning_for_agentic_split(tmp_path, monkeypatch, c
     output = capsys.readouterr().out
     assert "assistant_only_loss" in output
     assert summary["output_dir"].endswith("out")
+
+
+def test_train_student_suppresses_warning_on_kd_path(tmp_path, monkeypatch, capsys):
+    import brainforge.cli.train_cmd as train_cmd
+
+    path = _write(tmp_path, [_record("user", "assistant", "tool", "assistant")])
+
+    class _Training:
+        assistant_only_loss = False
+        backend = "trl"
+
+    monkeypatch.setattr(
+        "brainforge.training.prepare.tool_turn_warning",
+        lambda dataset_path, assistant_only_loss: tool_turn_warning(path, assistant_only_loss),
+    )
+    monkeypatch.setattr("brainforge.training.kd.train_kd", lambda *a, **k: {"output_dir": "x"})
+    train_cmd.train_student(_Training(), tmp_path, tmp_path / "out", kd=True)
+    assert "assistant_only_loss" not in capsys.readouterr().out
