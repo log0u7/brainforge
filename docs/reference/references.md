@@ -16,6 +16,7 @@ decision record that implements the idea.
 | [arXiv:2106.09685](https://arxiv.org/abs/2106.09685) LoRA: Low-Rank Adaptation of Large Language Models (Hu et al., 2021) | The LoRA adapter mechanism used by the QLoRA trainer |
 | [arXiv:2402.13116](https://arxiv.org/abs/2402.13116) A Survey on Knowledge Distillation of Large Language Models (Xu et al., 2024) | Taxonomy behind the optional teacher-to-student distillation path (algorithm, skill, verticalization). See [ADR-0015](../adr/0015-knowledge-distillation-sidecar.md) |
 | [arXiv:1503.02531](https://arxiv.org/abs/1503.02531) Distilling the Knowledge in a Neural Network (Hinton et al., 2015) | The original soft-target distillation formulation the KD temperature/alpha knobs implement |
+| [arXiv:2309.07597](https://arxiv.org/abs/2309.07597) C-Pack: Packed Resources for General Chinese Embeddings / BGE (Xiao et al., SIGIR 2024) | The `BAAI/bge-small-en-v1.5` embedding model behind local RAG. See [ADR-0005](../adr/0005-rag-fastembed-numpy-sqlite.md) |
 | [arXiv:2306.13649](https://arxiv.org/abs/2306.13649) On-Policy Distillation of Language Models: Learning from Self-Generated Mistakes (Agarwal et al., 2023) | Generalized Knowledge Distillation: the student trains on its own sequences against the teacher's full next-token distribution. The principled replacement candidate for the top-k sidecar, deferred. See [ADR-0018](../adr/0018-post-training-expansion-deferred.md) |
 | [arXiv:2402.03300](https://arxiv.org/abs/2402.03300) DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models (Shao et al., 2024) | Group Relative Policy Optimization: the group of samples as its own baseline, no value model. The verifiable-reward stage deferred behind the benchmark. See [ADR-0018](../adr/0018-post-training-expansion-deferred.md) |
 
@@ -35,7 +36,6 @@ stage it informs.
 | [Agent traces on the Hub](https://huggingface.co/docs/hub/agent-traces) | SFT on recorded agent sessions (multi-turn, tool calls) with assistant-only loss |
 | [Agent glossary](https://huggingface.co/blog/agent-glossary) | Shared vocabulary: the agent is a model plus a harness; same weights score differently across harnesses |
 | [pi-mono sessions](https://huggingface.co/datasets/badlogicgames/pi-mono) | Raw agent-session JSONL convertible to chat messages, an example trace source for the agentic pack |
-| [arXiv:2309.07597](https://arxiv.org/abs/2309.07597) C-Pack: Packed Resources for General Chinese Embeddings / BGE (Xiao et al., SIGIR 2024) | The `BAAI/bge-small-en-v1.5` embedding model behind local RAG. See [ADR-0005](../adr/0005-rag-fastembed-numpy-sqlite.md) |
 
 ## Standards and tools
 

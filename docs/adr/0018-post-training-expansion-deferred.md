@@ -74,7 +74,7 @@ with its dependency, and the study material is indexed in
 
 ### Confirmation
 
-* [ROADMAP](../../../ROADMAP.md) phase 3 carries the deferred items as
+* [ROADMAP](../../ROADMAP.md) phase 3 carries the deferred items as
   unchecked entries, each naming its prerequisite.
 * `pyproject.toml` still declares the `trl>=0.11` floor while `uv.lock`
   resolves 1.12.0; the bump to the on-policy trainers' version lands with
@@ -111,7 +111,7 @@ with its dependency, and the study material is indexed in
 
 * [ADR-0015](0015-knowledge-distillation-sidecar.md): the current KD path.
 * [ADR-0010](0010-qlora-training-single-rtx-3080.md): the training hardware.
-* [ROADMAP](../../../ROADMAP.md): the deferred items with dependencies.
+* [ROADMAP](../../ROADMAP.md): the deferred items with dependencies.
 * [references](../reference/references.md): the deck, blog posts and papers.
 * The "Train the agent" deck:
   <https://huggingface.co/spaces/sergiopaniego/train-the-agent-slides>
