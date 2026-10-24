@@ -191,7 +191,7 @@ context go to configured providers.
 
 | Area | Status |
 |---|---|
-| Maturity and evidence | Pre-1.0. No published accuracy, latency, cost, or VRAM benchmark. Pin a commit and measure your own holdout. |
+| Maturity and evidence | Pre-1.0. No published accuracy, latency, cost, or VRAM benchmark yet: the first base-vs-student run on the post-cutoff holdout is specified in [benchmark](docs/explanation/benchmark.md). Pin a commit and measure your own holdout. |
 | Mock mode | Deterministic schema filler for plumbing, tests, and demos. It is not evidence of label or model quality. |
 | Training | QLoRA, full FT, KD, and task evaluation need the training extra. Chat needs the extra and enough memory. The CPU smoke test is one tiny LoRA step. CPU, ROCm, XPU, and MPS training paths are implemented and unit-tested but not hardware-validated; run `brainforge train check` on your machine first. Full FT needs more VRAM than QLoRA. |
 | Judge separation and agreement | Enforced with providers and declared families only. The same upstream weights behind two providers, a mislabeled family, `warn`, or `off` defeat it. Agreement is reported only for schemas with boolean verdict signals, so ticket datasets may show none. |

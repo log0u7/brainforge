@@ -318,7 +318,7 @@ def task_eval(
         0, "--batch-size", help="Generation batch size (0 = config default)"
     ),
 ) -> None:
-    """Task-level evaluation: verdict + CWE accuracy on a held-out split."""
+    """Task-level evaluation: verdict + CWE accuracy (security) or verdict + flag accuracy (CTF)."""
     from brainforge.config import load_config
     from brainforge.training.task_eval import evaluate_model_on_records
 
@@ -331,7 +331,13 @@ def task_eval(
         batch_size=batch_size or training.generate_batch_size,
     )
     console.print(f"[green]task evaluation done[/green] ({result['n_records']} records)")
-    for key in ("accuracy", "false_positive_rate", "false_negative_rate", "cwe_accuracy"):
+    for key in (
+        "accuracy",
+        "false_positive_rate",
+        "false_negative_rate",
+        "cwe_accuracy",
+        "flag_accuracy",
+    ):
         value = result.get(key)
         console.print(f"  {key}: {value:.4f}" if isinstance(value, float) else f"  {key}: {value}")
 

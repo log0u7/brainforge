@@ -94,7 +94,7 @@ brainforge pipeline run security_dataset \
 | `brainforge train run` | train the student (QLoRA, full fine-tuning or KD distillation); requires the training extra |
 | `brainforge train evaluate` | student evaluation: loss + perplexity on a split (training extra) |
 | `brainforge train chat` | interactive chat with a trained student (training extra) |
-| `brainforge train task-eval` | task-level evaluation (verdict/CWE accuracy for the security domain) |
+| `brainforge train task-eval` | task-level evaluation (verdict/CWE accuracy for the security domain; verdict/flag accuracy for the CTF domain) |
 | `brainforge train export` | export a trained student: merged HF weights or quantized GGUF |
 
 `train check` options:
