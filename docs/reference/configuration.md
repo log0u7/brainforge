@@ -92,7 +92,8 @@ judge role shares a provider or a declared `family` with any other role. Rationa
 |---|---|---|---|
 | `base_model` | string | `Qwen/Qwen3-8B` | student base model |
 | `strategy` | `qlora` \| `full` | `qlora` | LoRA adapters or every weight |
-| `backend` | `trl` \| `unsloth` | `trl` | training backend (unsloth needs the extra) |
+| `backend` | `auto` \| `trl` \| `unsloth` | `auto` | training backend (`auto` resolves to `trl`; unsloth needs the extra) |
+| `device` | `auto` \| `cuda` \| `xpu` \| `mps` \| `cpu` | `auto` | training device (`auto`: CUDA/ROCm, XPU, MPS, then CPU) |
 | `lora_rank` | int | `16` | LoRA rank |
 | `lora_alpha` | int | `32` | LoRA alpha |
 | `lora_dropout` | float | `0.05` | LoRA dropout |
@@ -100,7 +101,7 @@ judge role shares a provider or a declared `family` with any other role. Rationa
 | `epochs` | int | `3` | training epochs |
 | `batch_size` | int | `1` | per-device batch size |
 | `gradient_accumulation` | int | `16` | effective batch = 16 |
-| `quantization` | `4bit` \| `8bit` \| `none` | `4bit` | quantization (unsloth: 4bit or none) |
+| `quantization` | `auto` \| `4bit` \| `8bit` \| `none` | `auto` | quantization (`auto`: 4bit on CUDA/ROCm, none elsewhere; unsloth: 4bit or none) |
 | `lr_scheduler_type` | string | `cosine` | TRL scheduler |
 | `warmup_steps` | int | `5` | warmup steps |
 | `max_grad_norm` | float | `1.0` | gradient clipping |

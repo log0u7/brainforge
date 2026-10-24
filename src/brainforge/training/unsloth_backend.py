@@ -16,10 +16,10 @@ from typing import Any
 
 from brainforge.config.models import TrainingConfig
 from brainforge.errors import BrainforgeError
+from brainforge.training.hardware import TrainingPlan
 from brainforge.training.qlora import (
     _latest_checkpoint,
     _messages_dataset,
-    _require_cuda,
     _sft_config,
 )
 
@@ -33,13 +33,8 @@ def _require_unsloth() -> None:
         ) from exc
 
 
-def _load_in_4bit(config: TrainingConfig) -> bool:
-    if config.quantization == "8bit":
-        raise BrainforgeError(
-            "unsloth backend supports 4bit or none quantization; "
-            "use the trl backend for 8bit training"
-        )
-    return config.strategy == "qlora" and config.quantization == "4bit"
+def _load_in_4bit(plan: TrainingPlan) -> bool:
+    return plan.peft and plan.quantization == "4bit"
 
 
 def train_unsloth(
@@ -54,7 +49,9 @@ def train_unsloth(
     if resume:
         resume = _latest_checkpoint(output_dir)
     _require_unsloth()
-    _require_cuda()
+    from brainforge.training.hardware import plan_for_config
+
+    plan = plan_for_config(config)
     from trl import SFTTrainer
     from unsloth import FastLanguageModel
 
@@ -67,9 +64,9 @@ def train_unsloth(
         model_name=config.base_model,
         max_seq_length=config.max_length,
         dtype=None,
-        load_in_4bit=_load_in_4bit(config),
+        load_in_4bit=_load_in_4bit(plan),
     )
-    if config.strategy == "qlora":
+    if plan.peft:
         model = FastLanguageModel.get_peft_model(
             model,
             r=config.lora_rank,
@@ -81,7 +78,8 @@ def train_unsloth(
         config,
         output_dir,
         eval_dataset is not None,
-        gradient_checkpointing=config.strategy == "full",
+        plan,
+        gradient_checkpointing=not plan.peft,
     )
     # trl >= 1 renamed the `tokenizer` kwarg to `processing_class`; unsloth's
     # patched SFTTrainer keeps `tokenizer`. Pick whichever the loaded class has.
@@ -106,7 +104,12 @@ def train_unsloth(
         "base_model": config.base_model,
         "backend": "unsloth",
         "strategy": config.strategy,
-        "quantization": config.quantization,
+        "quantization": plan.quantization,
+        "device": plan.device,
+        "device_kind": plan.device_kind,
+        "dtype": plan.dtype,
+        "attn_implementation": plan.attn_implementation,
+        "effective_strategy": plan.effective_strategy,
         "epochs": config.epochs,
         "train_rows": len(train_dataset),
         "validation_rows": len(eval_dataset) if eval_dataset else 0,

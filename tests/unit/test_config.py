@@ -294,4 +294,6 @@ def test_pipeline_fallback_examples_defaults_off():
 def test_training_defaults(config_file):
     config = load_config(config_file)
     assert config.training.base_model == "Qwen/Qwen3-8B"
-    assert config.training.quantization == "4bit"
+    assert config.training.device == "auto"
+    assert config.training.quantization == "auto"
+    assert config.training.backend == "auto"

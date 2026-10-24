@@ -56,8 +56,12 @@ class _FakeDataset:
 def fake_training_modules(monkeypatch):
     _FakeSFTTrainer.instances = []
     torch_mod = types.ModuleType("torch")
-    torch_mod.cuda = types.SimpleNamespace(is_available=lambda: True)
+    torch_mod.cuda = types.SimpleNamespace(
+        is_available=lambda: True, is_bf16_supported=lambda: True
+    )
     torch_mod.bfloat16 = "bfloat16"
+    torch_mod.float16 = "float16"
+    torch_mod.float32 = "float32"
     trl_mod = types.ModuleType("trl")
     trl_mod.SFTConfig = _FakeSFTConfig
     trl_mod.SFTTrainer = _FakeSFTTrainer
@@ -113,6 +117,13 @@ def test_qlora_strategy_keeps_quantization_and_peft(fake_training_modules, tmp_p
     assert trainer.init_kwargs["quantization_config"] is not None
     assert trainer.init_kwargs["peft_config"] is not None
     assert summary["strategy"] == "qlora"
+    assert summary["device_kind"] == "cuda"
+    assert summary["dtype"] == "bfloat16"
+    assert summary["quantization"] == "4bit"
+    assert summary["effective_strategy"] == "qlora"
+    stored = json.loads((tmp_path / "run" / "train_summary.json").read_text())
+    assert stored["strategy"] == "qlora"
+    assert stored["device"] == "cuda:0"
 
 
 def test_cli_strategy_flag_overrides_config(fake_training_modules, project_env):

@@ -3,7 +3,8 @@
 In this tutorial you run the dataset path on a non-security domain (IT ticket
 triage): from one raw case to a prepared set of training splits. The path uses
 the mock provider, so it needs no API keys and no GPU. A final optional section
-trains on CUDA. The mock labels are not evidence of model quality.
+trains on your hardware (CPU works; the mock labels are not evidence of model
+quality).
 
 **What "verified" means here:** schema-valid, gate-checked, and
 provenance-complete. It does not mean human-reviewed ground truth, and the mock
@@ -13,7 +14,8 @@ labels are not evidence of model quality.
 
 - Python 3.12+ and [uv](https://docs.astral.sh/uv/) (`mise` is optional)
 - The BrainForge repository cloned
-- For the optional training section: a CUDA GPU and `uv sync --extra training`
+- For the optional training section: `uv sync --extra training` (a GPU
+  speeds it up, but CPU works for the tiny mock run)
 
 ## 1. Install and validate
 
@@ -101,10 +103,11 @@ prepared dataset -> datasets/prepared-ticket
 cases the teachers could not have memorized; add more recent sources with
 declared dates before trusting evaluation numbers.
 
-## 5. Train for real (GPU, optional)
+## 5. Train for real (optional)
 
 ```bash
 uv sync --extra training
+uv run brainforge train check
 uv run brainforge quickstart run --domain ticket_triage --input data/raw
 ```
 
@@ -117,9 +120,10 @@ put real cases there.
 `quickstart` chains pipeline, prepare, training, and best-effort evaluation.
 **Checkpoint:** a run directory under `experiments/` with the adapter and
 `train_summary.json`, then an `evaluated` line when the post-cutoff holdout is
-non-empty. A mock run on a GPU still produces mock labels, so use real providers
-for a useful student. Training, task evaluation, and merged or GGUF export
-require CUDA and the training extra.
+non-empty. A mock run still produces mock labels, so use real providers for a
+useful student. Training, task evaluation, and merged or GGUF export require
+the training extra; the device resolves automatically
+([hardware reference](../reference/hardware.md)).
 
 ## 6. Ship it (optional)
 

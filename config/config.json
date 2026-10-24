@@ -176,7 +176,9 @@
     "base_model": "Qwen/Qwen3-8B",
     "lora_rank": 16,
     "lora_alpha": 32,
-    "quantization": "4bit",
+    "device": "auto",
+    "quantization": "auto",
+    "backend": "auto",
     "output_dir": "experiments"
   }
 }

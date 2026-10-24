@@ -13,6 +13,7 @@ dependencies = [
     "httpx>=0.27",
     "openai>=1.50",
     "fastembed>=0.4",
+    "huggingface-hub>=0.26",
 ]
 
 [project.optional-dependencies]

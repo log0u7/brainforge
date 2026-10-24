@@ -2,9 +2,10 @@
 
 BrainForge turns local cases into a gate-checked, provenance-tagged JSONL
 dataset with a multi-teacher LLM pipeline. It can prepare QLoRA or full
-fine-tuning data, train an open student on CUDA, and export it to GGUF or
-Ollama. Knowledge distillation is experimental. This site is organized by what
-you are trying to do.
+fine-tuning data, train an open student on the best detected device
+(CUDA/ROCm, XPU, MPS, CPU), and export it to GGUF or Ollama. Knowledge
+distillation is experimental. This site is organized by what you are trying
+to do.
 
 Start with the [README quickstart](../README.md#quickstart-no-keys-no-gpu) for
 the first no-key run, or read [status and known limits](../README.md#status-and-known-limits)
@@ -16,7 +17,7 @@ before planning a deployment.
 |---|---|
 | prepare a dataset without API keys or a GPU | [README quickstart](../README.md#quickstart-no-keys-no-gpu) |
 | follow the guided dataset path | [Tutorial: from cases to a prepared dataset](tutorials/first-model.md) |
-| train a student on CUDA | [Training reference](reference/training.md) |
+| train a student on any device | [Training reference](reference/training.md) and [Hardware reference](reference/hardware.md) |
 | connect OpenRouter, Zen or MLGW | [How-to: configure providers](how-to/configure-providers.md) |
 | index my own documents for retrieval | [How-to: index and search with RAG](how-to/index-and-search-rag.md) |
 | generate a dataset with real teachers | [How-to: generate a dataset](how-to/generate-dataset.md) |
@@ -42,8 +43,9 @@ role, plus a different declared model family when both sides declare one. A
 quality gate filters the results into a provenance-complete JSONL dataset.
 Source dates and teacher knowledge cutoffs drive recitation-risk tagging;
 post-cutoff cases form a holdout split, not a benchmark. Prepared splits feed a
-student fine-tune on CUDA (QLoRA first, full FT for the decision model),
-exported to GGUF/Ollama and distributable with llmp2p. Knowledge distillation is
+student fine-tune on the best detected device (QLoRA first, full FT for the
+decision model), exported to GGUF/Ollama and distributable with llmp2p.
+Knowledge distillation is
 experimental. Dataset-only users can stop before training. Security and coding
 are the reference packs; other domains inherit the same machinery. Verified
 means gate-checked, not human-reviewed ground truth.

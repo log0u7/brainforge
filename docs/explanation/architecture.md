@@ -19,8 +19,9 @@ src/brainforge/
 ├── pipeline/         engine, context, judge helpers, KD sidecar capture
 ├── rag/              loaders, chunking, embeddings, vector store, retrieval
 ├── dataset/          case builder, writer, validation, gate, dedup, split
-├── training/         prepare, qlora (trl), unsloth backend, kd trainer,
-│                     abliteration, gguf export, smoke tests
+├── training/         prepare, hardware plan resolution, preflight, qlora
+│                     (trl), unsloth backend, kd trainer, abliteration,
+│                     gguf export, smoke probes
 └── experiments/      run directories, metrics, reports
 ```
 
@@ -50,10 +51,13 @@ src/brainforge/
    `data/rejected/<pipeline>/<case>.json` with reasons.
 7. **Splits and training**. `train prepare` validates, splits source-grouped
    and exports TRL-ready JSONL, including the post-cutoff holdout.
-8. **Training** (`training/`). `train run` dispatches by backend
-   (`trl`/`unsloth`) and strategy (`qlora`/`full`), or `--kd` for
-   distillation; `train export` merges and converts to GGUF/Ollama
-   ([KD details](knowledge-distillation.md)).
+8. **Training** (`training/`). `train check` prefights hardware, model
+   compatibility and memory without downloading weights; `train run`
+   resolves a device plan (backend, device, dtype, quantization) then
+   dispatches by backend (`trl`/`unsloth`) and strategy (`qlora`/`full`),
+   or `--kd` for distillation; `train export` merges and converts to
+   GGUF/Ollama ([KD details](knowledge-distillation.md),
+   [hardware reference](../reference/hardware.md)).
 
 ## The separation that matters: Provider ≠ Model ≠ Role ≠ Pipeline
 

@@ -2,8 +2,9 @@
 
 Chains the existing pipeline, prepare and train steps so a new domain is
 usable in minutes: ``brainforge quickstart run --domain ticket_triage``.
-The training step requires a CUDA GPU and the training extra; the dataset
-steps run anywhere (use ``--provider mock`` for a zero-cost dry run).
+The training step requires the training extra; the device and quantization
+resolve automatically (use ``--device cpu`` for CPU-only machines). The
+dataset steps run anywhere (use ``--provider mock`` for a zero-cost dry run).
 """
 
 from datetime import datetime
@@ -47,7 +48,9 @@ def run(
     base_model: str = typer.Option("", "--base-model", "-b", help="Override config base model"),
     epochs: int = typer.Option(1, "--epochs", "-e"),
     strategy: str = typer.Option("qlora", "--strategy", help="qlora or full"),
-    backend: str = typer.Option("trl", "--backend", help="trl or unsloth"),
+    backend: str = typer.Option("auto", "--backend", help="auto, trl or unsloth"),
+    device: str = typer.Option("auto", "--device", help="auto, cuda, xpu, mps or cpu"),
+    quantization: str = typer.Option("auto", "--quantization", help="auto, 4bit, 8bit or none"),
     kd: bool = typer.Option(False, "--kd", help="Use the kd.jsonl sidecar if present"),
     output: Path = typer.Option(
         None, "--output", "-o", help="Dataset output path (default: datasets/<domain>.jsonl)"
@@ -96,6 +99,8 @@ def run(
         updates["base_model"] = base_model
     updates["strategy"] = strategy
     updates["backend"] = backend
+    updates["device"] = device
+    updates["quantization"] = quantization
     training = training.model_copy(update=updates)
     run_dir = Path(training.output_dir) / f"quickstart-{datetime.now():%Y%m%d-%H%M%S}"
     summary = train_student(training, prepared_dir, run_dir, kd=kd)
