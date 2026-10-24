@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Post-training expansion deferral: ADR-0018 records the decision to defer
+  the TRL v1.x migration, an on-policy distillation backend (GKD), GRPO on
+  the CTF pack, an OpenEnv environment and multi-harness RL until the first
+  published benchmark; ROADMAP phase 3 carries each deferred item with its
+  prerequisite and `docs/reference/references.md` indexes the deck, blog
+  posts and papers behind the map.
 - Agentic loss hygiene: `brainforge train run` warns when the training
   split holds `tool` observations or multi-assistant records while
   `training.assistant_only_loss` is off (those tokens would be scored into
