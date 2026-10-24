@@ -50,6 +50,18 @@ Phases are cumulative. The MVP (phase 1) is implemented in this repository.
       explanation) with strict anti-duplication limits
 - [ ] KD quality benchmark: compare `train task-eval` numbers KD vs non-KD
       on identical splits before promoting the feature from experimental
+- [ ] Tighten the TRL pin (the lock already resolves 1.12.0 on the v1 API)
+      to the version carrying the on-policy trainers and validate SFT/KD
+      against it; prerequisite for the distillation and RL items below
+      (ADR-0018)
+- [ ] On-policy distillation backend (TRL `DistillationTrainer`, GKD) and a
+      three-arm benchmark: no KD vs top-k sidecar (ADR-0015) vs on-policy
+- [ ] GRPO experiment on the CTF pack with a verifier reward (found flag as
+      binary reward); candidate environment: the lictor lab targets
+- [ ] OpenEnv environment wrapping the CTF sandbox (Docker target plus
+      verifier reward), depends on the GRPO experiment
+- [ ] Multi-harness RL through a capture proxy; requires vLLM/SGLang token
+      ids and logprobs (llama.cpp is not supported there)
 
 ## Non-goals (standing)
 
