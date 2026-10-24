@@ -128,19 +128,21 @@ class CtfPack(DomainPack):
         """Verify the judge verdict against a known flag (verified tier).
 
         Cases carrying ``metadata.expected_flag`` state the ground truth:
-        a solved verdict must produce it and a mismatching flag rejects the
-        record. Cases without it (tier B) skip the check entirely.
+        any non-empty flag that differs from it rejects the record
+        whatever the verdict, and a matching flag with a non-solved
+        verdict is a contradiction that rejects too. Cases without it
+        (tier B) skip the check entirely.
         """
         reasons: list[str] = []
-        expected = (case.metadata.get("expected_flag") or "").strip() if case else ""
+        expected = str(case.metadata.get("expected_flag") or "").strip() if case else ""
         if not expected:
             return reasons
-        flag = (data.get("flag") or "").strip()
-        if data.get("verdict") == "solved" and flag != expected:
+        flag = str(data.get("flag") or "").strip()
+        if flag and flag != expected:
             reasons.append(
                 "flag does not match expected_flag (verified tier; ground truth is known)"
             )
-        if flag == expected and data.get("verdict") != "solved":
+        if flag == expected and flag and data.get("verdict") != "solved":
             reasons.append("flag matches expected_flag but the verdict is not solved")
         return reasons
 

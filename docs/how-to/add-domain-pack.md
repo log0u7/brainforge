@@ -47,7 +47,8 @@ Subclass `DomainPack` from `src/brainforge/domains/base.py`:
   claims");
 - `teacher_prompt`, `critic_prompt`, `judge_prompt` -> use the shared
   formatters (`format_case`, `format_rag_context`, `format_previous_results`);
-- `quality_gate(kind, data, min_confidence)` -> the rules from step 1;
+- `quality_gate(kind, data, min_confidence, case=None)` -> the rules from step 1
+  (`case` carries verification material such as `metadata.expected_flag`);
 - `student_input(case)` -> the user message the student will train on (case
   only, never RAG context);
 - `recommended_steps` -> the three mode presets, using role names.

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- CTF flag gate for verified-tier cases: `quality_gate` now receives the
+  case (all packs accept the new optional parameter) and the CTF pack
+  rejects a judge flag that differs from `metadata.expected_flag`
+  whatever the verdict, plus a matching flag under a non-solved verdict;
+  cases without `expected_flag` are unaffected.
+- First CTF case corpus: `experiments/ctf_ingest/ingest.py` builds 23
+  cases from the local CTF corpus (6 lictor lab targets and 6 ROP
+  Emporium binaries with known flags; 11 CTF-Archives 2026 Zeekr
+  challenges with flag format only). Writeups stay verification
+  references and never enter the case inputs.
+
 ## [0.4.0] - 2026-10-24
 
 ### Added

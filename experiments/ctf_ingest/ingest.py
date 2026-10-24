@@ -161,6 +161,9 @@ def rop_emporium_cases(corpus: Path) -> list[tuple[dict, dict]]:
         flag = challenge / "flag.txt"
         if not binary.is_file() or not flag.is_file():
             continue
+        flag_value = read_text(flag, 200).strip()
+        if not flag_value:
+            continue
         case_id = f"ctf-rop-{challenge.name}-001"
         case = {
             "id": case_id,
@@ -183,13 +186,13 @@ def rop_emporium_cases(corpus: Path) -> list[tuple[dict, dict]]:
                 "language": "c",
                 "category": "pwn",
                 "tier": "verified",
-                "expected_flag": read_text(flag, 200).strip(),
+                "expected_flag": flag_value,
             },
         }
         manifest = {
             "id": case_id,
             "tier": "verified",
-            "expected_flag": True,
+            "expected_flag": bool(flag_value),
             "url": f"https://ropemporium.com/challenge/{challenge.name}.html",
         }
         cases.append((case, manifest))
