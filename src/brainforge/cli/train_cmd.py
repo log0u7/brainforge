@@ -331,7 +331,13 @@ def task_eval(
         batch_size=batch_size or training.generate_batch_size,
     )
     console.print(f"[green]task evaluation done[/green] ({result['n_records']} records)")
-    for key in ("accuracy", "false_positive_rate", "false_negative_rate", "cwe_accuracy"):
+    for key in (
+        "accuracy",
+        "false_positive_rate",
+        "false_negative_rate",
+        "cwe_accuracy",
+        "flag_accuracy",
+    ):
         value = result.get(key)
         console.print(f"  {key}: {value:.4f}" if isinstance(value, float) else f"  {key}: {value}")
 

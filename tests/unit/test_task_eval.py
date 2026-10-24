@@ -1,4 +1,5 @@
 import json
+import pathlib
 
 import pytest
 
@@ -285,7 +286,8 @@ def test_evaluate_base_model_by_hub_id_skips_file_write(tmp_path, monkeypatch):
     )
     result = te.evaluate_model_on_records("Qwen/Qwen3-0.6B", split)
     assert result["accuracy"] == 1.0
-    assert not (tmp_path / "Qwen").exists()
+    # a write would land in the CWD-relative Qwen/ directory, never tmp_path
+    assert not pathlib.Path("Qwen").exists()
 
 
 def test_evaluate_writes_task_eval_json_for_local_dir(tmp_path, monkeypatch):
@@ -300,3 +302,46 @@ def test_evaluate_writes_task_eval_json_for_local_dir(tmp_path, monkeypatch):
     result = te.evaluate_model_on_records(tmp_path, split)
     assert result["accuracy"] == 1.0
     assert (tmp_path / "task_eval.json").is_file()
+
+
+def test_run_task_eval_rejects_domainless_records_in_ctf_runs():
+    record = make_ctf_record("solved")
+    del record["domain"]
+    records = [make_ctf_record("partial"), record]
+    with pytest.raises(BrainforgeError, match="without a domain"):
+        run_task_eval(records, generate=lambda messages: ["{}"] * len(messages))
+
+
+def test_score_task_ctf_solved_judge_with_partial_student_is_false_negative():
+    pairs = [
+        (
+            {"verdict": "partial", "abstain": False, "flag": None},
+            {"verdict": "solved", "abstain": False, "flag": "FLAG{a}"},
+        ),
+    ]
+    result = score_task(pairs, domain="ctf")
+    assert result["accuracy"] == 0.0
+    assert result["false_negative_rate"] == 1.0
+
+
+def test_score_task_ctf_valid_json_without_verdict_is_unparseable_miss():
+    pairs = [
+        (
+            {"verdict": None, "abstain": False, "flag": "FLAG{x}"},
+            {"verdict": "solved", "abstain": False, "flag": "FLAG{a}"},
+        ),
+    ]
+    result = score_task(pairs, domain="ctf")
+    assert result["accuracy"] == 0.0
+
+
+def test_score_task_ctf_abstain_on_solved_judge_is_false_negative():
+    pairs = [
+        (
+            {"verdict": "insufficient_information", "abstain": True, "flag": None},
+            {"verdict": "solved", "abstain": False, "flag": "FLAG{a}"},
+        ),
+    ]
+    result = score_task(pairs, domain="ctf")
+    assert result["false_negative_rate"] == 1.0
+    assert result["abstain_rate"] == 1.0

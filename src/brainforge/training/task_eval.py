@@ -176,6 +176,14 @@ def run_task_eval(
         raise BrainforgeError(
             f"mixed domains not supported: run one domain per evaluation, found: {sorted(domains)}"
         )
+    if "ctf" in domains:
+        domainless = [record for record in records if not record.get("domain")]
+        if domainless:
+            raise BrainforgeError(
+                f"{len(domainless)} record(s) without a domain in a ctf evaluation:"
+                " every record must declare its domain or the CTF scoring would"
+                " silently mis-score it"
+            )
     domain = domains.pop() if domains else "security"
     prompts = [
         [m["content"] for m in record.get("messages", []) if m["role"] == "user"]

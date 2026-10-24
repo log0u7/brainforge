@@ -75,6 +75,10 @@ On a machine with provider keys configured:
      -d datasets/prepared-ctf/test_postcutoff.jsonl
    ```
 
+   Capture the console output of each side: for the Hub-id base model it
+   is the only artifact (no `task_eval.json` is written next to remote
+   weights); the local student side also gets its report file.
+
 5. Publish the table here with `n_records`, both sides, and the
    holdout size; tick the ROADMAP phase 2 entries it satisfies.
 
