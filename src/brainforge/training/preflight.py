@@ -358,7 +358,8 @@ def _plan_check_id(error: str) -> str:
 def _dependency_checks(plan: TrainingPlan | None, checks: list[Check]) -> None:
     required = ["transformers", "datasets"]
     if plan is not None:
-        if plan.backend in ("trl", "kd", "unsloth"):
+        # kd trains through transformers.Trainer; trl is only needed by the trl and unsloth backends
+        if plan.backend in ("trl", "unsloth"):
             required.append("trl")
         if plan.peft:
             required.append("peft")

@@ -116,6 +116,22 @@ def test_inspect_local_model_metadata(tmp_path):
     assert info.remote_code is False
 
 
+def test_dependency_checks_kd_does_not_require_trl(monkeypatch):
+    from brainforge.training import preflight
+
+    installed = {"transformers", "datasets", "peft"}
+    monkeypatch.setattr(preflight, "_available", lambda name: name in installed)
+    device = preflight.DeviceInfo("cpu", "cpu", "CPU", None, None, False, False)
+    config = TrainingConfig(quantization="none", strategy="qlora")
+    checks: list[preflight.Check] = []
+    preflight._dependency_checks(preflight.resolve_plan(config, device, kd=True), checks)
+    assert not [check for check in checks if check.status == "fail"]
+    trl_checks: list[preflight.Check] = []
+    trl_plan = preflight.resolve_plan(config, device, backend="trl")
+    preflight._dependency_checks(trl_plan, trl_checks)
+    assert "training.trl" in [check.id for check in trl_checks if check.status == "fail"]
+
+
 def test_inspect_local_model_requires_config(tmp_path):
     model_dir = tmp_path / "empty"
     model_dir.mkdir()
