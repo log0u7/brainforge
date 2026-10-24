@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- CTF flag gate for verified-tier cases: `quality_gate` now receives the
+  case (all packs accept the new optional parameter) and the CTF pack
+  rejects a judge flag that differs from `metadata.expected_flag`
+  whatever the verdict, plus a matching flag under a non-solved verdict;
+  cases without `expected_flag` are unaffected.
+- First CTF case corpus: `experiments/ctf_ingest/ingest.py` builds 23
+  cases from the local CTF corpus (6 lictor lab targets and 6 ROP
+  Emporium binaries with known flags; 11 CTF-Archives 2026 Zeekr
+  challenges with flag format only). Writeups stay verification
+  references and never enter the case inputs.
 - Post-training expansion deferral: ADR-0018 records the decision to defer
   the TRL v1.x migration, an on-policy distillation backend (GKD), GRPO on
   the CTF pack, an OpenEnv environment and multi-harness RL until the first

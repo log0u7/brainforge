@@ -129,7 +129,16 @@ class DomainPack(ABC):
         pass
 
     @abstractmethod
-    def quality_gate(self, kind: RoleKind, data: dict, min_confidence: float = 0.5) -> GateResult:
+    def quality_gate(
+        self,
+        kind: RoleKind,
+        data: dict,
+        min_confidence: float = 0.5,
+        case: "Case | None" = None,
+    ) -> GateResult:
+        """Gate the step output. ``case`` carries verification material
+        (e.g. ``metadata.expected_flag``); packs that do not use it ignore
+        the parameter."""
         pass
 
     @abstractmethod

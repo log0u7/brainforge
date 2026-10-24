@@ -1,0 +1,21 @@
+{
+  "id": "ctf-rop-split-001",
+  "source": {
+    "type": "rop-emporium",
+    "repository": "ropemporium.com",
+    "path": "challenges/split",
+    "date": "2020-01-01",
+    "url": "https://ropemporium.com/challenge/split.html"
+  },
+  "input": {
+    "code": "$ file -b split\nELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 3.2.0, BuildID[sha1]=98755e64e1d0c1bff48fccae1dca9ee9e3c609e2, not stripped\n\nMachine:                           Advanced Micro Devices X86-64\nType:                              EXEC (fichier exécutable)\nNX: enabled\nBIND_NOW: no\nPIE: no\n                 U system@@GLIBC_2.2.5\n$ objdump -d (head)\n\n/home/logout/projets/datasets/ctf-corpus/rop-emporium/rop_emporium_all_challenges/split/split:     format de fichier elf64-x86-64\n\n\nDéassemblage de la section .init :\n\n0000000000400528 <_init>:\n  400528:\t48 83 ec 08          \tsub    $0x8,%rsp\n  40052c:\t48 8b 05 c5 0a 20 00 \tmov    0x200ac5(%rip),%rax        # 600ff8 <__gmon_start__>\n  400533:\t48 85 c0             \ttest   %rax,%rax\n  400536:\t74 02                \tje     40053a <_init+0x12>\n  400538:\tff d0                \tcall   *%rax\n  40053a:\t48 83 c4 08          \tadd    $0x8,%rsp\n  40053e:\tc3                   \tret\n\nDéassemblage de la section .plt :\n\n0000000000400540 <.plt>:\n  400540:\tff 35 c2 0a 20 00    \tpush   0x200ac2(%rip)        # 601008 <_GLOBAL_OFFSET_TABLE_+0x8>\n  400546:\tff 25 c4 0a 20 00    \tjmp    *0x200ac4(%rip)        # 601010 <_GLOBAL_OFFSET_TABLE_+0x10>\n  40054c:\t0f 1f 40 00          \tnopl   0x0(%rax)\n\n0000000000400550 <puts@plt>:\n  400550:\tff 25 c2 0a 20 00    \tjmp    *0x200ac2(%rip)        # 601018 <puts@GLIBC_2.2.5>\n  400556:\t68 00 00 00 00       \tpush   $0x0\n  40055b:\te9 e0 ff ff ff       \tjmp    400540 <.plt>\n\n0000000000400560 <system@plt>:\n  400560:\tff 25 ba 0a 20 00    \tjmp    *0x200aba(%rip)        # 601020 <system@GLIBC_2.2.5>\n  400566:\t68 01 00 00 00       \tpush   $0x1\n  40056b:\te9 d0 ff ff ff       \tjmp    400540 <.plt>\n\n0000000000400570 <printf@plt>:\n  400570:\tff 25 b2 0a 20 00    \tjmp    *0x200ab2(%rip)        # 601028 <printf@GLIBC_2.2.5>\n  400576:\t68 02 00 00 00       \tpush   $0x2\n  40057b:\te9 c0 ff ff ff       \tjmp    400540 <.plt>\n\n0000000000400580 <memset@plt>:\n  400580:\tff 25 aa 0a 20 00    \tjmp    *0x200aaa(%rip)        # 601030 <memset@GLIBC_2.2.5>\n  400586:\t68 03 00 00 00       \tpush   $0x3\n  40058b:\te9 b0 ff ff ff       \tjmp    400540 <.plt>\n\n0000000000400590 <read@plt>:\n  400590:\tff 25 a2 0a 20 00    \tjmp    *0x200aa2(%rip)        # 601038 <read@GLIBC_2.2.5>\n  400596:\t68 04 00 00 00       \tpush   $0x4\n  40059b:\te9 a0 ff ff ff       \tjmp    400540 <.plt>\n\n00000000004005a0 <setvbuf@plt>:\n  4005a0:\tff 25 9a 0a 20 00    \tjmp    *0x200a9a(%rip)        # 601040 <setvbuf@GLIBC_2.2.5>\n  4005a6:\t68 05 00 00 00       \tpush   $0x5\n  4005ab:\te9 90 ff ff ff       \tjmp    400540 <.plt>\n\nDéassemblage de la section .text :\n\n00000000004005b0 <_start>:\n  4005b0:\t31 ed                \txor    %ebp,%ebp\n  4005b2:\t49 89 d1             \tmov    %rdx,%r9\n  4005b5:\t5e                   \tpop    %rsi\n  4005b6:\t48 89 e2             \tmov    %rsp,%rdx\n  4005b9:\t48 83 e4 f0          \tand    $0xfffffffffffffff0,%rsp",
+    "description": "ROP Emporium 'split' challenge binary (x86_64 Linux). Recon output below. Solve this CTF challenge.",
+    "question": "Solve this CTF challenge."
+  },
+  "metadata": {
+    "language": "c",
+    "category": "pwn",
+    "tier": "verified",
+    "expected_flag": "ROPE{a_placeholder_32byte_flag!}"
+  }
+}

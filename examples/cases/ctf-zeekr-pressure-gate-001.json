@@ -1,0 +1,21 @@
+{
+  "id": "ctf-zeekr-pressure-gate-001",
+  "source": {
+    "type": "ctfd",
+    "repository": "CTF-Archives/2026-Zeekr-Cybersecurity-Quals",
+    "path": "Pressure.Gate",
+    "date": "2026-09-19",
+    "url": "https://github.com/CTF-Archives/2026-Zeekr-Cybersecurity-Quals/releases/tag/attachments"
+  },
+  "input": {
+    "code": "--- attachments/evidence/segment_trace.log ---\n(1791000000.000000) can2 18EF4A10#0FF00D3AC9B05BEA\n(1791000000.062077) can2 18EF4A10#100016D5402D5AE4\n(1791000000.117738) can2 18EF4A10#100130B817D85A0C\n(1791000000.167037) can2 18EF4A10#10029AE171205A62\n(1791000000.235228) can2 18EF4A10#1003CC8400B65AB7\n(1791000000.307037) can2 18EF4A10#100485E5E71D5AD4\n(1791000000.372342) can2 18EF4A10#1005431592585AD3\n(1791000000.430437) can2 18EF4A10#1006267521595A67\n(1791000000.497009) can2 18EF4A10#1007D2EE23FC5AAE\n(1791000000.558458) can2 18EF4A10#1008E6286ED45A36\n(1791000000.630645) can2 18EF4A10#1009299BF92E5A26\n(1791000000.679215) can2 18EF4A10#100A3E40F7C95A00\n(1791000000.749860) can2 18EF4A10#100BE58052D25AA4\n(1791000000.802167) can2 18EF4A10#100CE73722D55A61\n(1791000000.862755) can2 18EF4A10#100D178B936D5A25\n(1791000000.907963) can2 18EF4A10#100E50EF05C15A3F\n(1791000000.960542) can2 18EF4A10#100F0E8FD44B5A5B\n(1791000001.025488) can2 18EF4A10#1010751955EF5A8C\n(1791000001.078272) can2 18EF4A10#10119B1427845A77\n(1791000001.134166) can2 18EF4A10#1012541E82995A09\n(1791000001.193910) can2 18EF4A10#1013F8D70FB95AC0\n(1791000001.268723) can2 18EF4A10#1014576E65295A2B\n(1791000001.343013) can2 18EF4A10#10158292AFE25A02\n(1791000001.415777) can2 18EF4A10#10164BE863145A88\n(1791000001.487921) can2 18EF4A10#10173ED00DD15A6F\n(1791000001.544314) can2 18EF4A10#1018259ECC655A40\n(1791000001.594584) can2 18EF4A10#1019FB40A7875AC8\n(1791000001.647423) can2 18EF4A10#101A1947F9075AF0\n(1791000001.697733) can2 18EF4A10#101B86E3A8DF5A43\n(1791000001.756483) c\n--- attachments/evidence/tape_reader.wav (binary/image, not excerpted) ---\n--- attachments/evidence/tape_reader_card.png (binary/image, not excerpted) ---\n--- attachments/evidence/update_rule.png (binary/image, not excerpted) ---\n--- attachments/photos/gauge_panel.png (binary/image, not excerpted) ---\n--- attachments/photos/sbox_ring.png (binary/image, not excerpted) ---",
+    "description": "CTF challenge statement (Chinese), 2026 Zeekr Cybersecurity Quals (CTF-Archives public dump). Statement:\n\nSentinel-2 压力网关的维护终端被回收后，只留下一段老化磁带音频、一张旋转开关板照片、一张替换环照片和一段 CAN 压力总线记录。网关使用 32 位状态推进算法。日志中混入了拒绝帧，它们不会推进状态。你需要还原全部参数，过滤有效帧，并预测下一帧完整数据GEELY{SENTINEL_<hash前16位>_<hash后16位>}",
+    "question": "Solve this CTF challenge."
+  },
+  "metadata": {
+    "language": "zh",
+    "category": "forensics",
+    "tier": "unverified",
+    "flag_format": "GEELY{SENTINEL_<hash前16位>_<hash后16位>}"
+  }
+}

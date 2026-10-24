@@ -120,7 +120,9 @@ class PipelineEngine:
         final_role = self.steps[-1]
         final_binding = self.roles.resolve(final_role)
         canonical = context.previous_results[final_role]
-        gate = self.pack.quality_gate(final_binding.kind, canonical, self.pipeline.min_confidence)
+        gate = self.pack.quality_gate(
+            final_binding.kind, canonical, self.pipeline.min_confidence, case=case
+        )
         accepted, reasons = self._gate_decision(case, canonical, gate)
         if not accepted and (critic := self.retry_critic) is not None:
             # Escalation: the adversarial critique gets a look, then the judge
@@ -131,7 +133,7 @@ class PipelineEngine:
             if retry_error is None:
                 canonical = context.previous_results[final_role]
                 gate = self.pack.quality_gate(
-                    final_binding.kind, canonical, self.pipeline.min_confidence
+                    final_binding.kind, canonical, self.pipeline.min_confidence, case=case
                 )
                 accepted, reasons = self._gate_decision(case, canonical, gate)
                 metadata = self._metadata(case, context, gate)
