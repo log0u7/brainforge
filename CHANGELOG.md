@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   published benchmark; ROADMAP phase 3 carries each deferred item with its
   prerequisite and `docs/reference/references.md` indexes the deck, blog
   posts and papers behind the map.
+- Agentic loss hygiene: `brainforge train run` warns when the training
+  split holds `tool` observations or multi-assistant records while
+  `training.assistant_only_loss` is off (those tokens would be scored into
+  the loss); `docs/reference/training.md` documents when to enable the
+  flag and its chat-template requirement.
 
 ## [0.4.0] - 2026-10-24
 
