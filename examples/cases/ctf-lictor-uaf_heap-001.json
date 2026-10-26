@@ -15,6 +15,7 @@
     "language": "c",
     "category": "pwn",
     "tier": "verified",
-    "expected_flag": "FLAG{tcache_reuse_wins}"
+    "expected_flag": "FLAG{tcache_reuse_wins}",
+    "expected_technique": "uaf_heap"
   }
 }

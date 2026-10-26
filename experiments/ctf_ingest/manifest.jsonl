@@ -1,15 +1,15 @@
-{"source": "lictor-lab", "id": "ctf-lictor-fmtstr-001", "tier": "verified", "expected_flag": true, "url": "https://github.com/log0u7/lictor"}
-{"source": "lictor-lab", "id": "ctf-lictor-orw-001", "tier": "verified", "expected_flag": true, "url": "https://github.com/log0u7/lictor"}
-{"source": "lictor-lab", "id": "ctf-lictor-ret2func-001", "tier": "verified", "expected_flag": true, "url": "https://github.com/log0u7/lictor"}
-{"source": "lictor-lab", "id": "ctf-lictor-ret2plt-001", "tier": "verified", "expected_flag": true, "url": "https://github.com/log0u7/lictor"}
-{"source": "lictor-lab", "id": "ctf-lictor-shellcode-001", "tier": "verified", "expected_flag": true, "url": "https://github.com/log0u7/lictor"}
-{"source": "lictor-lab", "id": "ctf-lictor-uaf_heap-001", "tier": "verified", "expected_flag": true, "url": "https://github.com/log0u7/lictor"}
-{"source": "rop-emporium", "id": "ctf-rop-badchars-001", "tier": "verified", "expected_flag": true, "url": "https://ropemporium.com/challenge/badchars.html"}
-{"source": "rop-emporium", "id": "ctf-rop-fluff-001", "tier": "verified", "expected_flag": true, "url": "https://ropemporium.com/challenge/fluff.html"}
-{"source": "rop-emporium", "id": "ctf-rop-pivot-001", "tier": "verified", "expected_flag": true, "url": "https://ropemporium.com/challenge/pivot.html"}
-{"source": "rop-emporium", "id": "ctf-rop-ret2win-001", "tier": "verified", "expected_flag": true, "url": "https://ropemporium.com/challenge/ret2win.html"}
-{"source": "rop-emporium", "id": "ctf-rop-split-001", "tier": "verified", "expected_flag": true, "url": "https://ropemporium.com/challenge/split.html"}
-{"source": "rop-emporium", "id": "ctf-rop-write4-001", "tier": "verified", "expected_flag": true, "url": "https://ropemporium.com/challenge/write4.html"}
+{"source": "lictor-lab", "id": "ctf-lictor-fmtstr-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-orw-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-ret2func-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-ret2plt-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-shellcode-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-uaf_heap-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "rop-emporium", "id": "ctf-rop-badchars-001", "tier": "verified", "expected_flag": true, "expected_technique": "badchars", "url": "https://ropemporium.com/challenge/badchars.html"}
+{"source": "rop-emporium", "id": "ctf-rop-fluff-001", "tier": "verified", "expected_flag": true, "expected_technique": "fluff", "url": "https://ropemporium.com/challenge/fluff.html"}
+{"source": "rop-emporium", "id": "ctf-rop-pivot-001", "tier": "verified", "expected_flag": true, "expected_technique": "pivot", "url": "https://ropemporium.com/challenge/pivot.html"}
+{"source": "rop-emporium", "id": "ctf-rop-ret2win-001", "tier": "verified", "expected_flag": true, "expected_technique": "ret2win", "url": "https://ropemporium.com/challenge/ret2win.html"}
+{"source": "rop-emporium", "id": "ctf-rop-split-001", "tier": "verified", "expected_flag": true, "expected_technique": "split", "url": "https://ropemporium.com/challenge/split.html"}
+{"source": "rop-emporium", "id": "ctf-rop-write4-001", "tier": "verified", "expected_flag": true, "expected_technique": "write4", "url": "https://ropemporium.com/challenge/write4.html"}
 {"source": "ctf-archives", "id": "ctf-zeekr-adas-fusion-spoof-001", "tier": "unverified", "expected_flag": false, "url": "https://github.com/CTF-Archives/2026-Zeekr-Cybersecurity-Quals/releases/tag/attachments"}
 {"source": "ctf-archives", "id": "ctf-zeekr-can-noir-001", "tier": "unverified", "expected_flag": false, "url": "https://github.com/CTF-Archives/2026-Zeekr-Cybersecurity-Quals/releases/tag/attachments"}
 {"source": "ctf-archives", "id": "ctf-zeekr-chromatic-custody-001", "tier": "unverified", "expected_flag": false, "url": "https://github.com/CTF-Archives/2026-Zeekr-Cybersecurity-Quals/releases/tag/attachments"}

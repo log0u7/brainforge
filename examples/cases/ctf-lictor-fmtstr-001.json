@@ -15,6 +15,7 @@
     "language": "c",
     "category": "pwn",
     "tier": "verified",
-    "expected_flag": "FLAG{the_format_is_the_weapon}"
+    "expected_flag": "FLAG{the_format_is_the_weapon}",
+    "expected_technique": "fmtstr"
   }
 }

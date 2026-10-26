@@ -118,32 +118,46 @@ class CtfPack(DomainPack):
         if kind == RoleKind.TEACHER:
             reasons.extend(self._teacher_checks(data))
         elif kind == RoleKind.JUDGE:
-            reasons.extend(self._judge_checks(data))
-            reasons.extend(self._flag_checks(data, case))
+            expected_flag = str(case.metadata.get("expected_flag") or "").strip() if case else ""
+            # on verified-tier cases the flag lives outside the challenge
+            # material: the known-flag rules replace the generic demand
+            reasons.extend(self._judge_checks(data, require_flag=not expected_flag))
+            reasons.extend(self._verification_checks(data, case))
         if not data.get("summary") and not data.get("reasoning"):
             reasons.append("missing summary or reasoning")
         return GateResult(passed=not reasons, reasons=reasons)
 
-    def _flag_checks(self, data: dict, case: "Case | None") -> list[str]:
-        """Verify the judge verdict against a known flag (verified tier).
+    def _verification_checks(self, data: dict, case: "Case | None") -> list[str]:
+        """Verify the judge output against curated ground truth (verified tier).
 
-        Cases carrying ``metadata.expected_flag`` state the ground truth:
-        any non-empty flag that differs from it rejects the record
-        whatever the verdict, and a matching flag with a non-solved
-        verdict is a contradiction that rejects too. Cases without it
-        (tier B) skip the check entirely.
+        ``metadata.expected_technique`` (list of acceptable keywords) gates
+        the named technique: the analysis must identify it, whatever the
+        prose. ``metadata.expected_flag`` anti-hallucinates: a judge that
+        claims a flag must produce the known one, but an absent flag is
+        not an error (the flag lives outside the challenge material and
+        stays the RL reward's business). Cases without this metadata
+        (tier B) skip the checks entirely.
         """
         reasons: list[str] = []
-        expected = str(case.metadata.get("expected_flag") or "").strip() if case else ""
-        if not expected:
+        if case is None:
             return reasons
+        expected_technique = case.metadata.get("expected_technique")
+        if isinstance(expected_technique, str):
+            expected_technique = [expected_technique]
+        if isinstance(expected_technique, list) and expected_technique:
+            technique = str(data.get("technique") or "").lower()
+            keywords = [k.lower() for k in expected_technique if isinstance(k, str)]
+            if keywords and not any(keyword in technique for keyword in keywords):
+                reasons.append(
+                    f"technique does not match expected_technique ({'/'.join(keywords)})"
+                )
+        expected_flag_raw = case.metadata.get("expected_flag")
+        expected_flag = expected_flag_raw.strip() if isinstance(expected_flag_raw, str) else ""
         flag = str(data.get("flag") or "").strip()
-        if flag and flag != expected:
+        if expected_flag and flag and flag != expected_flag:
             reasons.append(
                 "flag does not match expected_flag (verified tier; ground truth is known)"
             )
-        if flag == expected and flag and data.get("verdict") != "solved":
-            reasons.append("flag matches expected_flag but the verdict is not solved")
         return reasons
 
     def _teacher_checks(self, data: dict) -> list[str]:
@@ -156,10 +170,10 @@ class CtfPack(DomainPack):
             reasons.append("missing reasoning")
         return reasons
 
-    def _judge_checks(self, data: dict) -> list[str]:
+    def _judge_checks(self, data: dict, require_flag: bool = True) -> list[str]:
         reasons = []
         if data.get("verdict") == "solved":
-            if not data.get("flag"):
+            if require_flag and not data.get("flag"):
                 reasons.append("solved verdict without flag")
             if not data.get("exploit_path"):
                 reasons.append("solved verdict without exploit_path")

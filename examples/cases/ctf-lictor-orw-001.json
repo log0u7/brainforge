@@ -15,6 +15,7 @@
     "language": "c",
     "category": "pwn",
     "tier": "verified",
-    "expected_flag": "FLAG{orw_reads_the_flag}"
+    "expected_flag": "FLAG{orw_reads_the_flag}",
+    "expected_technique": "orw"
   }
 }
