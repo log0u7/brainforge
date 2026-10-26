@@ -1,0 +1,12 @@
+# Gitleaks config: default rules plus this repository's documented
+# false positives. See https://github.com/gitleaks/gitleaks#configuration
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Synthetic decoys inside public CTF challenge dumps (fictional content, not credentials)"
+# 9107c0b: the CTF-Archives WQB dump's incident challenge ships a
+# fictional backup.log UUID as a decoy; it is challenge content, not a
+# credential. Fingerprint:
+# 9107c0b3c77fd62beafbdb97e9eb60e6e6a8c8f6:examples/cases/ctf-wqb-incident-001.json:generic-api-key:11
+commits = ["9107c0b3c77fd62beafbdb97e9eb60e6e6a8c8f6"]
