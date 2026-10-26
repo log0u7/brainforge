@@ -1,0 +1,21 @@
+{
+  "id": "ctf-wqb-archivefs_45a760d5f19126b0ee4c54bcbcec78-001",
+  "source": {
+    "type": "ctfd",
+    "repository": "CTF-Archives/2026-WQB-Quals",
+    "path": "ArchiveFS_45a760d5f19126b0ee4c54bcbcec78a5",
+    "date": "2026-09-04",
+    "url": "https://github.com/CTF-Archives/2026-WQB-Quals/releases/tag/attachments"
+  },
+  "input": {
+    "code": "--- archivefs (binary/image, not excerpted) ---\n--- ld-linux-x86-64.so.2 (binary/image, not excerpted) ---\n--- libc.so.6 (binary/image, not excerpted) ---",
+    "description": "CTF challenge statement (Chinese), 2026-WQB-Quals (CTF-Archives public dump). Statement:\n\nArchiveFS 是一个轻量级云端文档归档系统。\n被删除的文档会进入回收站，系统仍会保留最近一次预览缓存，方便用户快速恢复。为了兼容旧版本草稿，开发者还保留了历史草稿修订功能。\n[附件下载](https://github.com/CTF-Archives/2026-WQB-Quals/releases/download/attachments/ArchiveFS_45a760d5f19126b0ee4c54bcbcec78a5.zip)\n环境题\n## Reverse",
+    "question": "Solve this CTF challenge."
+  },
+  "metadata": {
+    "language": "zh",
+    "category": "forensics",
+    "tier": "unverified",
+    "flag_format": null
+  }
+}
