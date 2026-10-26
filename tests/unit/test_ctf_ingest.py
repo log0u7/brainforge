@@ -117,4 +117,8 @@ def test_committed_manifest_matches_committed_cases():
         if line.strip()
     }
     disk = {p.stem for p in (repo / "examples" / "cases").glob("ctf-*.json")}
-    assert manifest == disk, sorted(manifest ^ disk)
+    # the three hand-written pack examples pre-date the corpus and stay
+    # outside the manifest; everything else must be manifest-covered
+    legacy = {"ctf-crypto-xor-001", "ctf-pwn-gets-001", "ctf-web-sqli-001"}
+    assert manifest == disk - legacy, sorted(manifest ^ (disk - legacy))
+    assert not (manifest - disk), sorted(manifest - disk)
