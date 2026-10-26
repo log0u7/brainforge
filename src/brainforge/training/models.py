@@ -9,6 +9,25 @@ if TYPE_CHECKING:
     from brainforge.training.hardware import TrainingPlan
 
 
+def _resolve_model_dir(model_path: Path | str) -> Path:
+    """Accept a local directory or a Hub model id (snapshot_download)."""
+    path = Path(model_path)
+    if path.exists():
+        return path
+    name = str(model_path)
+    if not path.is_absolute() and "/" in name:
+        # relative name with an org separator: a Hub model id
+        from huggingface_hub import snapshot_download
+
+        try:
+            return Path(snapshot_download(name))
+        except Exception as exc:
+            # hub errors surface as clean BrainforgeError (validation,
+            # network, gated, missing repo) instead of raw tracebacks
+            raise BrainforgeError(f"model resolution failed for {name}: {exc}") from exc
+    raise BrainforgeError(f"model directory not found: {model_path}")
+
+
 def load_student_model(
     model_path: Path | str,
     plan: "TrainingPlan | None" = None,
@@ -18,9 +37,7 @@ def load_student_model(
     ``plan`` comes from :func:`brainforge.training.hardware.plan_for_inference`;
     it is resolved automatically when omitted.
     """
-    model_path = Path(model_path)
-    if not model_path.exists():
-        raise BrainforgeError(f"model directory not found: {model_path}")
+    model_path = _resolve_model_dir(model_path)
     from brainforge.training.hardware import plan_for_inference, torch_dtype
     from brainforge.training.qlora import _quantization_config
 

@@ -228,6 +228,16 @@ def _flatten_message(user_message: str | list[str]) -> str:
     return user_message
 
 
+def _conversations(batch: list[str]) -> list[list[dict]]:
+    """One single-message conversation per prompt.
+
+    A flat list of messages would merge the whole batch into ONE sequence
+    (the model then answers all prompts at once): found by the first real
+    eval run, where a 4-prompt batch produced a single 1965-token input.
+    """
+    return [[{"role": "user", "content": prompt}] for prompt in batch]
+
+
 def _build_generator(
     model_path: Path,
     quantization: str,
@@ -253,7 +263,7 @@ def _build_generator(
             for start in range(0, len(prompts), batch_size):
                 batch = prompts[start : start + batch_size]
                 inputs = tokenizer.apply_chat_template(
-                    [{"role": "user", "content": prompt} for prompt in batch],
+                    _conversations(batch),
                     tokenize=True,
                     add_generation_prompt=True,
                     padding=True,
