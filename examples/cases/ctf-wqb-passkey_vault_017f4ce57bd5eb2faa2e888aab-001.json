@@ -1,0 +1,21 @@
+{
+  "id": "ctf-wqb-passkey_vault_017f4ce57bd5eb2faa2e888aab-001",
+  "source": {
+    "type": "ctfd",
+    "repository": "CTF-Archives/2026-WQB-Quals",
+    "path": "passkey_vault_017f4ce57bd5eb2faa2e888aab930e35",
+    "date": "2026-09-04",
+    "url": "https://github.com/CTF-Archives/2026-WQB-Quals/releases/tag/attachments"
+  },
+  "input": {
+    "code": "--- README.txt ---\nPasskey Vault: Resident Credential — migration bundle\n====================================================\n\n`passkey_vault` is a Linux x86-64 offline virtual authenticator.  It accepts a\ntext session file (or `-` for stdin): one hexadecimal CTAP-CBOR command per\nline, and returns one hexadecimal CTAP status/CBOR response per command.\n\nExample:\n\n    ./passkey_vault browser_probe.ctap\n\nThe supplied files are a captured migration vault, a browser-side CTAP-CBOR\nprobe, and a platform-side encrypted recovery record.  They model a\ndiscoverable-passkey migration; no browser, USB/NFC device, network service or\nphysical user interaction is required.\n\nThe binary implements only the CTAP command subset required by this recovery\nbundle.  Treat the captured probe as evidence of the transport and failure\npath, not as a successful recovery transcript.\n\n--- browser_probe.ctap (binary/image, not excerpted) ---\n--- passkey_vault (binary/image, not excerpted) ---\n--- release_blob.bin (binary/image, not excerpted) ---\n--- resident_vault.img (binary/image, not excerpted) ---",
+    "description": "CTF challenge statement (Chinese), 2026-WQB-Quals (CTF-Archives public dump). Statement:\n\n某企业在 passkey 迁移事故后留下了虚拟认证器、resident credential vault、浏览器侧 CTAP 探测记录和平台加密恢复数据。\n[附件下载](https://github.com/CTF-Archives/2026-WQB-Quals/releases/download/attachments/passkey_vault_017f4ce57bd5eb2faa2e888aab930e35.zip)\n提示：\n`release_blob.bin` 是 `PVREL3` AES-256-GCM 密文，格式为 `magic(8)||nonce(12)||明文长度(LE32)||ciphertext||tag`，并令 `auth_base = target_assertion.authenticatorData[:37]`。\n`binding=SHA256(\"PVREL3\"||auth_base||clientDataHash||credential_id)`，`key=HKDF-SHA256(salt=binding, ikm=prf_result, info=\"PasskeyVault/CTAP/PRF/release-v3\", L=32)`，`nonce=SHA256(\"PVREL3/nonc\"||auth_base||prf_result)[:12]`，`aad=\"PVREL3\"||target_user_id||credential_id||clientDataHash`。\n使用上述 `key`、派生 `nonce`、`aad` 和末尾 GCM tag 解密即可得到 flag；所有字符串均按对应字节拼接。\n## Web",
+    "question": "Solve this CTF challenge."
+  },
+  "metadata": {
+    "language": "zh",
+    "category": "forensics",
+    "tier": "unverified",
+    "flag_format": null
+  }
+}
