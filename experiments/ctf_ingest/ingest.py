@@ -141,12 +141,14 @@ def lictor_cases(corpus: Path) -> list[tuple[dict, dict]]:
                 "category": "pwn",
                 "tier": "verified",
                 "expected_flag": flag_value,
+                "expected_technique": target.name,
             },
         }
         manifest = {
             "id": case_id,
             "tier": "verified",
             "expected_flag": bool(flag_value),
+            "expected_technique": True,
             "url": "https://github.com/log0u7/lictor",
         }
         cases.append((case, manifest))
@@ -187,12 +189,14 @@ def rop_emporium_cases(corpus: Path) -> list[tuple[dict, dict]]:
                 "category": "pwn",
                 "tier": "verified",
                 "expected_flag": flag_value,
+                "expected_technique": challenge.name,
             },
         }
         manifest = {
             "id": case_id,
             "tier": "verified",
             "expected_flag": bool(flag_value),
+            "expected_technique": challenge.name,
             "url": f"https://ropemporium.com/challenge/{challenge.name}.html",
         }
         cases.append((case, manifest))

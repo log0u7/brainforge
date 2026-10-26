@@ -16,6 +16,7 @@
     "language": "c",
     "category": "pwn",
     "tier": "verified",
-    "expected_flag": "ROPE{a_placeholder_32byte_flag!}"
+    "expected_flag": "ROPE{a_placeholder_32byte_flag!}",
+    "expected_technique": "fluff"
   }
 }

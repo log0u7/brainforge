@@ -15,6 +15,7 @@
     "language": "c",
     "category": "pwn",
     "tier": "verified",
-    "expected_flag": "FLAG{the_data_decides_ret2plt}"
+    "expected_flag": "FLAG{the_data_decides_ret2plt}",
+    "expected_technique": "ret2plt"
   }
 }

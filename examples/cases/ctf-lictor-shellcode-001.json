@@ -15,6 +15,7 @@
     "language": "c",
     "category": "pwn",
     "tier": "verified",
-    "expected_flag": "FLAG{nx_off_says_shellcode}"
+    "expected_flag": "FLAG{nx_off_says_shellcode}",
+    "expected_technique": "shellcode"
   }
 }

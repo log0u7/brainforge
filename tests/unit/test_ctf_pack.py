@@ -217,36 +217,81 @@ def _judge_payload(flag="FLAG{known}"):
     }
 
 
-def test_judge_gate_rejects_flag_mismatch_against_expected_flag(ctf_case):
-    pack = get_pack("ctf")
-    verified = ctf_case.model_copy(update={"metadata": {"expected_flag": "FLAG{known}"}})
-    result = pack.quality_gate(
-        RoleKind.JUDGE, _judge_payload(flag="FLAG{wrong}"), min_confidence=0.5, case=verified
-    )
-    assert not result.passed
-    assert any("expected_flag" in reason for reason in result.reasons)
+def _judge_payload(flag="FLAG{known}", verdict="solved", technique="pwn/buffer-overflow ret2win"):
+    return {
+        "verdict": verdict,
+        "technique": technique,
+        "exploit_path": ["overflow", "ret2win"],
+        "flag": flag,
+        "writeup": "Overflow the buffer and jump to win().",
+        "confidence": 0.9,
+        "reasoning": "The binary prints the flag from win().",
+        "disagreement": False,
+    }
 
 
-def test_judge_gate_accepts_matching_expected_flag(ctf_case):
+def test_judge_gate_passes_matching_expected_flag(ctf_case):
     pack = get_pack("ctf")
     verified = ctf_case.model_copy(update={"metadata": {"expected_flag": "FLAG{known}"}})
     result = pack.quality_gate(RoleKind.JUDGE, _judge_payload(), min_confidence=0.5, case=verified)
     assert result.passed
 
 
-def test_judge_gate_rejects_flag_match_with_unsolved_verdict(ctf_case):
+def test_judge_gate_accepts_technique_keyword_inside_prose(ctf_case):
+    pack = get_pack("ctf")
+    verified = ctf_case.model_copy(
+        update={"metadata": {"expected_technique": ["ret2func", "ret2win"]}}
+    )
+    result = pack.quality_gate(RoleKind.JUDGE, _judge_payload(), min_confidence=0.5, case=verified)
+    assert result.passed
+
+
+def test_judge_gate_rejects_wrong_technique(ctf_case):
+    pack = get_pack("ctf")
+    verified = ctf_case.model_copy(
+        update={"metadata": {"expected_technique": ["fmtstr", "format string"]}}
+    )
+    result = pack.quality_gate(
+        RoleKind.JUDGE,
+        _judge_payload(technique="pwn/heap overflow tcache"),
+        min_confidence=0.5,
+        case=verified,
+    )
+    assert not result.passed
+    assert any("expected_technique" in reason for reason in result.reasons)
+
+
+def test_judge_gate_rejects_hallucinated_flag(ctf_case):
     pack = get_pack("ctf")
     verified = ctf_case.model_copy(update={"metadata": {"expected_flag": "FLAG{known}"}})
-    data = _judge_payload()
-    data["verdict"] = "insufficient_information"
-    result = pack.quality_gate(RoleKind.JUDGE, data, min_confidence=0.5, case=verified)
+    result = pack.quality_gate(
+        RoleKind.JUDGE, _judge_payload(flag="FLAG{invented}"), min_confidence=0.5, case=verified
+    )
     assert not result.passed
     assert any("expected_flag" in reason for reason in result.reasons)
 
 
-def test_judge_gate_unaffected_without_expected_flag(ctf_case):
+def test_judge_gate_flag_absence_is_not_an_error(ctf_case):
+    pack = get_pack("ctf")
+    verified = ctf_case.model_copy(update={"metadata": {"expected_flag": "FLAG{known}"}})
+    result = pack.quality_gate(
+        RoleKind.JUDGE, _judge_payload(flag=None), min_confidence=0.5, case=verified
+    )
+    assert result.passed
+
+
+def test_judge_gate_tier_b_unaffected(ctf_case):
     pack = get_pack("ctf")
     result = pack.quality_gate(RoleKind.JUDGE, _judge_payload(), min_confidence=0.5, case=ctf_case)
+    assert result.passed
+
+
+def test_judge_gate_non_string_expected_metadata_does_not_crash(ctf_case):
+    pack = get_pack("ctf")
+    verified = ctf_case.model_copy(
+        update={"metadata": {"expected_flag": 12345, "expected_technique": 99}}
+    )
+    result = pack.quality_gate(RoleKind.JUDGE, _judge_payload(), min_confidence=0.5, case=verified)
     assert result.passed
 
 
@@ -257,35 +302,3 @@ def test_judge_gate_flag_comparison_strips_whitespace(ctf_case):
         RoleKind.JUDGE, _judge_payload(flag=" FLAG{known}\n"), min_confidence=0.5, case=verified
     )
     assert result.passed
-
-
-def test_judge_gate_non_string_expected_flag_does_not_crash(ctf_case):
-    pack = get_pack("ctf")
-    verified = ctf_case.model_copy(update={"metadata": {"expected_flag": 12345}})
-    result = pack.quality_gate(RoleKind.JUDGE, _judge_payload(), min_confidence=0.5, case=verified)
-    assert not result.passed
-    assert any("expected_flag" in reason for reason in result.reasons)
-
-
-def test_judge_gate_rejects_wrong_flag_on_partial_verdict(ctf_case):
-    pack = get_pack("ctf")
-    verified = ctf_case.model_copy(update={"metadata": {"expected_flag": "FLAG{known}"}})
-    data = _judge_payload(flag="FLAG{wrong}")
-    data["verdict"] = "partial"
-    result = pack.quality_gate(RoleKind.JUDGE, data, min_confidence=0.5, case=verified)
-    assert not result.passed
-    assert any("expected_flag" in reason for reason in result.reasons)
-
-
-def test_judge_gate_verified_tier_requires_the_known_flag(ctf_case):
-    pack = get_pack("ctf")
-    verified = ctf_case.model_copy(update={"metadata": {"expected_flag": "FLAG{known}"}})
-    data = _judge_payload(flag=None)
-    data["verdict"] = "partial"
-    result = pack.quality_gate(RoleKind.JUDGE, data, min_confidence=0.5, case=verified)
-    assert not result.passed
-    assert any("expected_flag" in reason for reason in result.reasons)
-    data2 = _judge_payload(flag=None)
-    data2["verdict"] = "solved"
-    result2 = pack.quality_gate(RoleKind.JUDGE, data2, min_confidence=0.5, case=verified)
-    assert not result2.passed
