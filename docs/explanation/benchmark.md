@@ -95,3 +95,74 @@ benchmark with two tiers:
 A holdout below 20 cases triggers the documented warning; the first
 run may ship with that warning visible rather than padded with
 unverifiable material.
+
+## First run results (2026-10-26)
+
+The first end-to-end run on real data. Config, numbers and the honest
+reading: **no measurable gain at this scale** - and why that is the
+expected outcome of a 6-record training signal, not a tooling failure.
+
+### Config
+
+| Role | Model | Where |
+|---|---|---|
+| `ctf_teacher` | qwen3.5-9b | OpenRouter API (batch 1), then the same model as a local Q4_K_M GGUF on the RTX 3080 via llama.cpp (batch 2) |
+| `coding_teacher` | qwen/qwen3-coder-next | OpenRouter |
+| `judge` | z-ai/glm-5.3-flash, 10000-token budget | OpenRouter |
+
+`judge_independence: warn` for this run: every provider was OpenRouter
+(the session's Zen key had expired). The provider-level separation
+returns with a fresh Zen key; the per-record provenance lists the exact
+models of every role either way.
+
+Data: 23 CTF cases (12 verified tier with curated technique ground
+truth, 11 Zeekr 2026 tier-B). **15 accepted** (12 verified + 3 tier-B,
+65% acceptance); rejections documented per case: unresolved teacher
+disagreements on hard forensics, judge structured-output truncation at
+low token budgets.
+
+Training: Qwen3-1.7B QLoRA 4-bit on the RTX 3080 10GB. Train split = the
+6 ROP Emporium cases (dated 2020, pre-cutoff, `recitation_risk` tagged);
+holdout = the 9 post-cutoff cases the teachers cannot have recited.
+10 epochs (one optimizer step per epoch: 6 records), warmup 0.
+
+### Numbers
+
+| Model | n | accuracy | FP rate | FN rate | flag_accuracy |
+|---|---|---|---|---|---|
+| base Qwen3-1.7B | 9 | 0.00 | 0.89 | 0.11 | None |
+| student (6 records, 10 steps) | 9 | 0.00 | 0.89 | 0.11 | None |
+
+n = 9, one seed, greedy decoding, 2048-token generation budget:
+an observation on one holdout, not a benchmark paper.
+
+### Honest reading
+
+No measurable gain at this scale. Both models answer the challenge in
+prose reasoning and never emit the `CtfVerdict` JSON the task scores:
+the base model reasons past the budget, and the student - trained on 6
+records for 10 steps - degenerates into repetition loops (overfit on a
+tiny signal). The training signal was orders of magnitude below what a
+1.7B model needs to adopt the output format, exactly the scale-up the
+[ROADMAP](../../ROADMAP.md) phase 2 queues (500-2000 records).
+
+What the run did demonstrate:
+
+* the full pipeline works end to end on one workstation: local teacher
+  generation, provider-separated adjudication gates, QLoRA training,
+  task-level evaluation on a post-cutoff holdout, published numbers;
+* the measurement harness refuses to flatter: an unparseable prediction
+  is a false positive, not a free pass.
+
+### Defects the run surfaced
+
+* the verified-tier flag gate demanded a flag that lives outside the
+  challenge material; replaced by curated technique gating (PR 24);
+* `qwen3-coder-480b` was an invalid OpenRouter id: every STANDARD-mode
+  run failed on the coding step (PR 25);
+* task-eval collapsed a multi-prompt batch into one chat sequence; a
+  0-record validation split aborted training; the base-model side could
+  not resolve a Hub model id (PR 26);
+* `warmup_steps` (5) larger than the total step count (3) silently
+  zeroed the learning rate: the first training was mathematically inert.
+  Watch for a guard; the rerun used warmup 0.

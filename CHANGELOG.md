@@ -7,18 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-
-- Three defects found by the first real GPU eval run: a 0-record
-  validation split (tiny datasets) no longer aborts training (it behaves
-  like a missing file, and the empty-train guard stays); the task-eval
-  batch builder no longer collapses a multi-prompt batch into ONE chat
-  sequence (each prompt gets its own conversation, so predictions match
-  records one-to-one); and `train task-eval` now accepts a Hub model id
-  for the base-model side (snapshot download fallback in
-  `load_student_model`).
-
 ### Added
+
+- First benchmark run published: 23 CTF cases generated (12 verified
+  tier with curated technique ground truth, 15 accepted), QLoRA on the
+  RTX 3080 and task-eval on the post-cutoff holdout. Numbers: base and
+  student both 0.00 accuracy at the 6-record scale (prose output, no
+  CtfVerdict JSON) - the honest reading and the scale-up lever are in
+  `docs/explanation/benchmark.md`.
 
 - CTF flag gate for verified-tier cases: `quality_gate` now receives the
   case (all packs accept the new optional parameter) and the CTF pack
@@ -50,7 +46,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   metrics, honesty rules (n, single seed, observational) and the
   GPU-host runbook; `train task-eval` accepts a Hub model id for the
   base-model side (report persisted only next to local weights).
+### Fixed
 
+- Three defects found by the first real GPU eval run: a 0-record
+  validation split (tiny datasets) no longer aborts training (it behaves
+  like a missing file, and the empty-train guard stays); the task-eval
+  batch builder no longer collapses a multi-prompt batch into ONE chat
+  sequence (each prompt gets its own conversation, so predictions match
+  records one-to-one); and `train task-eval` now accepts a Hub model id
+  for the base-model side (snapshot download fallback in
+  `load_student_model`).
 ## [0.4.0] - 2026-10-24
 
 ### Added

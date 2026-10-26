@@ -32,8 +32,11 @@ Phases are cumulative. The MVP (phase 1) is implemented in this repository.
       code), manual inspection of every accepted record
 - [ ] Scale to 500-2,000 examples once quality is validated
 - [ ] Golden dataset: 50-200 human-verified cases, including post-cutoff ones
-- [ ] Benchmark base model vs fine-tuned student, primarily on
+- [x] Benchmark base model vs fine-tuned student, primarily on
       `test_postcutoff.jsonl` to prove analysis rather than recitation
+      (first run 2026-10-26: pipeline demonstrated end to end, no gain
+      at the 6-record scale - numbers in `docs/explanation/benchmark.md`;
+      the 500-2000 record scale-up is the next lever)
 
 ## Phase 3 - Measure, ablate, extend
 
