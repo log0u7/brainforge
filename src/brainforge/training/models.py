@@ -19,7 +19,14 @@ def _resolve_model_dir(model_path: Path | str) -> Path:
         # relative name with an org separator: a Hub model id
         from huggingface_hub import snapshot_download
 
-        return Path(snapshot_download(name))
+        try:
+            return Path(snapshot_download(name))
+        except Exception as exc:
+            # hub errors surface as clean BrainforgeError (validation,
+            # network, gated, missing repo) instead of raw tracebacks
+            raise BrainforgeError(
+                f"model resolution failed for {name}: {exc}"
+            ) from exc
     raise BrainforgeError(f"model directory not found: {model_path}")
 
 

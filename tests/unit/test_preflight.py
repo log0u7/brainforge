@@ -351,3 +351,17 @@ def test_resolve_model_dir_accepts_hub_id(tmp_path, monkeypatch):
 
     with pytest.raises(BrainforgeError):
         _resolve_model_dir(tmp_path / "does-not-exist")
+
+
+def test_resolve_model_dir_wraps_hub_errors(tmp_path, monkeypatch):
+    import pytest
+
+    from brainforge.errors import BrainforgeError
+    from brainforge.training.models import _resolve_model_dir
+
+    def boom(name):
+        raise ValueError("Invalid model id")
+
+    monkeypatch.setattr("huggingface_hub.snapshot_download", boom)
+    with pytest.raises(BrainforgeError):
+        _resolve_model_dir("org/a/b/c")
