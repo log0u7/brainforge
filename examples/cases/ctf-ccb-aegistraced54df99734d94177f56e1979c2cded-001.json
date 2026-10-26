@@ -1,0 +1,21 @@
+{
+  "id": "ctf-ccb-aegistraced54df99734d94177f56e1979c2cded-001",
+  "source": {
+    "type": "ctfd",
+    "repository": "CTF-Archives/CCB2026-Quals",
+    "path": "AegisTrace_d54df99734d94177f56e1979c2cdedc0",
+    "date": "2026-09-13",
+    "url": "https://github.com/CTF-Archives/CCB2026-Quals/releases/tag/attachments"
+  },
+  "input": {
+    "code": "--- README.txt ---\nAegisTrace\n\n你接手了一段来自边缘网关的异常遥测。附件里有一份流量包和一个被剥离符号的遥测集中器二进制。\n\n线上服务监听 9999 端口。你需要从流量包里恢复握手材料，再逆向二进制理解后续协议和对象完整性校验，最后利用服务读取 /flag。\n\n文件：\n- aegis_telemetry.pcap：异常遥测流量包\n- aegis_service：远程服务同款 stripped ELF\n- libc.so.6 / ld-linux-x86-64.so.2：本题环境参考运行库\n\n--- aegis_service (binary/image, not excerpted) ---\n--- aegis_telemetry.pcap (binary/image, not excerpted) ---\n--- ld-linux-x86-64.so.2 (binary/image, not excerpted) ---\n--- libc.so.6 (binary/image, not excerpted) ---",
+    "description": "CTF challenge statement (Chinese), CCB2026-Quals (CTF-Archives public dump). Statement:\n\n应急团队从一台边缘遥测网关上导出了一段异常流量，同时拿到了网关上运行的遥测集中器程序。网关服务监听在 9999 端口，但常规请求都会被拒绝。\n请分析附件中的流量包和二进制，恢复有效会话材料，并利用服务读取 /flag。\n附件：AegisTrace_d54df99734d94177f56e1979c2cdedc0.zip\n## 综合防御",
+    "question": "Solve this CTF challenge."
+  },
+  "metadata": {
+    "language": "zh",
+    "category": "forensics",
+    "tier": "unverified",
+    "flag_format": null
+  }
+}

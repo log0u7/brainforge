@@ -1,0 +1,21 @@
+{
+  "id": "ctf-wqb-whoami7444f331092f76997e2a8944fb2ab8bf-001",
+  "source": {
+    "type": "ctfd",
+    "repository": "CTF-Archives/2026-WQB-Quals",
+    "path": "whoami_7444f331092f76997e2a8944fb2ab8bf",
+    "date": "2026-09-04",
+    "url": "https://github.com/CTF-Archives/2026-WQB-Quals/releases/tag/attachments"
+  },
+  "input": {
+    "code": "--- whoami？.raw (binary/image, not excerpted) ---",
+    "description": "CTF challenge statement (Chinese), 2026-WQB-Quals (CTF-Archives public dump). Statement:\n\n[附件下载](https://github.com/CTF-Archives/2026-WQB-Quals/releases/download/attachments/whoami_7444f331092f76997e2a8944fb2ab8bf.zip)",
+    "question": "Solve this CTF challenge."
+  },
+  "metadata": {
+    "language": "zh",
+    "category": "forensics",
+    "tier": "unverified",
+    "flag_format": null
+  }
+}

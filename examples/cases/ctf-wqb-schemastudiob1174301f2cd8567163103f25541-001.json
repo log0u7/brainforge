@@ -1,0 +1,21 @@
+{
+  "id": "ctf-wqb-schemastudiob1174301f2cd8567163103f25541-001",
+  "source": {
+    "type": "ctfd",
+    "repository": "CTF-Archives/2026-WQB-Quals",
+    "path": "SchemaStudio_b1174301f2cd8567163103f2554180fd",
+    "date": "2026-09-04",
+    "url": "https://github.com/CTF-Archives/2026-WQB-Quals/releases/tag/attachments"
+  },
+  "input": {
+    "code": "--- SchemaStudio/.DS_Store (binary/image, not excerpted) ---\n--- SchemaStudio/prestashop-9.2.0-beta.1.tar.gz (binary/image, not excerpted) ---\n--- __MACOSX/._SchemaStudio (binary/image, not excerpted) ---\n--- __MACOSX/SchemaStudio/._.DS_Store (binary/image, not excerpted) ---\n--- __MACOSX/SchemaStudio/._prestashop-9.2.0-beta.1.tar.gz (binary/image, not excerpted) ---",
+    "description": "CTF challenge statement (Chinese), 2026-WQB-Quals (CTF-Archives public dump). Statement:\n\n目录团队正在试用新的扩展字段设计流程。\n（本题下发后，请通过http访问相应的ip和port，例如 nc ip port ，改为http://ip:port/）\n[附件下载](https://github.com/CTF-Archives/2026-WQB-Quals/releases/download/attachments/SchemaStudio_b1174301f2cd8567163103f2554180fd.zip)\n环境题",
+    "question": "Solve this CTF challenge."
+  },
+  "metadata": {
+    "language": "zh",
+    "category": "forensics",
+    "tier": "unverified",
+    "flag_format": null
+  }
+}

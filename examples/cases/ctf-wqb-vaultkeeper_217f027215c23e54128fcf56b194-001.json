@@ -9,7 +9,7 @@
   },
   "input": {
     "code": "--- ld-linux-x86-64.so.2 (binary/image, not excerpted) ---\n--- libc.so.6 (binary/image, not excerpted) ---\n--- vault (binary/image, not excerpted) ---",
-    "description": "CTF challenge statement (Chinese), 2026-WQB-Quals (CTF-Archives public dump). Statement:\n\nVaultKeeper_217f027215c23e54128fcf56b1941a9f",
+    "description": "CTF challenge statement (Chinese), 2026-WQB-Quals (CTF-Archives public dump). Statement:\n\n[附件下载](https://github.com/CTF-Archives/2026-WQB-Quals/releases/download/attachments/VaultKeeper_217f027215c23e54128fcf56b1941a9f.zip)\n环境题",
     "question": "Solve this CTF challenge."
   },
   "metadata": {

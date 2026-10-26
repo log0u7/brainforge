@@ -1,0 +1,21 @@
+{
+  "id": "ctf-wqb-silentweights367c1179ccb1339df487d17c0e7-001",
+  "source": {
+    "type": "ctfd",
+    "repository": "CTF-Archives/2026-WQB-Quals",
+    "path": "SilentWeights_367c1179ccb1339df487d17c0e7242bf",
+    "date": "2026-09-04",
+    "url": "https://github.com/CTF-Archives/2026-WQB-Quals/releases/tag/attachments"
+  },
+  "input": {
+    "code": "--- README.txt ---\nIncident ID: SW-2026-0718\nThe checkpoint was recovered from an external share.\nThe model owner confirmed that no extra adapter module was used in the audited training job.\nPlease inspect the checkpoint and recover any material that does not belong to the model.\n\n--- leaked_model.pth (binary/image, not excerpted) ---\n--- training.log ---\n[2026-07-18 02:11:03] build: vision_audit_net v3.2\n[2026-07-18 02:11:04] modules: backbone.conv1, backbone.conv2, classifier.fc, normalizer\n[2026-07-18 02:16:44] epoch=1 loss=1.9123 acc=0.3851\n[2026-07-18 02:22:10] epoch=3 loss=0.9814 acc=0.6744\n[2026-07-18 02:31:27] epoch=6 loss=0.5119 acc=0.8420\n[2026-07-18 02:41:08] epoch=8 loss=0.3428 acc=0.9137\n[2026-07-18 02:41:12] checkpoint saved: leaked_model.pth\n[2026-07-18 02:41:13] baseline checkpoint size: 842 KB\n[2026-07-18 02:41:13] exported checkpoint size: 1186 KB\n",
+    "description": "CTF challenge statement (Chinese), 2026-WQB-Quals (CTF-Archives public dump). Statement:\n\nSilent Weights 是一起 AI 模型泄露事件的调查样本。\n某企业安全团队发现，一份内部视觉识别模型的训练结果被上传到了外部网盘。模型所有者确认，本次训练任务没有使用额外适配组件，但泄露文件的体积和训练日志均存在异常。\n请分析附件中的模型文件和辅助材料，恢复被隐藏的内部资料，并提交最终 flag。\n[附件下载](https://github.com/CTF-Archives/2026-WQB-Quals/releases/download/attachments/SilentWeights_367c1179ccb1339df487d17c0e7242bf.zip)\n## PWN",
+    "question": "Solve this CTF challenge."
+  },
+  "metadata": {
+    "language": "zh",
+    "category": "forensics",
+    "tier": "unverified",
+    "flag_format": null
+  }
+}

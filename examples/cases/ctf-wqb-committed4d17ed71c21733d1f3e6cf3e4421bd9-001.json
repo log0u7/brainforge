@@ -1,0 +1,21 @@
+{
+  "id": "ctf-wqb-committed4d17ed71c21733d1f3e6cf3e4421bd9-001",
+  "source": {
+    "type": "ctfd",
+    "repository": "CTF-Archives/2026-WQB-Quals",
+    "path": "committed_4d17ed71c21733d1f3e6cf3e4421bd95",
+    "date": "2026-09-04",
+    "url": "https://github.com/CTF-Archives/2026-WQB-Quals/releases/tag/attachments"
+  },
+  "input": {
+    "code": "--- commit.E01 (binary/image, not excerpted) ---\n--- commit.E02 (binary/image, not excerpted) ---\n--- commit.E03 (binary/image, not excerpted) ---",
+    "description": "CTF challenge statement (Chinese), 2026-WQB-Quals (CTF-Archives public dump). Statement:\n\nAn internal audit server experienced an abnormal interruption. After the service restarted, investigators discovered that a critical audit record was missing from the audit database.\nRecover the last successfully committed EXPORT operation before 2026-07-18 03:14:00.\nFlag format:flag{actor-action-nonce}，Use lowercase characters.\n[附件下载](https://github.com/CTF-Archives/2026-WQB-Quals/releases/download/attachments/committed_4d17ed71c21733d1f3e6cf3e4421bd95.7z)",
+    "question": "Solve this CTF challenge."
+  },
+  "metadata": {
+    "language": "zh",
+    "category": "forensics",
+    "tier": "unverified",
+    "flag_format": null
+  }
+}

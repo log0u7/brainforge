@@ -1,0 +1,21 @@
+{
+  "id": "ctf-wqb-meshgatefc549d0d36fc289e8079e7424c41d9bb-001",
+  "source": {
+    "type": "ctfd",
+    "repository": "CTF-Archives/2026-WQB-Quals",
+    "path": "meshgate_fc549d0d36fc289e8079e7424c41d9bb",
+    "date": "2026-09-04",
+    "url": "https://github.com/CTF-Archives/2026-WQB-Quals/releases/tag/attachments"
+  },
+  "input": {
+    "code": "--- README.txt ---\nMeshGate incident bundle — revision 3\n\nAn XDP mesh-gateway policy was recovered with its original ELF object, map\nsnapshot, target BTF profile, loader state and historical wire capture.\n\nRun:\n  ./meshgate <ethernet-frame-hex>\n\nThe program performs an offline replay only.  It does not invoke bpf(), does\nnot attach a program, and does not need root.  `edge_vmlinux.btf` is the\ncaptured target type profile used by the recovery loader.  The PCAP records a\nprevious deployment epoch and is context evidence, not a replay answer.\n\nBundle files:\n  mesh_policy.bpf.o     CO-RE eBPF ET_REL object\n  edge_vmlinux.btf      target BTF profile\n  mesh_maps.snapshot    captured HASH/ARRAY map state\n  mesh_loader.state     incident loader state\n  mesh_traffic.pcap     prior mesh telemetry\n  release_blob.bin      authenticated release material\n\n--- edge_vmlinux.btf (binary/image, not excerpted) ---\n--- mesh_loader.state (binary/image, not excerpted) ---\n--- mesh_maps.snapshot (binary/image, not excerpted) ---\n--- mesh_policy.bpf.o (binary/image, not excerpted) ---\n--- mesh_traffic.pcap (binary/image, not excerpted) ---\n--- meshgate (binary/image, not excerpted) ---\n--- release_blob.bin (binary/image, not excerpted) ---",
+    "description": "CTF challenge statement (Chinese), 2026-WQB-Quals (CTF-Archives public dump). Statement:\n\nMeshGate 是一个使用 XDP/eBPF 策略的边缘 service-mesh 网关。节点更换后，现场保留了 eBPF 对象、BTF 类型信息、map 快照、loader 状态和历史网络流量。\n[附件下载](https://github.com/CTF-Archives/2026-WQB-Quals/releases/download/attachments/meshgate_fc549d0d36fc289e8079e7424c41d9bb.zip)",
+    "question": "Solve this CTF challenge."
+  },
+  "metadata": {
+    "language": "zh",
+    "category": "forensics",
+    "tier": "unverified",
+    "flag_format": null
+  }
+}

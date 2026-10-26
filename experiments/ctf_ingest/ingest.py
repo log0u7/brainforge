@@ -211,8 +211,12 @@ CTF_ARCHIVE_EVENTS = {
 
 
 def _content_root(challenge: Path) -> Path:
-    """Descend single-child wrapper dirs until real content appears."""
+    """Descend single-child wrapper dirs until real content appears.
+
+    Symlink cycles terminate: revisited (resolved) paths stop the descent.
+    """
     current = challenge
+    visited = {current.resolve()}
     while True:
         children = [c for c in current.iterdir()]
         dirs = [c for c in children if c.is_dir()]
@@ -220,20 +224,26 @@ def _content_root(challenge: Path) -> Path:
         if files or len(dirs) != 1:
             return current
         current = dirs[0]
+        resolved = current.resolve()
+        if resolved in visited:
+            return current
+        visited.add(resolved)
 
 
-def ctf_archives_cases(corpus: Path) -> list[tuple[dict, dict]]:
+def ctf_archives_cases(
+    corpus: Path, events: dict[str, tuple[str, str]] | None = None
+) -> list[tuple[dict, dict]]:
     """Build cases for every dumped event in ``ctf-archives/``.
 
     Extraction layouts vary per zip (wrappers, nesting): challenges are
     resolved to their content root and deduplicated by that root, with
     the longest directory name as the canonical challenge name. Flags
     stay format-only (tier B): the dumps carry no verifiable ground
-    truth.
+    truth. ``events`` defaults to the known CTF-Archives dumps.
     """
     base = corpus / "ctf-archives"
     cases = []
-    for event_dir, (prefix, event_date) in sorted(CTF_ARCHIVE_EVENTS.items()):
+    for event_dir, (prefix, event_date) in sorted((events or CTF_ARCHIVE_EVENTS).items()):
         event = base / event_dir
         readme = read_text(event / "README.md", 40000) if (event / "README.md").is_file() else ""
         attachments = event / "attachments"
@@ -244,12 +254,11 @@ def ctf_archives_cases(corpus: Path) -> list[tuple[dict, dict]]:
             root = _content_root(challenge)
             if not any(f.is_file() for f in root.rglob("*")):
                 continue
-            roots.setdefault(root, []).append(challenge.name)
+            # symlinked wrappers resolve to the same inode: dedup on resolve()
+            roots.setdefault(root.resolve(), []).append(challenge.name)
         for root, names in roots.items():
             canonical = max(names, key=len)
-            slug = "-".join(
-                part for part in canonical.lower().replace(".", "-").split("-") if part
-            )[:40]
+            slug = re.sub(r"[^a-z0-9_-]", "", canonical.lower().replace(".", "-"))[:40]
             case_id = f"ctf-{prefix}-{slug}-001"
             statement = _statement_for(readme, canonical)
             excerpts = _attachment_excerpts(root)
@@ -261,8 +270,7 @@ def ctf_archives_cases(corpus: Path) -> list[tuple[dict, dict]]:
                     "path": canonical,
                     "date": event_date,
                     "url": (
-                        "https://github.com/CTF-Archives/"
-                        f"{event_dir}/releases/tag/attachments"
+                        f"https://github.com/CTF-Archives/{event_dir}/releases/tag/attachments"
                     ),
                 },
                 "input": {
@@ -300,6 +308,9 @@ def _statement_for(readme: str, name: str) -> str:
     next heading.
     """
     normalized = "".join(char for char in name.lower() if char.isalnum())
+    # release dirs carry a hex-hash suffix ("cold_forge_4b1bc..."): strip it
+    # or the normalized name never matches the README heading
+    normalized = re.sub(r"[0-9a-f]{8,}$", "", normalized)
     lines = readme.splitlines()
     start = None
     for index, line in enumerate(lines):
@@ -356,9 +367,16 @@ def main() -> None:
     )
     written = 0
     manifest_lines = []
+    seen_ids: set[str] = set()
+    id_re = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+    written_paths: list[Path] = []
     for source_name, builder in builders:
         for case, manifest in builder(args.corpus):
+            assert id_re.match(case["id"]), f"bad case id: {case['id']}"
+            assert case["id"] not in seen_ids, f"duplicate case id: {case['id']}"
+            seen_ids.add(case["id"])
             target = args.repo / "examples" / "cases" / f"{case['id']}.json"
+            written_paths.append(target)
             target.write_text(case_json(case), encoding="utf-8")
             manifest_lines.append(
                 json.dumps({"source": source_name, **manifest}, ensure_ascii=False)
@@ -366,6 +384,9 @@ def main() -> None:
             written += 1
     manifest_path = Path(__file__).parent / "manifest.jsonl"
     manifest_path.write_text("\n".join(manifest_lines) + "\n", encoding="utf-8")
+    case_ids = {json.loads(line)["id"] for line in manifest_lines}
+    written_ids = {p.stem for p in written_paths}
+    assert case_ids == written_ids, f"manifest/case mismatch: {sorted(case_ids ^ written_ids)}"
     print(f"wrote {written} cases -> {args.repo / 'examples' / 'cases'}")
     print(f"manifest -> {manifest_path}")
 

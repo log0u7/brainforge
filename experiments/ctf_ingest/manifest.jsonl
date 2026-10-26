@@ -27,6 +27,7 @@
 {"source": "ctf-archives", "id": "ctf-wqb-committed_4d17ed71c21733d1f3e6cf3e4421bd-001", "tier": "unverified", "expected_flag": false, "url": "https://github.com/CTF-Archives/2026-WQB-Quals/releases/tag/attachments"}
 {"source": "ctf-archives", "id": "ctf-wqb-gatewayd_46f93270f1efcf5ff9710de9d0b8a33-001", "tier": "unverified", "expected_flag": false, "url": "https://github.com/CTF-Archives/2026-WQB-Quals/releases/tag/attachments"}
 {"source": "ctf-archives", "id": "ctf-wqb-hanziguard_6a0e2aae7aa0b08bd1ae5f2c511c4-001", "tier": "unverified", "expected_flag": false, "url": "https://github.com/CTF-Archives/2026-WQB-Quals/releases/tag/attachments"}
+{"source": "ctf-archives", "id": "ctf-wqb-incident-001", "tier": "unverified", "expected_flag": false, "url": "https://github.com/CTF-Archives/2026-WQB-Quals/releases/tag/attachments"}
 {"source": "ctf-archives", "id": "ctf-wqb-knote_2cf788f32e8f8380bd5097daa717c6f8-001", "tier": "unverified", "expected_flag": false, "url": "https://github.com/CTF-Archives/2026-WQB-Quals/releases/tag/attachments"}
 {"source": "ctf-archives", "id": "ctf-wqb-logd_315a6a597e577dbf814caa4a1339dd6f-001", "tier": "unverified", "expected_flag": false, "url": "https://github.com/CTF-Archives/2026-WQB-Quals/releases/tag/attachments"}
 {"source": "ctf-archives", "id": "ctf-wqb-meshgate_fc549d0d36fc289e8079e7424c41d9b-001", "tier": "unverified", "expected_flag": false, "url": "https://github.com/CTF-Archives/2026-WQB-Quals/releases/tag/attachments"}

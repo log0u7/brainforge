@@ -1,0 +1,21 @@
+{
+  "id": "ctf-wqb-themeforgeb6ff996302ecbe6054459caf1b3d33-001",
+  "source": {
+    "type": "ctfd",
+    "repository": "CTF-Archives/2026-WQB-Quals",
+    "path": "ThemeForge_b6ff996302ecbe6054459caf1b3d331a",
+    "date": "2026-09-04",
+    "url": "https://github.com/CTF-Archives/2026-WQB-Quals/releases/tag/attachments"
+  },
+  "input": {
+    "code": "--- app.js (binary/image, not excerpted) ---\n--- package.json ---\n{\n  \"name\": \"themeforge-challenge-source\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"description\": \"ThemeForge challenge application source.\",\n  \"main\": \"app.js\",\n  \"scripts\": {\n    \"start\": \"node app.js\"\n  },\n  \"engines\": {\n    \"node\": \">=22\"\n  },\n  \"license\": \"UNLICENSED\"\n}\n\n--- public/app.js (binary/image, not excerpted) ---\n--- public/index.html (binary/image, not excerpted) ---\n--- public/style.css (binary/image, not excerpted) ---",
+    "description": "CTF challenge statement (Chinese), 2026-WQB-Quals (CTF-Archives public dump). Statement:\n\nThemeForge 允许设计师通过点路径即时调整个人主题。\n核心身份字段已经加锁，但管理员的隐藏色仍然有可能被普通设计师看到。\n找到权限边界中的裂缝，打开 Admin Color Vault。\n[附件下载](https://github.com/CTF-Archives/2026-WQB-Quals/releases/download/attachments/ThemeForge_b6ff996302ecbe6054459caf1b3d331a.zip)\n环境题",
+    "question": "Solve this CTF challenge."
+  },
+  "metadata": {
+    "language": "zh",
+    "category": "forensics",
+    "tier": "unverified",
+    "flag_format": null
+  }
+}
