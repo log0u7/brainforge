@@ -1,0 +1,21 @@
+{
+  "id": "ctf-wqb-cold_forge_4b1bc2963947358f4ce48f769581a-001",
+  "source": {
+    "type": "ctfd",
+    "repository": "CTF-Archives/2026-WQB-Quals",
+    "path": "cold_forge_4b1bc2963947358f4ce48f769581a096",
+    "date": "2026-09-04",
+    "url": "https://github.com/CTF-Archives/2026-WQB-Quals/releases/tag/attachments"
+  },
+  "input": {
+    "code": "--- README.txt ---\nCold Forge 事件导出\n==================\n\n附件中的遥测数据来自一台门限签名设备。\n其中包含公开的 FROST transcript 字段，以及采集探针对有效 nonce\n进行量化后得到的观测值。只有重建出确定性的恢复签名，才能解封其中的加密发布内容。\n\n文件：\n  frost_telemetry.json  公开 transcript 导出数据\n  sealed_release.json   由 ChaCha20-Poly1305 保护的发布内容\n\n--- frost_telemetry.json ---\n{\n  \"format\": \"cold-forge/frost-telemetry-v1\",\n  \"curve\": \"secp256k1\",\n  \"group_order\": \"fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141\",\n  \"threshold\": 2,\n  \"participants\": [\n    1,\n    2\n  ],\n  \"lagrange_coefficients\": {\n    \"1\": \"0000000000000000000000000000000000000000000000000000000000000002\",\n    \"2\": \"fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140\"\n  },\n  \"group_public\": {\n    \"x\": \"9c667444f507046070c61bc438f793bdd8e4696b6545a1896fc7a6abb3fac7a1\",\n    \"y\": \"840c5e20b263d46baecd45feaddb5b872e8c722f343eb504de5bf4da4987bc7a\"\n  },\n  \"message_hex\": \"436f6c6420466f7267652072656c65617365206d616e69666573742076313a20617070726f7665207468726573686f6c64207265636f76657279\",\n  \"leak_model\": {\n    \"kind\": \"msb_quantisation_with_bucket_jitter\",\n    \"discarded_low_bits\": 104,\n    \"maximum_bucket_drift\": 1\n  },\n  \"transcripts\": [\n    {\n      \"signer\": 1,\n      \"session\": \"e24f7b73194268b9\",\n      \"D\": {\n        \"x\": \"779a97e86ba89abafbb3bfa6be7733144d883bfba10605a4e3517f1cf0531f2a\",\n        \"y\": \"66014d7a31623cfd83fe6a58de85fa10f8138e7728b9820095fc8ddbdaea8bc2\"\n      },\n      \"E\": {\n        \"x\": \"2ca4abfa2e4c26404cc86c1e5fc09fa75e78c728dddae5370dfe1c462a6b7ce3\",\n        \"y\": \"791f7378d9ee2cc2551649d0c885af6c793c9170d93197af3ddf14dc27bad46f\"\n      },\n      \"rho\": \"26f7ed0417b211bb18343d5d18fb9ab30e873cc90bff926e821acd042e865d0c\",\n      \"challenge\": \"6e259b807bc64c2020e69e30f3cd598cc63902616f5d459b984f84c9772727e5\",\n      \"z\": \"c6e6777030750c37b6b275f9\n--- sealed_release.json ---\n{\n  \"format\": \"cold-forge/sealed-release-v1\",\n  \"nonce\": \"UdfpASn/7RhHRhS4\",\n  \"aad\": \"Y29sZC1mb3JnZS9yZWxlYXNlL3Yx\",\n  \"ciphertext\": \"SXEKxWHV+BU0GEDMRCHQV8tmpPkx/22mecX+trCCu4IZcSoIyNfG5zWZViYNKKw1Y9x0TZcX+ODIcA==\"\n}\n",
+    "description": "CTF challenge statement (Chinese), 2026-WQB-Quals (CTF-Archives public dump). Statement:\n\n取证人员从 Cold Forge 的审批节点提取到 `frost_telemetry.json` 与 `sealed_release.json`。恢复正确的阈值私钥并重建发布签名，才能打开该发布包。\n[附件下载](https://github.com/CTF-Archives/2026-WQB-Quals/releases/download/attachments/cold_forge_4b1bc2963947358f4ce48f769581a096.zip)",
+    "question": "Solve this CTF challenge."
+  },
+  "metadata": {
+    "language": "zh",
+    "category": "forensics",
+    "tier": "unverified",
+    "flag_format": null
+  }
+}
