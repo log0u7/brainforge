@@ -1,0 +1,21 @@
+{
+  "id": "ctf-wqb-pixel_oracle_478c8182a453fb9562aee4c8238-001",
+  "source": {
+    "type": "ctfd",
+    "repository": "CTF-Archives/2026-WQB-Quals",
+    "path": "pixel_oracle_478c8182a453fb9562aee4c8238b2662",
+    "date": "2026-09-04",
+    "url": "https://github.com/CTF-Archives/2026-WQB-Quals/releases/tag/attachments"
+  },
+  "input": {
+    "code": "--- pixel_oracle.apk (binary/image, not excerpted) ---",
+    "description": "CTF challenge statement (Chinese), 2026-WQB-Quals (CTF-Archives public dump). Statement:\n\npixel_oracle_478c8182a453fb9562aee4c8238b2662",
+    "question": "Solve this CTF challenge."
+  },
+  "metadata": {
+    "language": "zh",
+    "category": "forensics",
+    "tier": "unverified",
+    "flag_format": null
+  }
+}

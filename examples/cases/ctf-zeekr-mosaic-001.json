@@ -1,0 +1,21 @@
+{
+  "id": "ctf-zeekr-mosaic-001",
+  "source": {
+    "type": "ctfd",
+    "repository": "CTF-Archives/2026-Zeekr-Cybersecurity-Quals",
+    "path": "ROM.Mosaic",
+    "date": "2026-09-19",
+    "url": "https://github.com/CTF-Archives/2026-Zeekr-Cybersecurity-Quals/releases/tag/attachments"
+  },
+  "input": {
+    "code": "--- attachments/carrier.bin (binary/image, not excerpted) ---\n--- attachments/carrier_map.png (binary/image, not excerpted) ---",
+    "description": "CTF challenge statement (Chinese), 2026-Zeekr-Cybersecurity-Quals (CTF-Archives public dump). Statement:\n\n安全启动载体被切成十六个 0x200 字节页。真正参与 secure manifest 的页少之又少；其余页是旧版本、损坏页或诱饵页。GEELY{sha256_hex}\nHint:\n对每页：\nshare = bytes(a ^ b for a, b in zip(page[0:32], mask_for(page_id, order)))\n五个解掩码后的份额逐字节异或得到\nsha256(canonical.encode() + manifest_secret).hexdigest()\nXXXXXXXXXXXXXXXX",
+    "question": "Solve this CTF challenge."
+  },
+  "metadata": {
+    "language": "zh",
+    "category": "forensics",
+    "tier": "unverified",
+    "flag_format": "GEELY{sha256_hex}"
+  }
+}

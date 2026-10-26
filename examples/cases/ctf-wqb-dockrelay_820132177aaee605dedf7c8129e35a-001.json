@@ -1,0 +1,21 @@
+{
+  "id": "ctf-wqb-dockrelay_820132177aaee605dedf7c8129e35a-001",
+  "source": {
+    "type": "ctfd",
+    "repository": "CTF-Archives/2026-WQB-Quals",
+    "path": "DockRelay_820132177aaee605dedf7c8129e35acf",
+    "date": "2026-09-04",
+    "url": "https://github.com/CTF-Archives/2026-WQB-Quals/releases/tag/attachments"
+  },
+  "input": {
+    "code": "--- DockRelay-Whitebox/.DS_Store (binary/image, not excerpted) ---\n--- DockRelay-Whitebox/source/curl-executor.mjs (binary/image, not excerpted) ---\n--- DockRelay-Whitebox/source/fetcher.mjs (binary/image, not excerpted) ---\n--- DockRelay-Whitebox/source/policy.mjs (binary/image, not excerpted) ---\n--- DockRelay-Whitebox/source/server.mjs (binary/image, not excerpted) ---\n--- __MACOSX/._DockRelay-Whitebox (binary/image, not excerpted) ---\n--- __MACOSX/DockRelay-Whitebox/._.DS_Store (binary/image, not excerpted) ---\n--- __MACOSX/DockRelay-Whitebox/._source (binary/image, not excerpted) ---\n--- __MACOSX/DockRelay-Whitebox/source/._curl-executor.mjs (binary/image, not excerpted) ---\n--- __MACOSX/DockRelay-Whitebox/source/._fetcher.mjs (binary/image, not excerpted) ---\n--- __MACOSX/DockRelay-Whitebox/source/._policy.mjs (binary/image, not excerpted) ---\n--- __MACOSX/DockRelay-Whitebox/source/._server.mjs (binary/image, not excerpted) ---",
+    "description": "CTF challenge statement (Chinese), 2026-WQB-Quals (CTF-Archives public dump). Statement:\n\nDockRelay_820132177aaee605dedf7c8129e35acf",
+    "question": "Solve this CTF challenge."
+  },
+  "metadata": {
+    "language": "zh",
+    "category": "forensics",
+    "tier": "unverified",
+    "flag_format": null
+  }
+}

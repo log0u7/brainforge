@@ -1,0 +1,21 @@
+{
+  "id": "ctf-wqb-rift_runner_627376ca5ab80d373aedff05c9c8-001",
+  "source": {
+    "type": "ctfd",
+    "repository": "CTF-Archives/2026-WQB-Quals",
+    "path": "rift_runner_627376ca5ab80d373aedff05c9c83c11",
+    "date": "2026-09-04",
+    "url": "https://github.com/CTF-Archives/2026-WQB-Quals/releases/tag/attachments"
+  },
+  "input": {
+    "code": "--- rift_runner.apk (binary/image, not excerpted) ---",
+    "description": "CTF challenge statement (Chinese), 2026-WQB-Quals (CTF-Archives public dump). Statement:\n\nrift_runner_627376ca5ab80d373aedff05c9c83c11",
+    "question": "Solve this CTF challenge."
+  },
+  "metadata": {
+    "language": "zh",
+    "category": "forensics",
+    "tier": "unverified",
+    "flag_format": null
+  }
+}

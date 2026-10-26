@@ -203,53 +203,91 @@ def rop_emporium_cases(corpus: Path) -> list[tuple[dict, dict]]:
     return cases
 
 
-def zeekr_cases(corpus: Path) -> list[tuple[dict, dict]]:
-    event = corpus / "ctf-archives" / "2026-Zeekr-Cybersecurity-Quals"
-    readme = read_text(event / "README.md", 20000) if (event / "README.md").is_file() else ""
+CTF_ARCHIVE_EVENTS = {
+    "2026-Zeekr-Cybersecurity-Quals": ("zeekr", ZEKR_RELEASE_DATE),
+    "2026-WQB-Quals": ("wqb", "2026-09-04"),
+    "CCB2026-Quals": ("ccb", "2026-09-13"),
+}
+
+
+def _content_root(challenge: Path) -> Path:
+    """Descend single-child wrapper dirs until real content appears."""
+    current = challenge
+    while True:
+        children = [c for c in current.iterdir()]
+        dirs = [c for c in children if c.is_dir()]
+        files = [c for c in children if c.is_file()]
+        if files or len(dirs) != 1:
+            return current
+        current = dirs[0]
+
+
+def ctf_archives_cases(corpus: Path) -> list[tuple[dict, dict]]:
+    """Build cases for every dumped event in ``ctf-archives/``.
+
+    Extraction layouts vary per zip (wrappers, nesting): challenges are
+    resolved to their content root and deduplicated by that root, with
+    the longest directory name as the canonical challenge name. Flags
+    stay format-only (tier B): the dumps carry no verifiable ground
+    truth.
+    """
+    base = corpus / "ctf-archives"
     cases = []
-    base = event / "attachments"
-    for challenge in sorted(base.iterdir()) if base.is_dir() else []:
-        if not challenge.is_dir():
-            continue
-        slug = challenge.name.lower().replace(".", "-")
-        case_id = f"ctf-zeekr-{slug}-001"
-        statement = _statement_for(readme, challenge.name)
-        excerpts = _attachment_excerpts(challenge)
-        case = {
-            "id": case_id,
-            "source": {
-                "type": "ctfd",
-                "repository": "CTF-Archives/2026-Zeekr-Cybersecurity-Quals",
-                "path": challenge.name,
-                "date": ZEKR_RELEASE_DATE,
-                "url": (
-                    "https://github.com/CTF-Archives/"
-                    "2026-Zeekr-Cybersecurity-Quals/releases/tag/attachments"
-                ),
-            },
-            "input": {
-                "code": excerpts,
-                "description": (
-                    "CTF challenge statement (Chinese), 2026 Zeekr Cybersecurity "
-                    "Quals (CTF-Archives public dump). Statement:\n\n"
-                    + (statement or challenge.name)
-                ),
-                "question": "Solve this CTF challenge.",
-            },
-            "metadata": {
-                "language": "zh",
-                "category": "forensics",
+    for event_dir, (prefix, event_date) in sorted(CTF_ARCHIVE_EVENTS.items()):
+        event = base / event_dir
+        readme = read_text(event / "README.md", 40000) if (event / "README.md").is_file() else ""
+        attachments = event / "attachments"
+        roots: dict[Path, list[str]] = {}
+        for challenge in sorted(attachments.iterdir()) if attachments.is_dir() else []:
+            if not challenge.is_dir():
+                continue
+            root = _content_root(challenge)
+            if not any(f.is_file() for f in root.rglob("*")):
+                continue
+            roots.setdefault(root, []).append(challenge.name)
+        for root, names in roots.items():
+            canonical = max(names, key=len)
+            slug = "-".join(
+                part for part in canonical.lower().replace(".", "-").split("-") if part
+            )[:40]
+            case_id = f"ctf-{prefix}-{slug}-001"
+            statement = _statement_for(readme, canonical)
+            excerpts = _attachment_excerpts(root)
+            case = {
+                "id": case_id,
+                "source": {
+                    "type": "ctfd",
+                    "repository": f"CTF-Archives/{event_dir}",
+                    "path": canonical,
+                    "date": event_date,
+                    "url": (
+                        "https://github.com/CTF-Archives/"
+                        f"{event_dir}/releases/tag/attachments"
+                    ),
+                },
+                "input": {
+                    "code": excerpts,
+                    "description": (
+                        "CTF challenge statement (Chinese), "
+                        f"{event_dir} (CTF-Archives public dump). Statement:\n\n"
+                        + (statement or canonical)
+                    ),
+                    "question": "Solve this CTF challenge.",
+                },
+                "metadata": {
+                    "language": "zh",
+                    "category": "forensics",
+                    "tier": "unverified",
+                    "flag_format": _flag_format(statement),
+                },
+            }
+            manifest = {
+                "id": case_id,
                 "tier": "unverified",
-                "flag_format": _flag_format(statement),
-            },
-        }
-        manifest = {
-            "id": case_id,
-            "tier": "unverified",
-            "expected_flag": False,
-            "url": case["source"]["url"],
-        }
-        cases.append((case, manifest))
+                "expected_flag": False,
+                "url": case["source"]["url"],
+            }
+            cases.append((case, manifest))
     return cases
 
 
@@ -314,7 +352,7 @@ def main() -> None:
     builders = (
         ("lictor-lab", lictor_cases),
         ("rop-emporium", rop_emporium_cases),
-        ("ctf-archives", zeekr_cases),
+        ("ctf-archives", ctf_archives_cases),
     )
     written = 0
     manifest_lines = []

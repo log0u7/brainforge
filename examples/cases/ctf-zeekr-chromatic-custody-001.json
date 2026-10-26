@@ -8,8 +8,8 @@
     "url": "https://github.com/CTF-Archives/2026-Zeekr-Cybersecurity-Quals/releases/tag/attachments"
   },
   "input": {
-    "code": "--- attachments/cards/evidence_envelope.png (binary/image, not excerpted) ---\n--- attachments/cards/registration_jig.png (binary/image, not excerpted) ---\n--- attachments/plates/front_blank.png (binary/image, not excerpted) ---\n--- attachments/plates/front_plate.png (binary/image, not excerpted) ---\n--- attachments/plates/rear_blank.png (binary/image, not excerpted) ---\n--- attachments/plates/rear_plate.png (binary/image, not excerpted) ---",
-    "description": "CTF challenge statement (Chinese), 2026 Zeekr Cybersecurity Quals (CTF-Archives public dump). Statement:\n\n一批旧车 custody 记录在迁移中被拆成两块受损印刷板。任何一块单独保存都不能恢复签名密钥。审计人员只留下两张扫描板、一张配准卡和一个证据封套。你需要先完成两块板的几何配准，再按颜色规则还原 16 字节密钥，最后计算 custody 记录的认证摘要。",
+    "code": "--- cards/evidence_envelope.png (binary/image, not excerpted) ---\n--- cards/registration_jig.png (binary/image, not excerpted) ---\n--- plates/front_blank.png (binary/image, not excerpted) ---\n--- plates/front_plate.png (binary/image, not excerpted) ---\n--- plates/rear_blank.png (binary/image, not excerpted) ---\n--- plates/rear_plate.png (binary/image, not excerpted) ---",
+    "description": "CTF challenge statement (Chinese), 2026-Zeekr-Cybersecurity-Quals (CTF-Archives public dump). Statement:\n\n一批旧车 custody 记录在迁移中被拆成两块受损印刷板。任何一块单独保存都不能恢复签名密钥。审计人员只留下两张扫描板、一张配准卡和一个证据封套。你需要先完成两块板的几何配准，再按颜色规则还原 16 字节密钥，最后计算 custody 记录的认证摘要。",
     "question": "Solve this CTF challenge."
   },
   "metadata": {

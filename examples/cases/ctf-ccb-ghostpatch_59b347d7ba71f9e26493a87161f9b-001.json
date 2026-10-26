@@ -1,0 +1,21 @@
+{
+  "id": "ctf-ccb-ghostpatch_59b347d7ba71f9e26493a87161f9b-001",
+  "source": {
+    "type": "ctfd",
+    "repository": "CTF-Archives/CCB2026-Quals",
+    "path": "ghostpatch_59b347d7ba71f9e26493a87161f9baf6",
+    "date": "2026-09-13",
+    "url": "https://github.com/CTF-Archives/CCB2026-Quals/releases/tag/attachments"
+  },
+  "input": {
+    "code": "--- capture.pcap (binary/image, not excerpted) ---",
+    "description": "CTF challenge statement (Chinese), CCB2026-Quals (CTF-Archives public dump). Statement:\n\nghostpatch_59b347d7ba71f9e26493a87161f9baf6",
+    "question": "Solve this CTF challenge."
+  },
+  "metadata": {
+    "language": "zh",
+    "category": "forensics",
+    "tier": "unverified",
+    "flag_format": null
+  }
+}

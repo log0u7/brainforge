@@ -1,0 +1,21 @@
+{
+  "id": "ctf-wqb-vaultkeeper_217f027215c23e54128fcf56b194-001",
+  "source": {
+    "type": "ctfd",
+    "repository": "CTF-Archives/2026-WQB-Quals",
+    "path": "VaultKeeper_217f027215c23e54128fcf56b1941a9f",
+    "date": "2026-09-04",
+    "url": "https://github.com/CTF-Archives/2026-WQB-Quals/releases/tag/attachments"
+  },
+  "input": {
+    "code": "--- ld-linux-x86-64.so.2 (binary/image, not excerpted) ---\n--- libc.so.6 (binary/image, not excerpted) ---\n--- vault (binary/image, not excerpted) ---",
+    "description": "CTF challenge statement (Chinese), 2026-WQB-Quals (CTF-Archives public dump). Statement:\n\nVaultKeeper_217f027215c23e54128fcf56b1941a9f",
+    "question": "Solve this CTF challenge."
+  },
+  "metadata": {
+    "language": "zh",
+    "category": "forensics",
+    "tier": "unverified",
+    "flag_format": null
+  }
+}

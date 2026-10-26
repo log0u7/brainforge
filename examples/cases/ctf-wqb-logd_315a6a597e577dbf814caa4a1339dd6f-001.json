@@ -1,0 +1,21 @@
+{
+  "id": "ctf-wqb-logd_315a6a597e577dbf814caa4a1339dd6f-001",
+  "source": {
+    "type": "ctfd",
+    "repository": "CTF-Archives/2026-WQB-Quals",
+    "path": "logd_315a6a597e577dbf814caa4a1339dd6f",
+    "date": "2026-09-04",
+    "url": "https://github.com/CTF-Archives/2026-WQB-Quals/releases/tag/attachments"
+  },
+  "input": {
+    "code": "--- libc.so.6 (binary/image, not excerpted) ---\n--- logd (binary/image, not excerpted) ---\n--- logd_crypto.py ---\n#!/usr/bin/env python3\n\"\"\"Client-side crypto for logd: Blowfish (pi-digit tables, key schedule, decrypt)\nand ChaCha8 keystream, matching the service implementation.\"\"\"\nimport struct\n\n# ---------------- Blowfish ----------------\n\ndef _arctan_inv(x, scale):\n    total = 0\n    k = 0\n    x2 = x * x\n    term = scale // x\n    while term:\n        t = term // (2 * k + 1)\n        total += t if k % 2 == 0 else -t\n        term //= x2\n        k += 1\n    return total\n\n\ndef _pi_words():\n    n = 8400\n    scale = 16 ** n\n    pi = 16 * _arctan_inv(5, scale) - 4 * _arctan_inv(239, scale)\n    frac = pi - 3 * scale\n    words = []\n    v = frac\n    for i in range(18 + 4 * 256):\n        w = 0\n        for _ in range(8):\n            v *= 16\n            d, v = divmod(v, scale)\n            w = (w << 4) | int(d)\n        words.append(w)\n    return words\n\n\n_W = _pi_words()\nP_INIT = _W[:18]\nS_INIT = [_W[18 + 256 * j:18 + 256 * (j + 1)] for j in range(4)]\n\nM32 = 0xFFFFFFFF\n\n\ndef _F(S, x):\n    return (((S[0][x >> 24] + S[1][(x >> 16) & 0xFF]) & M32 ^ S[2][(x >> 8) & 0xFF]) + S[3][x & 0xFF]) & M32\n\n\ndef bf_key_schedule(key: bytes):\n    P = P_INIT[:]\n    S = [row[:] for row in S_INIT]\n    for i in range(18):\n        kw = 0\n        for j in range(4):\n            kw = (kw << 8) | key[(4 * i + j) % len(key)]\n        P[i] ^= kw\n\n    def enc(L, R):\n        for i in range(16):\n            L ^= P[i]\n            R ^= _F(S, L)\n            L, R = R, L\n        L, R = R, L\n        R ^= P[16]\n        L ^= P[17]\n        retu",
+    "description": "CTF challenge statement (Chinese), 2026-WQB-Quals (CTF-Archives public dump). Statement:\n\nlogd_315a6a597e577dbf814caa4a1339dd6f",
+    "question": "Solve this CTF challenge."
+  },
+  "metadata": {
+    "language": "zh",
+    "category": "forensics",
+    "tier": "unverified",
+    "flag_format": null
+  }
+}

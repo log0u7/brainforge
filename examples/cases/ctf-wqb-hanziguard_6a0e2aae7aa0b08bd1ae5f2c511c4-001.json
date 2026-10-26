@@ -1,0 +1,21 @@
+{
+  "id": "ctf-wqb-hanziguard_6a0e2aae7aa0b08bd1ae5f2c511c4-001",
+  "source": {
+    "type": "ctfd",
+    "repository": "CTF-Archives/2026-WQB-Quals",
+    "path": "hanziguard_6a0e2aae7aa0b08bd1ae5f2c511c437d",
+    "date": "2026-09-04",
+    "url": "https://github.com/CTF-Archives/2026-WQB-Quals/releases/tag/attachments"
+  },
+  "input": {
+    "code": "--- corpflow-oa.jar (binary/image, not excerpted) ---",
+    "description": "CTF challenge statement (Chinese), 2026-WQB-Quals (CTF-Archives public dump). Statement:\n\nhanziguard_6a0e2aae7aa0b08bd1ae5f2c511c437d",
+    "question": "Solve this CTF challenge."
+  },
+  "metadata": {
+    "language": "zh",
+    "category": "forensics",
+    "tier": "unverified",
+    "flag_format": null
+  }
+}
