@@ -154,7 +154,7 @@ What the run did demonstrate:
 * the measurement harness refuses to flatter: an unparseable prediction
   is a false positive, not a free pass.
 
-### Defects the run surfaced (all fixed)
+### Defects the run surfaced
 
 * the verified-tier flag gate demanded a flag that lives outside the
   challenge material; replaced by curated technique gating (PR 24);
