@@ -345,3 +345,13 @@ def test_score_task_ctf_abstain_on_solved_judge_is_false_negative():
     result = score_task(pairs, domain="ctf")
     assert result["false_negative_rate"] == 1.0
     assert result["abstain_rate"] == 1.0
+
+
+def test_conversations_one_per_prompt():
+    from brainforge.training.task_eval import _conversations
+
+    result = _conversations(["first prompt", "second prompt"])
+    assert result == [
+        [{"role": "user", "content": "first prompt"}],
+        [{"role": "user", "content": "second prompt"}],
+    ]

@@ -57,6 +57,8 @@ def train_unsloth(
 
     dataset_dir = Path(dataset_dir)
     train_dataset = _messages_dataset(dataset_dir / "train.jsonl")
+    if train_dataset is None:
+        raise BrainforgeError("empty dataset split")
     validation_path = dataset_dir / "validation.jsonl"
     eval_dataset = _messages_dataset(validation_path) if validation_path.exists() else None
 
@@ -112,7 +114,7 @@ def train_unsloth(
         "effective_strategy": plan.effective_strategy,
         "epochs": config.epochs,
         "train_rows": len(train_dataset),
-        "validation_rows": len(eval_dataset) if eval_dataset else 0,
+        "validation_rows": len(eval_dataset or []),
         "output_dir": str(output_dir),
     }
     (output_dir / "train_summary.json").write_text(
