@@ -24,9 +24,7 @@ def _resolve_model_dir(model_path: Path | str) -> Path:
         except Exception as exc:
             # hub errors surface as clean BrainforgeError (validation,
             # network, gated, missing repo) instead of raw tracebacks
-            raise BrainforgeError(
-                f"model resolution failed for {name}: {exc}"
-            ) from exc
+            raise BrainforgeError(f"model resolution failed for {name}: {exc}") from exc
     raise BrainforgeError(f"model directory not found: {model_path}")
 
 
