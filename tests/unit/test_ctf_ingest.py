@@ -6,6 +6,7 @@ layouts seen in the wild (wrapper dirs, nested zips, flat copies).
 """
 
 import importlib.util
+import json
 import re
 from pathlib import Path
 
@@ -88,3 +89,32 @@ def test_case_ids_unique_and_valid(corpus, tmp_path):
     assert len(ids) == len(set(ids))
     for cid in ids:
         assert _ID_RE.match(cid), cid
+
+
+def test_statementless_challenge_falls_back_to_canonical_name(tmp_path):
+    base = tmp_path / "ctf-archives"
+    event = base / "2026-Test-Event"
+    attachments = event / "attachments"
+    (attachments / "mystery_box" / "attachments").mkdir(parents=True)
+    (attachments / "mystery_box" / "attachments" / "evidence.bin").write_text("z" * 30)
+    # no README at all: the statement falls back to the directory name
+    cases = ingest.ctf_archives_cases(tmp_path, events={"2026-Test-Event": ("test", "2026-10-01")})
+    assert len(cases) == 1
+    record, _ = cases[0]
+    assert "mystery_box" in record["input"]["description"]
+    assert record["metadata"]["flag_format"] is None
+
+
+def test_committed_manifest_matches_committed_cases():
+    """Regression guard: every committed ctf-*.json must have exactly one
+    manifest line and vice versa (the orphan class found by review)."""
+    repo = Path(__file__).resolve().parents[2]
+    manifest = {
+        json.loads(line)["id"]
+        for line in (repo / "experiments" / "ctf_ingest" / "manifest.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    }
+    disk = {p.stem for p in (repo / "examples" / "cases").glob("ctf-*.json")}
+    assert manifest == disk, sorted(manifest ^ disk)
