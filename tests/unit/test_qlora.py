@@ -13,3 +13,15 @@ def test_messages_dataset_tolerates_empty_validation_file(tmp_path):
     except Exception as exc:
         pytest.fail(f"empty validation file raised: {exc}")
     assert result is None
+
+
+def test_model_init_kwargs_pins_device_map():
+    """The default auto dispatch sends quantized modules to the CPU on a
+    busy 10GB card; the trainer kwargs pin the resolved device instead."""
+    from types import SimpleNamespace
+
+    from brainforge.training.qlora import _model_init_kwargs
+
+    plan = SimpleNamespace(attn_implementation="sdpa", device="cuda:0")
+    kwargs = _model_init_kwargs(plan)
+    assert kwargs == {"attn_implementation": "sdpa", "device_map": "cuda:0"}

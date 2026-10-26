@@ -129,6 +129,19 @@ def _trainer_kwargs(
     }
 
 
+def _model_init_kwargs(plan: "TrainingPlan") -> dict:
+    """Model load kwargs for the SFT trainer.
+
+    ``device_map`` pins the resolved device: the default auto dispatch
+    sends quantized modules to the CPU on a busy 10GB card (found by the
+    first 8B QLoRA run on the RTX 3080).
+    """
+    return {
+        "attn_implementation": plan.attn_implementation,
+        "device_map": plan.device,
+    }
+
+
 def _sft_config(
     config: TrainingConfig,
     output_dir: Path,
@@ -143,7 +156,7 @@ def _sft_config(
         max_length=config.max_length,
         packing=config.packing,
         assistant_only_loss=config.assistant_only_loss,
-        model_init_kwargs={"attn_implementation": plan.attn_implementation},
+        model_init_kwargs=_model_init_kwargs(plan),
     )
 
 
