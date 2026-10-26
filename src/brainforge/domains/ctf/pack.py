@@ -138,12 +138,11 @@ class CtfPack(DomainPack):
         if not expected:
             return reasons
         flag = str(data.get("flag") or "").strip()
-        if flag and flag != expected:
+        if data.get("verdict") != "solved" or flag != expected:
             reasons.append(
-                "flag does not match expected_flag (verified tier; ground truth is known)"
+                "verified tier requires the judge to solve the challenge and produce"
+                " the known expected_flag"
             )
-        if flag == expected and flag and data.get("verdict") != "solved":
-            reasons.append("flag matches expected_flag but the verdict is not solved")
         return reasons
 
     def _teacher_checks(self, data: dict) -> list[str]:

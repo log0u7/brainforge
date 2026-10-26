@@ -241,7 +241,7 @@ def test_judge_gate_rejects_flag_match_with_unsolved_verdict(ctf_case):
     data["verdict"] = "insufficient_information"
     result = pack.quality_gate(RoleKind.JUDGE, data, min_confidence=0.5, case=verified)
     assert not result.passed
-    assert any("verdict" in reason for reason in result.reasons)
+    assert any("expected_flag" in reason for reason in result.reasons)
 
 
 def test_judge_gate_unaffected_without_expected_flag(ctf_case):
@@ -277,10 +277,15 @@ def test_judge_gate_rejects_wrong_flag_on_partial_verdict(ctf_case):
     assert any("expected_flag" in reason for reason in result.reasons)
 
 
-def test_judge_gate_partial_with_no_flag_stays_gated_on_verdict_only(ctf_case):
+def test_judge_gate_verified_tier_requires_the_known_flag(ctf_case):
     pack = get_pack("ctf")
     verified = ctf_case.model_copy(update={"metadata": {"expected_flag": "FLAG{known}"}})
     data = _judge_payload(flag=None)
     data["verdict"] = "partial"
     result = pack.quality_gate(RoleKind.JUDGE, data, min_confidence=0.5, case=verified)
-    assert result.passed
+    assert not result.passed
+    assert any("expected_flag" in reason for reason in result.reasons)
+    data2 = _judge_payload(flag=None)
+    data2["verdict"] = "solved"
+    result2 = pack.quality_gate(RoleKind.JUDGE, data2, min_confidence=0.5, case=verified)
+    assert not result2.passed
