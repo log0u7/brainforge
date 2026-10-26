@@ -20,7 +20,6 @@
       "type": "mock"
     }
   },
-
   "models": {
     "security": {
       "provider": "openrouter",
@@ -30,7 +29,7 @@
     },
     "coding": {
       "provider": "openrouter",
-      "model": "qwen3-coder-480b",
+      "model": "qwen/qwen3-coder-next",
       "family": "qwen",
       "knowledge_cutoff": "2026-05"
     },
@@ -79,7 +78,6 @@
       "knowledge_cutoff": "2026-07"
     }
   },
-
   "roles": {
     "security_teacher": {
       "model": "security",
@@ -122,7 +120,6 @@
       "temperature": 0.0
     }
   },
-
   "pipelines": {
     "security_dataset": {
       "domain": "security",
@@ -137,7 +134,11 @@
     },
     "coding_dataset": {
       "domain": "coding",
-      "steps": ["coding_teacher", "security_teacher", "judge"]
+      "steps": [
+        "coding_teacher",
+        "security_teacher",
+        "judge"
+      ]
     },
     "ticket_triage": {
       "domain": "ticket_triage",
@@ -169,9 +170,7 @@
       "min_confidence": 0.5
     }
   },
-
   "judge_independence": "enforced",
-
   "training": {
     "base_model": "Qwen/Qwen3-8B",
     "lora_rank": 16,
