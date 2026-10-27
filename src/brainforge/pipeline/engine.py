@@ -47,6 +47,21 @@ class CaseResult:
     provider_error: str | None = None
 
 
+def arbitrate_by_ground_truth(canonical: dict, teacher_results: dict, expected_flag: str) -> bool:
+    """Resolve a teacher/judge disagreement by verification, not by discard.
+
+    The judge said "insufficient_information" but the case carries ground
+    truth (expected_flag, verified tier): if the correct flag appears in
+    the teacher outputs or the judge's own reasoning, the disagreement is
+    resolved - the verified flag wins and the case trains instead of
+    being thrown away. Returns True when arbitration accepts the case.
+    """
+    if not expected_flag:
+        return False
+    haystack = json.dumps(canonical, default=str) + json.dumps(teacher_results, default=str)
+    return expected_flag.strip().lower() in haystack.lower()
+
+
 class PipelineEngine:
     def __init__(
         self,
@@ -126,7 +141,9 @@ class PipelineEngine:
         gate = self.pack.quality_gate(
             final_binding.kind, canonical, self.pipeline.min_confidence, case=case
         )
-        accepted, reasons = self._gate_decision(case, canonical, gate)
+        accepted, reasons = self._gate_decision(
+            case, canonical, gate, self._teacher_results(context)
+        )
         if not accepted and (critic := self.retry_critic) is not None:
             # Escalation: the adversarial critique gets a look, then the judge
             # re-arbitrates with it. The critic never sees the first verdict
@@ -138,7 +155,9 @@ class PipelineEngine:
                 gate = self.pack.quality_gate(
                     final_binding.kind, canonical, self.pipeline.min_confidence, case=case
                 )
-                accepted, reasons = self._gate_decision(case, canonical, gate)
+                accepted, reasons = self._gate_decision(
+                    case, canonical, gate, self._teacher_results(context)
+                )
                 metadata = self._metadata(case, context, gate)
                 metadata["critic_retry"] = True
                 metadata["first_pass_reasons"] = first_pass_reasons
@@ -185,14 +204,27 @@ class PipelineEngine:
         )
 
     def _gate_decision(
-        self, case: Case, canonical: dict, gate: "GateResult"
+        self,
+        case: Case,
+        canonical: dict,
+        gate: "GateResult",
+        teacher_results: dict | None = None,
     ) -> tuple[bool, list[str]]:
         """Gate plus rejection policy: (accepted, reasons)."""
         accepted = gate.passed
         reasons = list(gate.reasons)
         if self.pipeline.reject_unresolved and is_unresolved(canonical):
-            accepted = False
-            reasons.append("unresolved_disagreement")
+            expected_flag = str(case.metadata.get("expected_flag") or "").strip()
+            if arbitrate_by_ground_truth(canonical, teacher_results or {}, expected_flag):
+                # one of the two was right and verification proves it: the
+                # disagreement feeds training instead of discarding the case
+                accepted = True
+                reasons = [r for r in reasons if r != "unresolved_disagreement"]
+                reasons.append("arbitrated_by_ground_truth")
+                canonical["arbitration"] = "ground_truth"
+            else:
+                accepted = False
+                reasons.append("unresolved_disagreement")
         recitation_risk, _reason = self._recitation_risk(case)
         if recitation_risk and self.pipeline.reject_recitation_risk:
             accepted = False
