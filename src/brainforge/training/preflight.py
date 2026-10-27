@@ -532,10 +532,12 @@ def _auto_fit(
             gradient_accumulation=config.gradient_accumulation,
             adjustments=adjustments,
         )
+    smallest = estimate_memory(model, plan, 1024, 1, config.lora_rank, budget)
     raise BrainforgeError(
         f"auto-fit impossible: model '{model.id}' too large for {primary.kind}: "
-        f"best estimate {est.total_gb:.1f} GB exceeds the {budget / 1e9:.1f} GB "
-        "budget even at seq=1024 batch=1 (estimate, not a guarantee)"
+        f"best estimate {(smallest.total_gb if smallest is not None else est.total_gb):.1f} GB "
+        f"exceeds the {budget / 1e9:.1f} GB budget even at seq=1024 batch=1"
+        " (estimate, not a guarantee)"
     )
 
 

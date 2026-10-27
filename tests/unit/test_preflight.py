@@ -684,3 +684,85 @@ def test_auto_fit_config_skips_when_metadata_unavailable(tmp_path, monkeypatch):
     new_config, warnings = preflight.auto_fit_config(config, tmp_path)
     assert new_config.max_length == config.max_length
     assert any("auto-fit skipped" in w for w in warnings)
+
+
+def test_auto_fit_config_skips_when_hardware_undetectable(tmp_path, monkeypatch):
+    """No torch (unit venv, no training extra): auto-fit degrades to a warning."""
+    monkeypatch.setattr(
+        preflight,
+        "detect_devices",
+        lambda: (_ for _ in ()).throw(BrainforgeError("torch is not installed")),
+    )
+    config = _fake_training_config()
+    new_config, warnings = preflight.auto_fit_config(config, tmp_path)
+    assert new_config.max_length == config.max_length
+    assert any("auto-fit skipped" in w for w in warnings)
+
+
+def test_auto_fit_config_propagates_too_large(tmp_path, monkeypatch):
+    """The degrade wrapper covers detection/metadata only: too-large still raises."""
+    device = _fake_device(memory_total=4 * 1024**3)
+    monkeypatch.setattr(preflight, "detect_devices", lambda: [device])
+    monkeypatch.setattr(
+        preflight, "inspect_model", lambda _m: _fake_model_info(8_000_000_000, 4096, 36)
+    )
+    config = _fake_training_config(max_length=4096, batch_size=1, gradient_accumulation=8)
+    with pytest.raises(BrainforgeError, match=r"does not fit"):
+        preflight.auto_fit_config(config, tmp_path)
+
+
+def test_auto_fit_uses_90pct_fallback_without_free_memory():
+    """cuda free_memory unknown: budget falls back to 90% of total VRAM."""
+    from brainforge.training.preflight import _device_budget
+
+    device = DeviceInfo(
+        kind="cuda",
+        device="cuda:0",
+        name="test-gpu",
+        total_memory=10 * 1024**3,
+        free_memory=None,
+        bf16=True,
+        fp16=True,
+    )
+    assert _device_budget(device, None) == int(10 * 1024**3 * 0.9)
+
+
+def test_auto_fit_floor_at_budget_boundary_does_not_raise():
+    """Floor exactly equal to the budget is not 'above the budget': proceed."""
+    from brainforge.training.preflight import _auto_fit
+
+    model = _fake_model_info(params=1_700_000_000, hidden=2048, layers=28)
+    config = _fake_training_config(max_length=4096, batch_size=1, gradient_accumulation=8)
+    device = _fake_device(memory_total=10 * 1024**3)
+    result = _auto_fit(model, config, [device])
+    assert result.max_length == 4096
+
+
+def test_auto_fit_unknown_params_skips_with_warning():
+    """No parameter count (e.g. unreadable safetensors header): skip, warn."""
+    from brainforge.training.preflight import _auto_fit
+
+    model = _fake_model_info(params=None, hidden=2048, layers=28)
+    config = _fake_training_config(max_length=4096, batch_size=1, gradient_accumulation=8)
+    result = _auto_fit(model, config, [_fake_device(memory_total=10 * 1024**3)])
+    assert result.max_length == 4096
+    assert any("parameter count unknown" in a for a in result.adjustments)
+
+
+def test_auto_fit_impossible_message_reports_smallest_combo():
+    """The 'impossible' error reports the seq=1024/batch=1 estimate, not seq=4096."""
+    import re
+
+    from brainforge.training.preflight import _auto_fit
+
+    model = _fake_model_info(params=8_000_000_000, hidden=4096, layers=36)
+    config = _fake_training_config()  # untouched: the full seq/batch loop runs
+    # Budget between the ~6.5 GB weights floor and the ~8.0 GB seq=1024
+    # total: every combo overflows, and the message must quote the smallest
+    # one instead of the seq=4096 estimate (~9.1 GB).
+    device = _fake_device(memory_total=7 * 1024**3)
+    with pytest.raises(BrainforgeError) as excinfo:
+        _auto_fit(model, config, [device])
+    match = re.search(r"best estimate (\d+\.\d) GB", str(excinfo.value))
+    assert match, str(excinfo.value)
+    assert 6.4 < float(match.group(1)) < 8.1
