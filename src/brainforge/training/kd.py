@@ -278,27 +278,30 @@ def train_kd(
                 f"dataset record '{missing}' has no teacher positions in {sidecar_path}"
             )
 
-    train_dataset = Dataset.from_generator(
-        _kd_row_stream,
-        gen_kwargs={
-            "records_path": train_path,
-            "teacher_by_id": teacher_by_id,
-            "tokenizer": tokenizer,
-            # Content digest: the datasets fingerprint hashes gen_kwargs, not
-            # the file content, so a regenerated train.jsonl must produce a
-            # new cache key or a stale cached arrow table gets trained on.
-            "content_digest": file_digest(train_path),
-        },
+    # Eager materialization (Dataset.from_list): KD datasets are tiny by
+    # construction (teacher positions live in RAM anyway), and from_generator
+    # fingerprints closures unstably - train and eval builders collided on
+    # the same cache dir and self-locked on Windows (WinError 32, observed
+    # on gpu3080).
+    train_rows = list(
+        _kd_row_stream(
+            records_path=train_path,
+            teacher_by_id=teacher_by_id,
+            tokenizer=tokenizer,
+            content_digest=file_digest(train_path),
+        )
     )
+    train_dataset = Dataset.from_list(train_rows)
     eval_dataset = (
-        Dataset.from_generator(
-            _kd_row_stream,
-            gen_kwargs={
-                "records_path": validation_path,
-                "teacher_by_id": teacher_by_id,
-                "tokenizer": tokenizer,
-                "content_digest": file_digest(validation_path),
-            },
+        Dataset.from_list(
+            list(
+                _kd_row_stream(
+                    records_path=validation_path,
+                    teacher_by_id=teacher_by_id,
+                    tokenizer=tokenizer,
+                    content_digest=file_digest(validation_path),
+                )
+            )
         )
         if validation_path.exists() and any(True for _ in iter_jsonl(validation_path))
         else None
