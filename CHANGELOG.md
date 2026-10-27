@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Auto-fit for training: `_auto_fit()` in preflight computes VRAM/RAM
+  budget from detected devices (CUDA/ROCm/XPU/MPS/CPU agnostic) and
+  automatically reduces `max_length`/`batch_size` when the model does
+  not fit, with explicit adjustment logging. If only CPU offload fits,
+  warns about 5-20x throughput penalty. User-set config values are
+  respected (not silently overridden) with warnings including
+  recommended alternatives. Warmup-steps >= total-steps warning added.
+
+### Added
+
 - First benchmark run published: 23 CTF cases generated (12 verified
   tier with curated technique ground truth, 15 accepted), QLoRA on the
   RTX 3080 and task-eval on the post-cutoff holdout. Numbers: base and

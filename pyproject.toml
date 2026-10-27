@@ -65,7 +65,7 @@ warn_return_any = true
 warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
-module = ["torch.*", "transformers.*", "peft.*", "trl.*", "unsloth.*", "fastembed.*"]
+module = ["torch.*", "transformers.*", "peft.*", "trl.*", "unsloth.*", "fastembed.*", "psutil"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
