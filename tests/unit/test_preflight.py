@@ -210,6 +210,9 @@ def test_unknown_architecture_fails(tmp_path, monkeypatch):
 
 def test_unavailable_mapping_skips_architecture(tmp_path, monkeypatch):
     _fake_env(monkeypatch)
+    # Hermetic even when the real transformers is installed: whatever mapping
+    # a training-extra venv exposes, this test targets the skip branch only.
+    monkeypatch.setattr(preflight, "_causal_lm_mapping", lambda: None)
     report = run_preflight(_training(), model=str(_model_dir(tmp_path)))
     assert _check(report, "model.architecture").status == "skip"
 
@@ -469,17 +472,6 @@ def test_auto_fit_impossible():
         _auto_fit(model, config, devices, system_ram=8 * 1024**3)
 
 
-def test_auto_fit_warmup_warning():
-    """warmup_steps >= total steps: LR stays at 0, training is a no-op."""
-    from brainforge.training.preflight import _auto_fit
-
-    model = _fake_model_info(params=1_700_000_000, hidden=2048, layers=28)
-    config = _fake_training_config(warmup_steps=5)
-    devices = [_fake_device(memory_total=10 * 1024**3)]
-    result = _auto_fit(model, config, devices, total_steps=3)
-    assert any("warmup" in a.lower() or "learning rate" in a.lower() for a in result.adjustments)
-
-
 def test_auto_fit_agnostic_mps():
     """Works with MPS device info (Apple Silicon): no CUDA-specific code.
 
@@ -669,6 +661,42 @@ def test_train_student_applies_auto_fit_kd(tmp_path, monkeypatch):
     train_student(_fake_training_config(), train.parent, tmp_path / "out", kd=True)
     assert calls["inspect"] == 1  # KD path runs the same auto-fit wiring
     assert captured["config"].max_length < 4096  # 8B on 8GB: seq reduced
+
+
+def test_disk_check_skips_missing_output_dir(tmp_path, monkeypatch):
+    """Unmocked statvfs on a not-yet-created output dir must not crash preflight."""
+    monkeypatch.chdir(tmp_path)
+    _fake_env(monkeypatch, mapping={"llama": "LlamaForCausalLM"})
+    model_dir = _model_dir(tmp_path)
+    header = json.dumps({"w": {"dtype": "F32", "shape": [1000], "data_offsets": [0, 4]}})
+    (model_dir / "model.safetensors").write_bytes(
+        len(header.encode()).to_bytes(8, "little") + header.encode() + b"\0\0\0\0"
+    )
+    report = run_preflight(_training(), model=str(model_dir))
+    check = _check(report, "disk.space")
+    assert check.status == "skip"
+    assert "does not exist" in check.message
+
+
+def test_disk_check_targets_output_dir(tmp_path, monkeypatch):
+    """Disk space is checked where the checkpoint lands, not in the CWD."""
+    _fake_env(monkeypatch, mapping={"llama": "LlamaForCausalLM"})
+    captured: dict = {}
+
+    def fake_disk_usage(path):
+        captured["path"] = Path(path)
+        return types.SimpleNamespace(free=100 * GIB)
+
+    model_dir = _model_dir(tmp_path)
+    # The default stub weights file is empty: no parameter count, no estimate,
+    # and _disk_check skips. Write a real safetensors header instead.
+    header = json.dumps({"w": {"dtype": "F32", "shape": [1000], "data_offsets": [0, 4]}})
+    (model_dir / "model.safetensors").write_bytes(
+        len(header.encode()).to_bytes(8, "little") + header.encode() + b"\0\0\0\0"
+    )
+    monkeypatch.setattr(preflight.shutil, "disk_usage", fake_disk_usage)
+    run_preflight(_training(), model=str(model_dir))
+    assert captured["path"] == Path(_training().output_dir)
 
 
 def test_auto_fit_config_skips_when_metadata_unavailable(tmp_path, monkeypatch):

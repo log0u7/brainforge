@@ -447,7 +447,6 @@ def _auto_fit(
     devices: list[DeviceInfo],
     *,
     system_ram: int | None = None,
-    total_steps: int | None = None,
     kd: bool = False,
 ) -> AutoFitResult:
     """Fit seq/batch to the device budget, or refuse with an explicit error.
@@ -472,9 +471,6 @@ def _auto_fit(
 
     plan = resolve_plan(config, primary, kd=kd)
     adjustments: list[str] = []
-    warmup = _warmup_warning(config, total_steps)
-    if warmup:
-        adjustments.append(warmup)
     if budget is None:
         adjustments.append(
             f"auto-fit skipped: no memory budget known for {primary.kind}"
@@ -756,11 +752,16 @@ def _dataset_checks(dataset_dir: Path | None, checks: list[Check]) -> None:
         checks.append(Check("dataset.validation", "pass", f"found {validation}"))
 
 
-def _disk_check(estimate: MemoryEstimate | None, checks: list[Check]) -> None:
+def _disk_check(estimate: MemoryEstimate | None, checks: list[Check], target: Path) -> None:
     if estimate is None:
         checks.append(Check("disk.space", "skip", "no memory estimate available"))
         return
-    free_gb = shutil.disk_usage(Path.cwd()).free / 1e9
+    if not target.is_dir():
+        # The output dir is created by the training run itself; checking the
+        # filesystem of a missing path would crash statvfs-based callers.
+        checks.append(Check("disk.space", "skip", f"{target} does not exist yet"))
+        return
+    free_gb = shutil.disk_usage(target).free / 1e9
     if free_gb < estimate.weights_gb:
         checks.append(
             Check(
@@ -861,7 +862,7 @@ def run_preflight(
             checks=checks,
         )
     _dataset_checks(Path(dataset_dir) if dataset_dir is not None else None, checks)
-    _disk_check(estimate, checks)
+    _disk_check(estimate, checks, Path(training.output_dir))
 
     has_fail = any(check.status == "fail" for check in checks)
     has_warn = any(check.status == "warn" for check in checks)

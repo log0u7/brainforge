@@ -17,11 +17,12 @@ imported lazily so the package and the unit test suite run without the
 """
 
 import json
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 from brainforge.config.models import TrainingConfig
-from brainforge.dataset.writer import read_jsonl
+from brainforge.dataset.writer import file_digest, iter_jsonl, read_jsonl
 from brainforge.errors import BrainforgeError
 from brainforge.training.hardware import torch_dtype
 from brainforge.training.qlora import (
@@ -171,6 +172,18 @@ class KDTrainer:
         return (loss, outputs) if return_outputs else loss
 
 
+def _kd_row_stream(
+    records_path: Path, teacher_by_id: dict, tokenizer: Any, content_digest: str = ""
+) -> Iterator[dict]:
+    """Tokenize records one at a time, for Dataset.from_generator (bounded RAM).
+
+    ``content_digest`` is unused here: it only feeds the datasets cache
+    fingerprint so a regenerated file invalidates the cached arrow table.
+    """
+    for record in iter_jsonl(records_path):
+        yield _tokenize_row(record, teacher_by_id[record["id"]], tokenizer)
+
+
 def _tokenize_row(record: dict, teacher: dict, tokenizer: Any) -> dict:
     messages = record["messages"]
     if any(message.get("role") == "tool" for message in messages):
@@ -231,36 +244,65 @@ def train_kd(
         )
     if config.packing:
         raise BrainforgeError("KD training does not support packing; set packing to false")
+    train_path = dataset_dir / "train.jsonl"
+    if not train_path.is_file():
+        raise BrainforgeError(f"missing {train_path}")
+    if train_path.stat().st_size == 0:
+        # Before any heavy import: unit-testable and fails fast.
+        raise BrainforgeError(f"{train_path} is empty; regenerate the dataset first")
     from brainforge.training.hardware import plan_for_config
 
     plan = plan_for_config(config, kd=True)
     from datasets import Dataset
     from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments
 
-    records = read_jsonl(dataset_dir / "train.jsonl")
     teacher_by_id = {entry["id"]: entry for entry in read_jsonl(sidecar_path)}
 
     tokenizer = AutoTokenizer.from_pretrained(config.base_model)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    def build_row(record: dict) -> dict:
-        teacher = teacher_by_id.get(record["id"])
-        if teacher is None:
-            raise BrainforgeError(
-                f"dataset record '{record['id']}' has no teacher positions in {sidecar_path}"
-            )
-        return _tokenize_row(record, teacher, tokenizer)
-
-    train_rows = [build_row(record) for record in records]
     validation_path = dataset_dir / "validation.jsonl"
-    eval_rows = (
-        [build_row(record) for record in read_jsonl(validation_path)]
-        if validation_path.exists()
-        else []
+    splits = [train_path, *((validation_path,) if validation_path.exists() else ())]
+    for split_path in splits:
+        missing = next(
+            (
+                record["id"]
+                for record in iter_jsonl(split_path)
+                if record["id"] not in teacher_by_id
+            ),
+            None,
+        )
+        if missing is not None:
+            raise BrainforgeError(
+                f"dataset record '{missing}' has no teacher positions in {sidecar_path}"
+            )
+
+    train_dataset = Dataset.from_generator(
+        _kd_row_stream,
+        gen_kwargs={
+            "records_path": train_path,
+            "teacher_by_id": teacher_by_id,
+            "tokenizer": tokenizer,
+            # Content digest: the datasets fingerprint hashes gen_kwargs, not
+            # the file content, so a regenerated train.jsonl must produce a
+            # new cache key or a stale cached arrow table gets trained on.
+            "content_digest": file_digest(train_path),
+        },
     )
-    train_dataset = Dataset.from_list(train_rows)
-    eval_dataset = Dataset.from_list(eval_rows) if eval_rows else None
+    eval_dataset = (
+        Dataset.from_generator(
+            _kd_row_stream,
+            gen_kwargs={
+                "records_path": validation_path,
+                "teacher_by_id": teacher_by_id,
+                "tokenizer": tokenizer,
+                "content_digest": file_digest(validation_path),
+            },
+        )
+        if validation_path.exists() and any(True for _ in iter_jsonl(validation_path))
+        else None
+    )
 
     load_kwargs: dict[str, Any] = {"torch_dtype": torch_dtype(plan)}
     if plan.quantization != "none":
@@ -300,9 +342,9 @@ def train_kd(
         "effective_strategy": plan.effective_strategy,
         "kd_alpha": config.kd_alpha,
         "kd_temperature": config.kd_temperature,
-        "kd_positions": sum(len(row["kd_targets"]) for row in train_rows),
-        "train_rows": len(train_rows),
-        "validation_rows": len(eval_rows),
+        "kd_positions": sum(len(row["kd_targets"]) for row in train_dataset),
+        "train_rows": len(train_dataset),
+        "validation_rows": len(eval_dataset) if eval_dataset is not None else 0,
         "output_dir": str(output_dir),
     }
     (output_dir / "train_summary.json").write_text(

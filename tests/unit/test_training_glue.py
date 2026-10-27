@@ -1,4 +1,5 @@
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -48,7 +49,8 @@ def test_extract_messages_rejects_missing_messages():
         )
 
 
-def test_train_qlora_fails_cleanly_without_gpu():
+def test_train_qlora_fails_cleanly_without_torch(monkeypatch):
+    monkeypatch.setitem(sys.modules, "torch", None)  # hides torch even if installed
     summary = {"id": "x", "messages": [{"role": "user", "content": "hi"}]}
     with pytest.raises(BrainforgeError) as excinfo:
         train_qlora(_training_config(), [summary], "out")
@@ -61,7 +63,8 @@ def _training_config():
     return TrainingConfig()
 
 
-def test_cli_train_run_fails_cleanly_without_gpu(project_env, monkeypatch, auto_fit_stub):
+def test_cli_train_run_fails_cleanly_without_gpu(project_env, monkeypatch):
+    monkeypatch.setitem(sys.modules, "torch", None)  # hermetic even with torch installed
     dataset_dir = project_env / "datasets" / "prepared"
     dataset_dir.mkdir(parents=True)
     split = [{"id": "x", "messages": [{"role": "user", "content": "hi"}], "metadata": {}}]
@@ -72,7 +75,8 @@ def test_cli_train_run_fails_cleanly_without_gpu(project_env, monkeypatch, auto_
     assert "training failed" in result.output
 
 
-def test_cli_train_run_resume_flag_fails_cleanly_without_gpu(project_env, auto_fit_stub):
+def test_cli_train_run_resume_flag_fails_cleanly_without_gpu(project_env, monkeypatch):
+    monkeypatch.setitem(sys.modules, "torch", None)  # hermetic even with torch installed
     dataset_dir = project_env / "datasets" / "prepared"
     dataset_dir.mkdir(parents=True)
     split = [{"id": "x", "messages": [{"role": "user", "content": "hi"}], "metadata": {}}]
@@ -112,10 +116,12 @@ def test_latest_run_dir_respects_config_output_dir(project_env):
     assert latest_run_dir().name == "run-20260920-000001"
 
 
-def test_train_qlora_resume_without_checkpoint_starts_fresh(tmp_path):
+def test_train_qlora_resume_without_checkpoint_starts_fresh(monkeypatch, tmp_path):
     """--resume with no checkpoints yet: the 'no checkpoint' error must not
-    fire (fresh start, PR 36). Whatever fails next is env-dependent (torch
-    in CI, empty split locally) - only the checkpoint error is asserted out."""
+    fire (fresh start, PR 36). Hiding torch keeps the failure hermetic: the
+    missing-training-extra error fires identically with or without the
+    training extra installed, instead of env-dependent downstream failures."""
+    monkeypatch.setitem(sys.modules, "torch", None)
     output_dir = tmp_path / "run"
     with pytest.raises(BrainforgeError) as excinfo:
         train_qlora(_training_config(), tmp_path, output_dir, resume=True)

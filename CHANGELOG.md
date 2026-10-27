@@ -22,10 +22,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   offload was never implemented. KD training now runs the same auto-fit
   wiring. Model metadata or hardware detection failures degrade to an
   "auto-fit skipped" warning instead of blocking training or hitting the
-  Hub on every run.
+  Hub on every run. The preflight disk-space check now targets the
+  training output directory instead of the current working directory,
+  and skips (instead of crashing) when that directory does not exist
+  yet. `train_kd` refuses an empty train split with a clear
+  BrainforgeError before any heavy import. The generated KD arrow
+  cache is keyed on a content digest of the split files, so a
+  regenerated dataset invalidates the stale cached table instead of
+  silently training on it. Three unit tests also silently depended on
+  the environment: they passed only when the training extra was absent
+  and broke with real torch installed (real hardware detection, Hub
+  access through auto-fit, cached real transformers mappings). They
+  now hide torch via sys.modules or stub the causal-LM mapping, so the
+  suite is green with and without the training extra.
+
+### Changed
+
+- KD training streams tokenized rows through `Dataset.from_generator` and
+  the new `brainforge.dataset.writer.iter_jsonl` reader instead of
+  materializing every tokenized record in RAM at once. Behavior
+  preserved: teacher-position validation still fails on the first record
+  without a sidecar entry, with the same error message; an empty or
+  missing validation split still disables evaluation. A missing
+  train.jsonl now raises a clean BrainforgeError instead of a raw
+  FileNotFoundError.
+
+### Removed
+
+- The unused `total_steps` parameter of `_auto_fit` (the warmup warning
+  is computed post-fit in `auto_fit_config`).
 
 ### Added
 
+- Static AST guard `test_source_lazy_imports.py`: fails on any
+  module-level import of torch/transformers/trl/peft/bitsandbytes/
+  unsloth in `src/brainforge`, enforcing the AGENTS.md lazy-import rule
+  regardless of the installed environment. The scan recurses into
+  module-level `if`/`try`/`with`/loop bodies (a `try: import torch`
+  at module level is still a module-level import) and exempts only
+  `TYPE_CHECKING` blocks and imports inside function/class bodies,
+  with self-tests proving both directions.
 - Auto-fit for training: `_auto_fit()` in preflight computes a device
   memory budget (CUDA/ROCm/XPU/MPS/CPU agnostic) and automatically
   reduces `max_length`/`batch_size` when activations do not fit, with
