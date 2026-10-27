@@ -1,6 +1,8 @@
+import json
 from pathlib import Path
 
 import typer
+from rich.table import Table
 
 from brainforge.cli._common import CONFIG_OPTION, console, err_console, load_config_or_exit
 from brainforge.config.defaults import (
@@ -149,3 +151,48 @@ def run(
             records=read_jsonl(output_path),
         )
         console.print(f"[green]experiment saved:[/green] {run_dir}")
+
+
+@app.command("status")
+def status(
+    path: Path = typer.Argument(
+        ...,
+        help="Dataset path or pipeline state file (.state.json) written by `pipeline run`",
+    ),
+) -> None:
+    """Print the live progress of a pipeline run from its state file."""
+    state_file = path if path.name.endswith(".state.json") else Path(f"{path}.state.json")
+    if not state_file.is_file():
+        err_console.print(f"[red]no state file:[/red] {state_file} (run `pipeline run` first)")
+        raise typer.Exit(code=1)
+    try:
+        state = json.loads(state_file.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        err_console.print(f"[red]corrupt state file:[/red] {state_file}: {exc}")
+        raise typer.Exit(code=1) from exc
+    status_value = state.get("status", "unknown")
+    done = state.get("done", 0)
+    total = state.get("total_cases", 0)
+    console.print(
+        f"[bold]{state_file}[/bold]: [bold]{status_value}[/bold] "
+        f"({done}/{total} cases done, "
+        f"{state.get('accepted', 0)} accepted, "
+        f"{state.get('rejected', 0)} rejected, "
+        f"{state.get('errors', 0)} errors)"
+    )
+    current = state.get("current_case")
+    if current is not None:
+        console.print(f"[yellow]running:[/yellow] {current}")
+    table = Table(title=f"Pipeline run: {state_file}")
+    table.add_column("case")
+    table.add_column("status")
+    table.add_column("duration_ms")
+    table.add_column("gate_reasons")
+    for entry in state.get("cases", []):
+        table.add_row(
+            str(entry.get("id")),
+            str(entry.get("status")),
+            str(entry.get("duration_ms")),
+            str(entry.get("gate_reasons")),
+        )
+    console.print(table)

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `pipeline run` now self-traces progress to a structured state file next to
+  the dataset (`<output>.state.json`, overridable via the new `run_pipeline`
+  `state_path` parameter): written atomically (temp file + rename) before and
+  after every case, under a lock so parallel mode stays consistent. It records
+  `started_at`/`updated_at`, `status` (`running`/`done`), `total_cases`,
+  `done`, `accepted`, `rejected`, `errors`, `current_case`, and one entry per
+  case (`id`, `status` `running`/`accepted`/`rejected`/`error`, `duration_ms`,
+  `gate_reasons` count), so multi-hour runs (and duplicate-instance races) are
+  observable while they happen. New `brainforge pipeline status` command reads
+  it and prints counts plus a per-case table; a missing or corrupt state file
+  exits 1 with a clean error.
+
 ### Fixed
 
 - Auto-fit now estimates against the training plan that will actually run
