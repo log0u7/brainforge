@@ -76,9 +76,17 @@ class OpenAICompatProvider(Provider):
                 # zero CPU). Run the call in a worker thread and enforce a
                 # wall-clock deadline here; the orphaned request thread dies
                 # with the process.
-                with ThreadPoolExecutor(max_workers=1) as pool:
+                # no 'with': exiting the context manager calls
+                # shutdown(wait=True), which waits for the orphaned hung
+                # request thread and reintroduces the hang we are guarding
+                # against. shutdown(wait=False) leaves it running (it dies
+                # with the process) and unblocks the retry loop.
+                pool = ThreadPoolExecutor(max_workers=1)
+                try:
                     future = pool.submit(_create_call, self._client.chat.completions.create, kwargs)
                     response = future.result(timeout=deadline)
+                finally:
+                    pool.shutdown(wait=False)
                 latency_ms = (time.perf_counter() - start) * 1000
                 return response, latency_ms, attempt
             except TimeoutError as exc:
