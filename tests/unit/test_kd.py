@@ -5,6 +5,7 @@ suite (tests/integration/test_kd_chain.py, opt-in via BRAINFORCE_IT=1).
 """
 
 import json
+import sys
 
 import pytest
 from typer.testing import CliRunner
@@ -356,6 +357,19 @@ def test_train_kd_requires_sidecar(tmp_path):
     record = {"id": "x", "messages": [{"role": "user", "content": "hi"}], "metadata": {}}
     (dataset_dir / "train.jsonl").write_text(json.dumps(record) + "\n")
     with pytest.raises(BrainforgeError, match=r"kd\.jsonl"):
+        train_kd(TrainingConfig(), dataset_dir, tmp_path / "run")
+
+
+def test_train_kd_rejects_empty_train_split(tmp_path, monkeypatch):
+    """An empty train split must fail fast, before any heavy import."""
+    from brainforge.training.kd import train_kd
+
+    monkeypatch.setitem(sys.modules, "torch", None)  # hermetic even with torch installed
+    dataset_dir = tmp_path / "prepared"
+    dataset_dir.mkdir()
+    (dataset_dir / "kd.jsonl").write_text('{"id": "x", "positions": []}\n')
+    (dataset_dir / "train.jsonl").write_text("")
+    with pytest.raises(BrainforgeError, match="empty"):
         train_kd(TrainingConfig(), dataset_dir, tmp_path / "run")
 
 

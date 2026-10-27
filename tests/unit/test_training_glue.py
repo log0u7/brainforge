@@ -1,4 +1,5 @@
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -48,7 +49,8 @@ def test_extract_messages_rejects_missing_messages():
         )
 
 
-def test_train_qlora_fails_cleanly_without_gpu():
+def test_train_qlora_fails_cleanly_without_torch(monkeypatch):
+    monkeypatch.setitem(sys.modules, "torch", None)  # hides torch even if installed
     summary = {"id": "x", "messages": [{"role": "user", "content": "hi"}]}
     with pytest.raises(BrainforgeError) as excinfo:
         train_qlora(_training_config(), [summary], "out")
@@ -61,7 +63,8 @@ def _training_config():
     return TrainingConfig()
 
 
-def test_cli_train_run_fails_cleanly_without_gpu(project_env, monkeypatch, auto_fit_stub):
+def test_cli_train_run_fails_cleanly_without_gpu(project_env, monkeypatch):
+    monkeypatch.setitem(sys.modules, "torch", None)  # hermetic even with torch installed
     dataset_dir = project_env / "datasets" / "prepared"
     dataset_dir.mkdir(parents=True)
     split = [{"id": "x", "messages": [{"role": "user", "content": "hi"}], "metadata": {}}]
@@ -72,7 +75,8 @@ def test_cli_train_run_fails_cleanly_without_gpu(project_env, monkeypatch, auto_
     assert "training failed" in result.output
 
 
-def test_cli_train_run_resume_flag_fails_cleanly_without_gpu(project_env, auto_fit_stub):
+def test_cli_train_run_resume_flag_fails_cleanly_without_gpu(project_env, monkeypatch):
+    monkeypatch.setitem(sys.modules, "torch", None)  # hermetic even with torch installed
     dataset_dir = project_env / "datasets" / "prepared"
     dataset_dir.mkdir(parents=True)
     split = [{"id": "x", "messages": [{"role": "user", "content": "hi"}], "metadata": {}}]

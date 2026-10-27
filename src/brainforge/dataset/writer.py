@@ -1,4 +1,6 @@
+import hashlib
 import json
+from collections.abc import Iterator
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -105,6 +107,29 @@ def read_jsonl(path: Path | str) -> list[dict]:
             if line:
                 records.append(json.loads(line))
     return records
+
+
+def iter_jsonl(path: Path | str) -> Iterator[dict]:
+    """Stream JSONL records one at a time (bounded RAM for large datasets)."""
+    with Path(path).open("r", encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if line:
+                yield json.loads(line)
+
+
+def file_digest(path: Path | str) -> str:
+    """Streaming sha256 hex digest of a file.
+
+    Used as a Dataset.from_generator cache key component: the fingerprint
+    must change whenever the file content changes, or a regenerated dataset
+    silently trains on a stale cached arrow table.
+    """
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def write_rejected(
