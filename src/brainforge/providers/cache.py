@@ -15,6 +15,19 @@ class CacheProvider(Provider):
         self.cache_path.parent.mkdir(parents=True, exist_ok=True)
         self.enabled = enabled
 
+    def complete_logprobs(
+        self, request: ChatRequest, model: str, top_logprobs: int = 8
+    ) -> ChatResponse:
+        """Delegate to the inner provider.
+
+        Logprobs responses (the KD teacher signal) are not cached: the
+        sidecar must reflect the live teacher distribution, and the base
+        class would otherwise raise "does not support logprobs" for every
+        provider that does support it - the KD pass was unreachable
+        through the cache wrapper.
+        """
+        return self.inner.complete_logprobs(request, model, top_logprobs)
+
     def complete(self, request: ChatRequest, model: str) -> ChatResponse:
         if not self.enabled:
             return self.inner.complete(request, model)
