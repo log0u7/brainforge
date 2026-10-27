@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 _CHECKPOINT_RE = re.compile(r"^checkpoint-(\d+)$")
 
 
-def _latest_checkpoint(output_dir: Path) -> Path:
+def _latest_checkpoint(output_dir: Path) -> Path | None:
     """Pick the highest-step ``checkpoint-<N>`` directory (numeric, not lexicographic)."""
     steps = []
     for path in output_dir.glob("checkpoint-*"):
@@ -32,10 +32,10 @@ def _latest_checkpoint(output_dir: Path) -> Path:
         if match is not None:
             steps.append((int(match.group(1)), path))
     if not steps:
-        raise BrainforgeError(
-            f"no checkpoint found in {output_dir} to resume from;"
-            " run 'brainforge train run' without --resume first"
-        )
+        # crash-resilient: --resume with no checkpoints yet (fresh run dir)
+        # starts from scratch instead of crashing - service supervisors
+        # (nssm AppRestartDelay) must be safe on the very first boot
+        return None
     return max(steps, key=lambda pair: pair[0])[1]
 
 
