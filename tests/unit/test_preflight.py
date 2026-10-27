@@ -516,3 +516,62 @@ def _fake_device(memory_total: int, kind: str = "cuda") -> DeviceInfo:
         bf16=True,
         fp16=True,
     )
+
+
+def test_auto_fit_config_public_helper(tmp_path, monkeypatch):
+    """auto_fit_config: fit to hardware, apply result, return warnings list."""
+    model = _fake_model_info(params=1_700_000_000, hidden=2048, layers=28)
+    device = _fake_device(memory_total=10 * 1024**3)
+    monkeypatch.setattr(preflight, "detect_devices", lambda: [device])
+    monkeypatch.setattr(preflight, "inspect_model", lambda _m: model)
+    config = _fake_training_config()  # defaults: max_length 1024, batch 1
+    train = tmp_path / "train.jsonl"
+    train.write_text('{"messages": []}\n' * 32)
+    new_config, warnings = preflight.auto_fit_config(config, train.parent)
+    assert new_config.max_length == 4096  # fits at 10GB, seq upgraded
+    assert new_config.batch_size in (1, 2)  # largest batch that fits
+    assert any("max_length" in w for w in warnings)
+
+
+def test_auto_fit_config_warmup_warning(tmp_path, monkeypatch):
+    """auto_fit_config: warmup_steps >= computed steps (post-fit) warns."""
+    model = _fake_model_info(params=1_700_000_000, hidden=2048, layers=28)
+    device = _fake_device(memory_total=10 * 1024**3)
+    monkeypatch.setattr(preflight, "detect_devices", lambda: [device])
+    monkeypatch.setattr(preflight, "inspect_model", lambda _m: model)
+    config = _fake_training_config(warmup_steps=5)
+    train = tmp_path / "train.jsonl"
+    train.write_text('{"messages": []}\n' * 3)  # steps = ceil(3/(1*16))*3 = 3
+    _config, warnings = preflight.auto_fit_config(config, train.parent)
+    assert any("warmup" in w.lower() for w in warnings)
+
+
+def test_train_student_applies_auto_fit(tmp_path, monkeypatch):
+    """train_student wires auto_fit_config: captured config carries adjusted seq/batch."""
+    from brainforge.cli.train_cmd import train_student
+
+    model = _fake_model_info(params=8_000_000_000, hidden=4096, layers=36)
+    device = _fake_device(memory_total=8 * 1024**3)
+    calls = {"inspect": 0}
+
+    def fake_inspect(_m):
+        calls["inspect"] += 1
+        return model
+
+    monkeypatch.setattr(preflight, "detect_devices", lambda: [device])
+    monkeypatch.setattr(preflight, "inspect_model", fake_inspect)
+    train = tmp_path / "train.jsonl"
+    train.write_text('{"messages": []}\n' * 64)
+    captured: dict = {}
+
+    def fake_qlora(config, dataset_dir, output_dir, resume=False):
+        captured["config"] = config
+        return {"output_dir": str(output_dir)}
+
+    import brainforge.training.qlora as qlora_mod
+
+    monkeypatch.setattr(qlora_mod, "train_qlora", fake_qlora)
+    train_student(_fake_training_config(), train.parent, tmp_path / "out")
+    assert calls["inspect"] == 1  # wiring ran exactly once
+    assert captured["config"].max_length < 4096  # 8B on 8GB: seq reduced
+    assert captured["config"].max_length >= 1024

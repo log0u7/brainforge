@@ -6,6 +6,7 @@ model weights. Heavy training imports stay lazy.
 
 import importlib.util
 import json
+import math
 import re
 import shutil
 import sys
@@ -343,6 +344,45 @@ def _user_set(config: TrainingConfig, field: str, default: int) -> bool:
     return bool(getattr(config, field) != default)
 
 
+def _warmup_warning(config: TrainingConfig, total_steps: int | None) -> str | None:
+    """Warn when warmup_steps would eat the whole run (LR stays at 0)."""
+    if total_steps is not None and config.warmup_steps >= total_steps:
+        return (
+            f"warmup_steps ({config.warmup_steps}) >= total_steps ({total_steps}): "
+            "learning rate will stay at 0, training is a no-op. "
+            "Set warmup_steps=0 for short runs."
+        )
+    return None
+
+
+def auto_fit_config(
+    training: TrainingConfig,
+    dataset_dir: Path | str,
+) -> tuple[TrainingConfig, list[str]]:
+    """Public wiring point: fit seq/batch to hardware, warn on warmup/steps.
+
+    Returns (adjusted config, warning lines). Raises BrainforgeError when the
+    model cannot fit on any device (no CPU offload possible either).
+    """
+    train_path = Path(dataset_dir) / "train.jsonl"
+    rows = 0
+    if train_path.exists():
+        rows = sum(1 for _ in train_path.open(encoding="utf-8"))
+    devices = detect_devices()
+    model = inspect_model(str(training.base_model))
+    result = _auto_fit(model, training, devices)
+    config = training.model_copy(
+        update={"max_length": result.max_length, "batch_size": result.batch_size}
+    )
+    warnings = list(result.adjustments)
+    if rows:
+        steps = math.ceil(rows / (config.batch_size * config.gradient_accumulation)) * config.epochs
+        warmup = _warmup_warning(config, steps)
+        if warmup:
+            warnings.append(warmup)
+    return config, warnings
+
+
 def _auto_fit(
     model: ModelInfo,
     config: TrainingConfig,
@@ -386,12 +426,9 @@ def _auto_fit(
     )
     adjustments: list[str] = []
     cpu_offload = False
-    if total_steps is not None and config.warmup_steps >= total_steps:
-        adjustments.append(
-            f"warmup_steps ({config.warmup_steps}) >= total_steps ({total_steps}): "
-            "learning rate will stay at 0, training is a no-op. "
-            "Set warmup_steps=0 for short runs."
-        )
+    warmup = _warmup_warning(config, total_steps)
+    if warmup:
+        adjustments.append(warmup)
 
     seq_options = [config.max_length] if user_touched else [4096, 2048, 1024]
     batch_options = [config.batch_size] if user_touched else [2, 1]
