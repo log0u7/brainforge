@@ -46,8 +46,7 @@ def train_unsloth(
     """Run Unsloth fine-tuning on a prepared dataset and save the adapter."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    if resume:
-        checkpoint = _latest_checkpoint(output_dir)
+    checkpoint = _latest_checkpoint(output_dir) if resume else None
     _require_unsloth()
     from brainforge.training.hardware import plan_for_config
 

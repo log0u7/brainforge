@@ -112,9 +112,11 @@ def test_latest_run_dir_respects_config_output_dir(project_env):
     assert latest_run_dir().name == "run-20260920-000001"
 
 
-def test_train_qlora_resume_without_checkpoint_fails_fast(tmp_path):
+def test_train_qlora_resume_without_checkpoint_starts_fresh(tmp_path):
+    """--resume with no checkpoints yet: proceeds to a fresh start (the
+    checkpoint error must not fire; the next failure is the empty split)."""
     output_dir = tmp_path / "run"
-    with pytest.raises(BrainforgeError, match="no checkpoint"):
+    with pytest.raises(BrainforgeError, match="empty dataset split"):
         train_qlora(_training_config(), tmp_path, output_dir, resume=True)
 
 

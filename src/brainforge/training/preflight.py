@@ -368,8 +368,18 @@ def auto_fit_config(
     rows = 0
     if train_path.exists():
         rows = sum(1 for _ in train_path.open(encoding="utf-8"))
-    devices = detect_devices()
-    model = inspect_model(str(training.base_model))
+    try:
+        devices = detect_devices()
+    except BrainforgeError as exc:
+        # no torch / no device info (CI, CPU-only boxes): keep the user
+        # config and say why - auto-fit must not block training
+        return training, [f"auto-fit skipped: {exc}"]
+    if not devices:
+        return training, ["auto-fit skipped: no compute device detected"]
+    base_model = getattr(training, "base_model", "")
+    if not base_model:
+        return training, ["auto-fit skipped: no base_model in training config"]
+    model = inspect_model(str(base_model))
     result = _auto_fit(model, training, devices)
     config = training.model_copy(
         update={"max_length": result.max_length, "batch_size": result.batch_size}
@@ -408,6 +418,17 @@ def _auto_fit(
             system_ram = psutil.virtual_memory().total
         except ImportError:
             system_ram = 0
+
+    if not vram_budget and not (system_ram or 0):
+        # device without memory information (CPU fake envs, exotic backends):
+        # nothing to fit against - keep the user config
+        return AutoFitResult(
+            max_length=config.max_length,
+            batch_size=config.batch_size,
+            gradient_accumulation=config.gradient_accumulation,
+            adjustments=["auto-fit skipped: no device memory information"],
+            cpu_offload=False,
+        )
 
     user_touched = _user_set(config, "max_length", TrainingConfig().max_length) or _user_set(
         config, "batch_size", TrainingConfig().batch_size
