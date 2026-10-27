@@ -126,7 +126,7 @@ def test_qlora_strategy_keeps_quantization_and_peft(fake_training_modules, tmp_p
     assert stored["device"] == "cuda:0"
 
 
-def test_cli_strategy_flag_overrides_config(fake_training_modules, project_env):
+def test_cli_strategy_flag_overrides_config(fake_training_modules, project_env, auto_fit_stub):
     dataset_dir = _dataset_dir(project_env)
     result = runner.invoke(
         app, ["train", "run", "--dataset-dir", str(dataset_dir), "--strategy", "full"]

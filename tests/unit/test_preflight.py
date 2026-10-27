@@ -378,7 +378,6 @@ def test_auto_fit_no_adjustment_needed():
     assert result.max_length == 4096
     assert result.batch_size == 1
     assert not result.adjustments
-    assert not result.cpu_offload
 
 
 def test_auto_fit_reduces_seq_length():
@@ -392,19 +391,69 @@ def test_auto_fit_reduces_seq_length():
     assert result.max_length < 4096
     assert result.max_length >= 1024
     assert any("max_length" in a for a in result.adjustments)
-    assert not result.cpu_offload
 
 
-def test_auto_fit_cpu_offload_warning():
-    """8B at 2048 still overflows GPU but fits in system RAM: CPU offload warning."""
+def test_auto_fit_gpu_too_large_raises():
+    """8B weights floor exceeds the GPU budget: refuse with guidance.
+
+    The weights+optimizer floor cannot be fixed by shrinking seq/batch, so
+    auto-fit must fail fast instead of letting from_pretrained OOM the GPU.
+    """
     from brainforge.training.preflight import _auto_fit
 
     model = _fake_model_info(params=8_000_000_000, hidden=4096, layers=36)
     config = _fake_training_config(max_length=4096, batch_size=1, gradient_accumulation=8)
     gpu = _fake_device(memory_total=4 * 1024**3)
-    result = _auto_fit(model, config, [gpu], system_ram=32 * 1024**3)
-    assert result.cpu_offload
-    assert any("offload" in a.lower() or "slow" in a.lower() for a in result.adjustments)
+    with pytest.raises(BrainforgeError, match=r"does not fit|too large"):
+        _auto_fit(model, config, [gpu], system_ram=32 * 1024**3)
+
+
+def test_auto_fit_cpu_fp32_too_large_raises():
+    """8B on a CPU-only box: the resolved plan is fp32/none, not the fake 4bit.
+
+    The 2026-10-27 desktop session was killed by exactly this case: no GPU,
+    fp32 weights of a real model filling RAM + swap until systemd-oomd fired.
+    """
+    from brainforge.training.preflight import _auto_fit
+
+    model = _fake_model_info(params=8_000_000_000, hidden=4096, layers=36)
+    config = _fake_training_config()
+    with pytest.raises(BrainforgeError, match=r"does not fit|too large"):
+        _auto_fit(model, config, [_fake_cpu_device()], system_ram=16 * 1024**3)
+
+
+def test_auto_fit_cpu_uses_ram_and_resolves_real_plan():
+    """CPU budget comes from system RAM; small models keep their seq (fp32)."""
+    from brainforge.training.preflight import _auto_fit
+
+    model = _fake_model_info(params=1_700_000_000, hidden=2048, layers=28)
+    config = _fake_training_config(max_length=4096, batch_size=1, gradient_accumulation=8)
+    result = _auto_fit(model, config, [_fake_cpu_device()], system_ram=16 * 1024**3)
+    assert result.max_length == 4096
+    assert not result.adjustments
+
+
+def test_auto_fit_no_budget_skips_with_warning(monkeypatch):
+    """psutil absent (no RAM budget on CPU): skip fit with a warning, never raise."""
+    from brainforge.training.preflight import _auto_fit
+
+    model = _fake_model_info(params=1_700_000_000, hidden=2048, layers=28)
+    config = _fake_training_config(max_length=4096, batch_size=1, gradient_accumulation=8)
+    monkeypatch.setitem(sys.modules, "psutil", None)
+    result = _auto_fit(model, config, [_fake_cpu_device()], system_ram=None)
+    assert result.max_length == 4096
+    assert any("skipped" in a for a in result.adjustments)
+
+
+def test_auto_fit_kd_uses_kd_plan():
+    """kd=True flows into plan resolution like the qlora path does."""
+    from brainforge.training.preflight import _auto_fit
+
+    model = _fake_model_info(params=1_700_000_000, hidden=2048, layers=28)
+    config = _fake_training_config(max_length=4096, batch_size=1, gradient_accumulation=8)
+    result = _auto_fit(model, config, [_fake_device(memory_total=10 * 1024**3)], kd=True)
+    assert result.max_length == 4096
+    assert not result.adjustments
 
 
 def test_auto_fit_impossible():
@@ -416,7 +465,7 @@ def test_auto_fit_impossible():
     model = _fake_model_info(params=80_000_000_000, hidden=8192, layers=80)
     config = _fake_training_config(max_length=4096, batch_size=1, gradient_accumulation=8)
     devices = [_fake_device(memory_total=8 * 1024**3)]
-    with pytest.raises(BrainforgeError, match=r"impossible|too large|no fit"):
+    with pytest.raises(BrainforgeError, match=r"does not fit|too large|impossible"):
         _auto_fit(model, config, devices, system_ram=8 * 1024**3)
 
 
@@ -432,31 +481,33 @@ def test_auto_fit_warmup_warning():
 
 
 def test_auto_fit_agnostic_mps():
-    """Works with MPS device info (Apple Silicon): no CUDA-specific code."""
+    """Works with MPS device info (Apple Silicon): no CUDA-specific code.
+
+    MPS has no queryable VRAM, so the budget comes from system RAM.
+    """
     from brainforge.training.preflight import _auto_fit
 
     model = _fake_model_info(params=1_700_000_000, hidden=2048, layers=28)
     config = _fake_training_config(max_length=4096, batch_size=1, gradient_accumulation=8)
     devices = [_fake_device(memory_total=16 * 1024**3, kind="mps")]
-    result = _auto_fit(model, config, devices)
+    result = _auto_fit(model, config, devices, system_ram=16 * 1024**3)
     assert result.max_length == 4096
     assert not result.adjustments
 
 
 def test_user_set_seq_respected_with_warning():
     """User explicitly sets max_length != default: auto-fit respects it,
-    warns if CPU offload needed, suggests better value."""
+    warns when the estimate says it will not fit."""
     from brainforge.training.preflight import _auto_fit
 
-    model = _fake_model_info(params=8_000_000_000, hidden=4096, layers=36)
+    model = _fake_model_info(params=12_000_000_000, hidden=5120, layers=40)
     config = _fake_training_config(max_length=4096, batch_size=1, gradient_accumulation=8)
-    gpu = _fake_device(memory_total=4 * 1024**3)
+    gpu = _fake_device(memory_total=10 * 1024**3)
     result = _auto_fit(model, config, [gpu], system_ram=32 * 1024**3)
     # user set 4096 (non-default): respected
     assert result.max_length == 4096
-    # but warned about CPU offload
-    assert result.cpu_offload
-    assert any("2048" in a or "seq" in a.lower() for a in result.adjustments)
+    # but warned that the estimate does not fit
+    assert any("may not fit" in a for a in result.adjustments)
 
 
 def test_auto_fit_user_override_preserved():
@@ -518,6 +569,19 @@ def _fake_device(memory_total: int, kind: str = "cuda") -> DeviceInfo:
     )
 
 
+def _fake_cpu_device() -> DeviceInfo:
+    """CPU device as detect_devices() reports it: no queryable memory."""
+    return DeviceInfo(
+        kind="cpu",
+        device="cpu",
+        name="CPU",
+        total_memory=None,
+        free_memory=None,
+        bf16=False,
+        fp16=False,
+    )
+
+
 def test_auto_fit_config_public_helper(tmp_path, monkeypatch):
     """auto_fit_config: fit to hardware, apply result, return warnings list."""
     model = _fake_model_info(params=1_700_000_000, hidden=2048, layers=28)
@@ -575,3 +639,48 @@ def test_train_student_applies_auto_fit(tmp_path, monkeypatch):
     assert calls["inspect"] == 1  # wiring ran exactly once
     assert captured["config"].max_length < 4096  # 8B on 8GB: seq reduced
     assert captured["config"].max_length >= 1024
+
+
+def test_train_student_applies_auto_fit_kd(tmp_path, monkeypatch):
+    """KD branch wires auto_fit_config(kd=True) before dispatching to train_kd."""
+    from brainforge.cli.train_cmd import train_student
+
+    model = _fake_model_info(params=8_000_000_000, hidden=4096, layers=36)
+    device = _fake_device(memory_total=8 * 1024**3)
+    calls = {"inspect": 0}
+
+    def fake_inspect(_m):
+        calls["inspect"] += 1
+        return model
+
+    monkeypatch.setattr(preflight, "detect_devices", lambda: [device])
+    monkeypatch.setattr(preflight, "inspect_model", fake_inspect)
+    train = tmp_path / "train.jsonl"
+    train.write_text('{"messages": []}\n' * 64)
+    captured: dict = {}
+
+    def fake_kd(config, dataset_dir, output_dir, resume=False):
+        captured["config"] = config
+        return {"output_dir": str(output_dir)}
+
+    import brainforge.training.kd as kd_mod
+
+    monkeypatch.setattr(kd_mod, "train_kd", fake_kd)
+    train_student(_fake_training_config(), train.parent, tmp_path / "out", kd=True)
+    assert calls["inspect"] == 1  # KD path runs the same auto-fit wiring
+    assert captured["config"].max_length < 4096  # 8B on 8GB: seq reduced
+
+
+def test_auto_fit_config_skips_when_metadata_unavailable(tmp_path, monkeypatch):
+    """Offline or gated model metadata must not block training: warn and skip."""
+    device = _fake_device(memory_total=10 * 1024**3)
+    monkeypatch.setattr(preflight, "detect_devices", lambda: [device])
+
+    def boom(_m):
+        raise BrainforgeError("model 'x' has no config.json")
+
+    monkeypatch.setattr(preflight, "inspect_model", boom)
+    config = _fake_training_config()
+    new_config, warnings = preflight.auto_fit_config(config, tmp_path)
+    assert new_config.max_length == config.max_length
+    assert any("auto-fit skipped" in w for w in warnings)

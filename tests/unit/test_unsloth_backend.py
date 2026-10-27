@@ -175,7 +175,7 @@ def test_unsloth_rejects_8bit_quantization(fake_training_modules, tmp_path):
         train_unsloth(config, _dataset_dir(tmp_path), tmp_path / "run")
 
 
-def test_cli_backend_flag_dispatches_unsloth(fake_training_modules, project_env):
+def test_cli_backend_flag_dispatches_unsloth(fake_training_modules, project_env, auto_fit_stub):
     dataset_dir = _dataset_dir(project_env)
     result = runner.invoke(
         app, ["train", "run", "--dataset-dir", str(dataset_dir), "--backend", "unsloth"]
@@ -185,7 +185,7 @@ def test_cli_backend_flag_dispatches_unsloth(fake_training_modules, project_env)
     assert "backend: unsloth" in result.output
 
 
-def test_cli_default_backend_uses_qlora(fake_training_modules, project_env):
+def test_cli_default_backend_uses_qlora(fake_training_modules, project_env, auto_fit_stub):
     dataset_dir = _dataset_dir(project_env)
     result = runner.invoke(app, ["train", "run", "--dataset-dir", str(dataset_dir)])
     assert result.exit_code == 0, result.output

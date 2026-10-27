@@ -61,7 +61,7 @@ def _training_config():
     return TrainingConfig()
 
 
-def test_cli_train_run_fails_cleanly_without_gpu(project_env, monkeypatch):
+def test_cli_train_run_fails_cleanly_without_gpu(project_env, monkeypatch, auto_fit_stub):
     dataset_dir = project_env / "datasets" / "prepared"
     dataset_dir.mkdir(parents=True)
     split = [{"id": "x", "messages": [{"role": "user", "content": "hi"}], "metadata": {}}]
@@ -72,7 +72,7 @@ def test_cli_train_run_fails_cleanly_without_gpu(project_env, monkeypatch):
     assert "training failed" in result.output
 
 
-def test_cli_train_run_resume_flag_fails_cleanly_without_gpu(project_env):
+def test_cli_train_run_resume_flag_fails_cleanly_without_gpu(project_env, auto_fit_stub):
     dataset_dir = project_env / "datasets" / "prepared"
     dataset_dir.mkdir(parents=True)
     split = [{"id": "x", "messages": [{"role": "user", "content": "hi"}], "metadata": {}}]
@@ -138,7 +138,7 @@ def test_latest_checkpoint_ignores_non_numeric_names(tmp_path):
     assert _latest_checkpoint(tmp_path) == tmp_path / "checkpoint-42"
 
 
-def test_cli_train_run_resume_reuses_latest_run(project_env, monkeypatch):
+def test_cli_train_run_resume_reuses_latest_run(project_env, monkeypatch, auto_fit_stub):
     calls = {}
 
     def fake_train_qlora(config, dataset_dir, output_dir, resume=False):

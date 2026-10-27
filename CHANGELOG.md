@@ -7,15 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Auto-fit now estimates against the training plan that will actually run
+  (`resolve_plan`) instead of a hardcoded QLoRA/4bit plan: on CPU the real
+  plan is fp32/none (4 bytes/param), so the previous verdict was ~7x
+  optimistic and real training runs OOM-killed whole desktop sessions
+  (systemd-oomd killed the GNOME session on 2026-10-27). The device budget
+  is free VRAM on CUDA/ROCm/XPU and available system RAM minus a safety
+  margin (`max(2 GiB, 15%)`) on CPU/MPS (psutil, cross-platform). A model
+  whose weights+adapters+optimizer floor does not fit the budget is now
+  refused with an actionable error before `from_pretrained` runs. The
+  dead `cpu_offload` flag was removed: it was never consumed and CPU
+  offload was never implemented. KD training now runs the same auto-fit
+  wiring. Model metadata or hardware detection failures degrade to an
+  "auto-fit skipped" warning instead of blocking training or hitting the
+  Hub on every run.
+
 ### Added
 
-- Auto-fit for training: `_auto_fit()` in preflight computes VRAM/RAM
-  budget from detected devices (CUDA/ROCm/XPU/MPS/CPU agnostic) and
-  automatically reduces `max_length`/`batch_size` when the model does
-  not fit, with explicit adjustment logging. If only CPU offload fits,
-  warns about 5-20x throughput penalty. User-set config values are
-  respected (not silently overridden) with warnings including
-  recommended alternatives. Warmup-steps >= total-steps warning added.
+- Auto-fit for training: `_auto_fit()` in preflight computes a device
+  memory budget (CUDA/ROCm/XPU/MPS/CPU agnostic) and automatically
+  reduces `max_length`/`batch_size` when activations do not fit, with
+  explicit adjustment logging. User-set config values are respected
+  (not silently overridden) with a "may not fit" warning. Warmup-steps
+  >= total-steps warning added.
 
 ### Added
 
