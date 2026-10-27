@@ -42,7 +42,7 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v7
-      - uses: jdx/mise-action@v4
+      - uses: jdx/mise-action@v5
       - name: Sync training dependencies
         run: uv sync --extra training
       - name: Run training smoke
@@ -62,7 +62,7 @@ jobs:
       HF_HOME: ${{ github.workspace }}/.hf-cache
     steps:
       - uses: actions/checkout@v7
-      - uses: jdx/mise-action@v4
+      - uses: jdx/mise-action@v5
       - name: Sync training dependencies
         run: uv sync --extra training
       - name: Resolve dataset dir
