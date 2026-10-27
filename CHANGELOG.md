@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Regenerated `config/schema.json`: the GRPO strategy/reward fields from
+  #49 landed in `src/brainforge/config/models.py` without regenerating the
+  schema, leaving `config schema --check` (and CI) red on `main`.
 - Auto-fit now estimates against the training plan that will actually run
   (`resolve_plan`) instead of a hardcoded QLoRA/4bit plan: on CPU the real
   plan is fp32/none (4 bytes/param), so the previous verdict was ~7x
