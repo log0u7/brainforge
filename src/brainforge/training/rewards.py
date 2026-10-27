@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 
 # CTF flag formats: name{...} - covers flag{}, FCSC{}, WQB{...} etc.
-_FLAG_RE = re.compile(r"\b[A-Za-z][A-Za-z0-9_]{2,31}\{[^{}\s]{4,}\}")
+_FLAG_RE = re.compile(r"\b[A-Za-z][A-Za-z0-9_]{0,31}\{[^{}\s]{2,}\}")
 
 # refusal markers (abliteration realignment: a compliant answer scores,
 # a refusal on a benign prompt is the failure mode we train away)
@@ -56,10 +56,14 @@ def flag_reward(completions: list[str], expected_flag: list[str], **_: object) -
     for completion, expected in zip(completions, expected_flag, strict=False):
         found = extract_flag(_as_text(completion))
         if found is None:
+            # no flag-shaped token at all
             rewards.append(ZERO_REWARD)
-        elif expected and found.strip().lower() == expected.strip().lower():
-            rewards.append(FULL_REWARD)
+        elif expected:
+            # verified tier: ground truth known, wrong flag = zero
+            match = found.strip().lower() == expected.strip().lower()
+            rewards.append(FULL_REWARD if match else ZERO_REWARD)
         else:
+            # tier-B: ground truth unknown, parseable flag = partial credit
             rewards.append(FORMAT_REWARD)
     return rewards
 
