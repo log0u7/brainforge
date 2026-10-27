@@ -124,7 +124,14 @@ class KDDataCollator:
             batch["attention_mask"][row, : len(ids)] = 1
             labels = torch.tensor(feature["labels"], dtype=torch.long)
             batch["labels"][row, : len(labels)] = labels
-        batch["kd_targets"] = [feature["kd_targets"] for feature in features]
+        # kd_targets arrive as JSON strings (arrow cannot type the
+        # heterogeneous [str, float] topk pairs) - decode here.
+        batch["kd_targets"] = [
+            json.loads(feature["kd_targets"])
+            if isinstance(feature["kd_targets"], str)
+            else feature["kd_targets"]
+            for feature in features
+        ]
         return batch
 
 
@@ -283,26 +290,26 @@ def train_kd(
     # fingerprints closures unstably - train and eval builders collided on
     # the same cache dir and self-locked on Windows (WinError 32, observed
     # on gpu3080).
-    train_rows = list(
-        _kd_row_stream(
-            records_path=train_path,
-            teacher_by_id=teacher_by_id,
-            tokenizer=tokenizer,
-            content_digest=file_digest(train_path),
-        )
-    )
-    train_dataset = Dataset.from_list(train_rows)
-    eval_dataset = (
-        Dataset.from_list(
-            list(
-                _kd_row_stream(
-                    records_path=validation_path,
-                    teacher_by_id=teacher_by_id,
-                    tokenizer=tokenizer,
-                    content_digest=file_digest(validation_path),
-                )
+    def _materialize(records_path: Path) -> list[dict]:
+        rows = list(
+            _kd_row_stream(
+                records_path=records_path,
+                teacher_by_id=teacher_by_id,
+                tokenizer=tokenizer,
+                content_digest=file_digest(records_path),
             )
         )
+        # Arrow cannot type the heterogeneous [str, float] topk pairs inside
+        # kd_targets (WinError-free but ArrowInvalid "cannot mix list and
+        # non-list"): the column travels as a JSON string and the data
+        # collator decodes it.
+        for row in rows:
+            row["kd_targets"] = json.dumps(row["kd_targets"], default=list)
+        return rows
+
+    train_dataset = Dataset.from_list(_materialize(train_path))
+    eval_dataset = (
+        Dataset.from_list(_materialize(validation_path))
         if validation_path.exists() and any(True for _ in iter_jsonl(validation_path))
         else None
     )
