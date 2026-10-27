@@ -1,4 +1,5 @@
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import httpx
@@ -16,6 +17,11 @@ from brainforge.providers.base import (
 from brainforge.types import ApiStyle
 
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+
+
+def _create_call(create: Any, kwargs: dict[str, Any]) -> Any:
+    """Module-level target for the wall-clock guard thread (mypy-friendly)."""
+    return create(**kwargs)
 
 
 class OpenAICompatProvider(Provider):
@@ -60,12 +66,25 @@ class OpenAICompatProvider(Provider):
             kwargs["max_tokens"] = request.max_tokens
         attempts = self.config.max_retries + 1
         last_error: Exception | None = None
+        deadline = self.config.timeout + 30.0
         for attempt in range(attempts):
             try:
                 start = time.perf_counter()
-                response = self._client.chat.completions.create(**kwargs)
+                # httpx read timeouts bound the time BETWEEN chunks, so a
+                # drip-feeding stream can hang a call past any read timeout
+                # (observed twice on gpu3080: pipeline frozen mid-batch at
+                # zero CPU). Run the call in a worker thread and enforce a
+                # wall-clock deadline here; the orphaned request thread dies
+                # with the process.
+                with ThreadPoolExecutor(max_workers=1) as pool:
+                    future = pool.submit(_create_call, self._client.chat.completions.create, kwargs)
+                    response = future.result(timeout=deadline)
                 latency_ms = (time.perf_counter() - start) * 1000
                 return response, latency_ms, attempt
+            except TimeoutError as exc:
+                last_error = exc
+                if attempt < attempts - 1:
+                    time.sleep(min(2**attempt * 0.5, 8.0))
             except (APITimeoutError, APIConnectionError, APIStatusError) as exc:
                 status = getattr(exc, "status_code", None)
                 if isinstance(exc, APIStatusError) and status not in _RETRYABLE_STATUS:
