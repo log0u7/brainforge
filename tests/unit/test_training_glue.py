@@ -113,11 +113,13 @@ def test_latest_run_dir_respects_config_output_dir(project_env):
 
 
 def test_train_qlora_resume_without_checkpoint_starts_fresh(tmp_path):
-    """--resume with no checkpoints yet: proceeds to a fresh start (the
-    checkpoint error must not fire; the next failure is the empty split)."""
+    """--resume with no checkpoints yet: the 'no checkpoint' error must not
+    fire (fresh start, PR 36). Whatever fails next is env-dependent (torch
+    in CI, empty split locally) - only the checkpoint error is asserted out."""
     output_dir = tmp_path / "run"
-    with pytest.raises(BrainforgeError, match="empty dataset split"):
+    with pytest.raises(BrainforgeError) as excinfo:
         train_qlora(_training_config(), tmp_path, output_dir, resume=True)
+    assert "no checkpoint" not in str(excinfo.value)
 
 
 def test_latest_checkpoint_sorts_numerically(tmp_path):
