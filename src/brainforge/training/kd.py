@@ -329,7 +329,12 @@ def train_kd(
     trainer = _KDTrainer(
         model=model,
         args=TrainingArguments(
-            **_trainer_kwargs(config, output_dir, eval_dataset is not None, plan)
+            **{
+                **_trainer_kwargs(config, output_dir, eval_dataset is not None, plan),
+                # the KDDataCollator needs the kd_targets column: the default
+                # remove_unused_columns=True strips it before the collator
+                "remove_unused_columns": False,
+            }
         ),
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
