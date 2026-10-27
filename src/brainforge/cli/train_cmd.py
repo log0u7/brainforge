@@ -113,6 +113,8 @@ def train_student(
         console.print(f"[yellow]auto-fit:[/yellow] {line}")
     if kd:
         from brainforge.training.kd import train_kd as train_fn
+    elif getattr(training, "strategy", "") == "grpo":
+        from brainforge.training.grpo import train_grpo as train_fn
     elif training.backend == "unsloth":
         from brainforge.training.unsloth_backend import train_unsloth as train_fn
     else:
@@ -148,7 +150,7 @@ def check(
         "-m",
         help="Hugging Face id or local model directory (default: config base_model)",
     ),
-    strategy: Literal["qlora", "full"] | None = typer.Option(
+    strategy: Literal["qlora", "full", "grpo"] | None = typer.Option(
         None, "--strategy", help="Override config training strategy"
     ),
     quantization: Literal["auto", "4bit", "8bit", "none"] | None = typer.Option(
