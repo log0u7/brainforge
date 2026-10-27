@@ -204,3 +204,41 @@ def test_smoke_cpu_fails_when_deps_missing(monkeypatch):
     from brainforge.training import smoke_cpu
 
     assert smoke_cpu.main() == 1
+
+
+
+def test_resolve_run_output_dir_resume_no_runs_falls_back(tmp_path, monkeypatch):
+    from brainforge.config.models import TrainingConfig
+    """--resume with zero run dirs: new run dir instead of crash."""
+    from brainforge.cli.train_cmd import resolve_run_output_dir
+    from brainforge.errors import BrainforgeError
+
+    def raise_no_runs(base=None):
+        raise BrainforgeError("no training runs found under ...")
+
+    monkeypatch.setattr("brainforge.cli.train_cmd.latest_run_dir", raise_no_runs)
+    training = TrainingConfig()
+    training = training.model_copy(update={"output_dir": str(tmp_path / "exp")})
+    out = resolve_run_output_dir(True, None, training, "run-x")
+    assert out == tmp_path / "exp" / "run-x"
+
+
+def test_resolve_run_output_dir_resume_picks_latest(tmp_path, monkeypatch):
+    from brainforge.config.models import TrainingConfig
+    from brainforge.cli.train_cmd import resolve_run_output_dir
+
+    monkeypatch.setattr(
+        "brainforge.cli.train_cmd.latest_run_dir", lambda base=None: Path("/picked")
+    )
+    training = TrainingConfig()
+    out = resolve_run_output_dir(True, None, training, "run-x")
+    assert out == Path("/picked")
+
+
+def test_resolve_run_output_dir_explicit_output_wins(tmp_path):
+    from brainforge.config.models import TrainingConfig
+    from brainforge.cli.train_cmd import resolve_run_output_dir
+
+    training = TrainingConfig()
+    out = resolve_run_output_dir(True, tmp_path / "custom", training, "run-x")
+    assert out == tmp_path / "custom"

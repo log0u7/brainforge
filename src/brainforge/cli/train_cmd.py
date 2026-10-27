@@ -18,6 +18,26 @@ app = typer.Typer(
 )
 
 
+def resolve_run_output_dir(
+    resume: bool,
+    output: Path | str | None,
+    training: "TrainingConfig",
+    run_name: str,
+) -> Path:
+    """Pick the output dir for a training run.
+
+    --resume reuses the latest run dir; on a fresh install (no run dirs
+    yet) it falls back to a new run dir instead of crashing - service
+    supervisors (nssm restart loops) must boot clean.
+    """
+    if resume and output is None:
+        try:
+            return latest_run_dir(base=Path(training.output_dir))
+        except BrainforgeError:
+            return Path(training.output_dir) / run_name
+    return Path(output) if output else Path(training.output_dir) / run_name
+
+
 def latest_run_dir(base: Path | None = None) -> Path:
     """Resolve the most recent training run directory, by modification time."""
     if base is None:
@@ -246,10 +266,7 @@ def run(
     if updates:
         training = training.model_copy(update=updates)
     run_name = datetime.now().strftime("run-%Y%m%d-%H%M%S-%f")
-    if resume and output is None:
-        output_dir = latest_run_dir(base=Path(training.output_dir))
-    else:
-        output_dir = output or Path(training.output_dir) / run_name
+    output_dir = resolve_run_output_dir(resume, output, training, run_name)
     summary = train_student(training, dataset_dir, output_dir, resume=resume, kd=kd)
     console.print(f"[green]training done[/green] -> {summary['output_dir']}")
     for key, value in summary.items():
