@@ -53,14 +53,22 @@ def train_grpo(
     dataset_dir: Path | str,
     output_dir: Path | str,
     resume: bool | str | Path = False,
-    reward: str = "flag",
+    reward: str = "",
+    domain: str | None = None,
 ) -> dict:
-    """GRPO fine-tune with verifiable rewards; saves the adapter."""
+    """GRPO fine-tune with verifiable rewards; saves the adapter.
+
+    Reward resolution order: explicit ``reward`` spec (registry name or
+    weighted composition "name*w,name2") -> domain pack hook ->
+    error. Nothing is silently defaulted: an unusable reward must fail
+    before training starts.
+    """
     from trl import GRPOConfig, GRPOTrainer
 
+    from brainforge.domains.registry import get_or_generic
     from brainforge.training.hardware import plan_for_config
     from brainforge.training.qlora import _lora_config, _quantization_config
-    from brainforge.training.rewards import compliance_reward, flag_reward
+    from brainforge.training.rewards import compose_reward, get_reward
 
     dataset_dir = Path(dataset_dir)
     output_dir = Path(output_dir)
@@ -79,7 +87,16 @@ def train_grpo(
 
     flags = _load_flags(dataset_dir)
 
-    reward_fn = flag_reward if reward == "flag" else compliance_reward
+    spec = reward or getattr(config, "grpo_reward", "")
+    if not spec and domain:
+        spec = get_or_generic(domain).grpo_reward() or ""
+    if not spec:
+        raise BrainforgeError(
+            "no GRPO reward: pass --grpo-reward (registry name or "
+            "'name*w,...' composition), set training.grpo_reward, or use "
+            "a domain pack that declares grpo_reward()"
+        )
+    reward_fn = compose_reward(spec) if ("," in spec or "*" in spec) else get_reward(spec)
 
     grpo_config = GRPOConfig(
         output_dir=str(output_dir),
@@ -104,7 +121,7 @@ def train_grpo(
         model=config.base_model,
         args=grpo_config,
         train_dataset=rows,
-        reward_funcs=[cast(Any, _reward_with_flags if reward == "flag" and flags else reward_fn)],
+        reward_funcs=[cast(Any, _reward_with_flags if flags else reward_fn)],
         peft_config=_lora_config(config),
     )
 
@@ -114,7 +131,7 @@ def train_grpo(
     summary = {
         "base_model": config.base_model,
         "backend": "trl-grpo",
-        "reward": reward,
+        "reward": spec,
         "n_prompts": len(rows),
         "output_dir": str(output_dir),
     }

@@ -3,11 +3,16 @@
 Pure functions: no torch, no model - they score generated strings so the
 unit tests can run without the training extra (GRPOTrainer wires them in
 at runtime).
+
+Rewards are registered in a global registry so domain packs can expose
+them (CtfPack -> "ctf_flag") and training configs can compose several
+weighted rewards: "ctf_flag*1.0,compliance*0.5".
 """
 
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 
 # CTF flag formats: name{...} - covers flag{}, FCSC{}, WQB{...} etc.
 _FLAG_RE = re.compile(r"\b[A-Za-z][A-Za-z0-9_]{0,31}\{[^{}\s]{2,}\}")
@@ -24,6 +29,49 @@ FULL_REWARD = 1.0
 FORMAT_REWARD = 0.3
 ZERO_REWARD = 0.0
 COMPLIANCE_REWARD = 1.0
+
+RewardFn = Callable[..., list[float]]
+
+_REWARD_REGISTRY: dict[str, RewardFn] = {}
+
+
+def register_reward(name: str, fn: RewardFn) -> None:
+    _REWARD_REGISTRY[name] = fn
+
+
+def get_reward(name: str) -> RewardFn:
+    if name not in _REWARD_REGISTRY:
+        raise KeyError(f"unknown GRPO reward '{name}' (known: {sorted(_REWARD_REGISTRY)})")
+    return _REWARD_REGISTRY[name]
+
+
+def reward_names() -> list[str]:
+    return sorted(_REWARD_REGISTRY)
+
+
+def compose_reward(spec: str) -> RewardFn:
+    """Compose weighted rewards: 'ctf_flag,compliance*0.5' (default weight 1)."""
+    parts: list[tuple[RewardFn, float]] = []
+    for token in spec.split(","):
+        token = token.strip()
+        if not token:
+            continue
+        if "*" in token:
+            name, weight = token.rsplit("*", 1)
+            parts.append((get_reward(name.strip()), float(weight)))
+        else:
+            parts.append((get_reward(token), 1.0))
+    if not parts:
+        raise KeyError(f"empty reward spec '{spec}'")
+
+    def _composed(completions: list, **kwargs: object) -> list[float]:
+        totals = [0.0] * len(completions)
+        for fn, weight in parts:
+            for i, value in enumerate(fn(completions, **kwargs)):
+                totals[i] += weight * value
+        return totals
+
+    return _composed
 
 
 def _as_text(completion: object) -> str:
@@ -45,7 +93,7 @@ def extract_flag(text: str) -> str | None:
     return match.group(0) if match else None
 
 
-def flag_reward(completions: list[str], expected_flag: list[str], **_: object) -> list[float]:
+def flag_reward(completions: list, expected_flag: list[str], **_: object) -> list[float]:
     """GRPO reward: exact expected flag = 1.0, valid format = 0.3, else 0.
 
     ``expected_flag`` arrives as a dataset column via GRPOTrainer kwargs;
@@ -68,7 +116,7 @@ def flag_reward(completions: list[str], expected_flag: list[str], **_: object) -
     return rewards
 
 
-def compliance_reward(completions: list[str], **_: object) -> list[float]:
+def compliance_reward(completions: list, **_: object) -> list[float]:
     """GRPO-oblit reward: 1.0 when the completion answers without refusing.
 
     Used AFTER abliteration: weight orthogonalization removes the refusal
@@ -78,3 +126,7 @@ def compliance_reward(completions: list[str], **_: object) -> list[float]:
     return [
         ZERO_REWARD if _REFUSAL_RE.search(_as_text(c)) else COMPLIANCE_REWARD for c in completions
     ]
+
+
+register_reward("ctf_flag", flag_reward)
+register_reward("compliance", compliance_reward)
