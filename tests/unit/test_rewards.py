@@ -63,3 +63,36 @@ def test_compliance_reward_rewards_answer():
 
 def test_compliance_reward_catches_ai_tic():
     assert compliance_reward(["As an AI language model, I can't assist."]) == [ZERO_REWARD]
+
+
+def test_reward_registry_resolves_registered_names():
+    from brainforge.training.rewards import get_reward, reward_names
+
+    assert "ctf_flag" in reward_names()
+    assert "compliance" in reward_names()
+    assert callable(get_reward("ctf_flag"))
+
+
+def test_reward_registry_unknown_name_raises():
+    import pytest
+
+    from brainforge.training.rewards import get_reward
+
+    with pytest.raises(KeyError, match="unknown GRPO reward"):
+        get_reward("does_not_exist")
+
+
+def test_compose_reward_weighted_sum():
+    from brainforge.training.rewards import compose_reward
+
+    fn = compose_reward("ctf_flag,compliance*0.5")
+    completions = ["WQB{good}"]  # exact flag AND compliant
+    assert fn(completions, expected_flag=["WQB{good}"]) == [1.0 + 0.5 * 1.0]
+
+
+def test_compose_reward_mixed_signals():
+    from brainforge.training.rewards import compose_reward
+
+    fn = compose_reward("ctf_flag,compliance*0.5")
+    completions = ["I cannot answer."]  # no flag AND refusal
+    assert fn(completions, expected_flag=["WQB{good}"]) == [0.0 + 0.5 * 0.0]

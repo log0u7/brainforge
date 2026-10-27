@@ -104,6 +104,9 @@ class CtfPack(DomainPack):
             previous=format_previous_results(previous_results),
         )
 
+    def grpo_reward(self) -> str | None:
+        return "ctf_flag"
+
     def quality_gate(
         self,
         kind: RoleKind,

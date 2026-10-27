@@ -106,6 +106,12 @@ class DomainPack(ABC):
     description: str = ""
     recommended_steps: ClassVar[dict[Mode, list[str]]] = {}
 
+    def grpo_reward(self) -> str | None:
+        """Verifiable GRPO reward name for this domain, or None when the
+        domain has no reinforcement-learning signal (see
+        brainforge.training.rewards registry)."""
+        return None
+
     @abstractmethod
     def output_schema(self, kind: RoleKind) -> type[BaseModel]:
         pass
