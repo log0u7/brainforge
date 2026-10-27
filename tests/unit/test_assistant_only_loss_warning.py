@@ -68,7 +68,9 @@ def test_counts_across_records(tmp_path):
     assert "2" in warning
 
 
-def test_train_student_prints_warning_for_agentic_split(tmp_path, monkeypatch, capsys):
+def test_train_student_prints_warning_for_agentic_split(
+    tmp_path, monkeypatch, capsys, auto_fit_stub
+):
     import brainforge.cli.train_cmd as train_cmd
 
     path = _write(tmp_path, [_record("user", "assistant", "tool", "assistant")])
@@ -95,7 +97,7 @@ def test_train_student_prints_warning_for_agentic_split(tmp_path, monkeypatch, c
     assert summary["output_dir"].endswith("out")
 
 
-def test_train_student_suppresses_warning_on_kd_path(tmp_path, monkeypatch, capsys):
+def test_train_student_suppresses_warning_on_kd_path(tmp_path, monkeypatch, capsys, auto_fit_stub):
     import brainforge.cli.train_cmd as train_cmd
 
     path = _write(tmp_path, [_record("user", "assistant", "tool", "assistant")])

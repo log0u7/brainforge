@@ -5,6 +5,17 @@ import pytest
 
 
 @pytest.fixture
+def auto_fit_stub(monkeypatch):
+    """Hermetic auto-fit for CLI tests: no hardware detection, no Hub calls."""
+    from brainforge.training import preflight
+
+    def _stub(training, dataset_dir, *, kd=False):
+        return training, ["auto-fit skipped in tests"]
+
+    monkeypatch.setattr(preflight, "auto_fit_config", _stub)
+
+
+@pytest.fixture
 def project_env(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "config").mkdir()

@@ -337,7 +337,6 @@ class AutoFitResult:
     batch_size: int
     gradient_accumulation: int
     adjustments: list[str]
-    cpu_offload: bool
 
 
 def _user_set(config: TrainingConfig, field: str, default: int) -> bool:
@@ -355,32 +354,81 @@ def _warmup_warning(config: TrainingConfig, total_steps: int | None) -> str | No
     return None
 
 
+def _device_budget(device: DeviceInfo, ram_available: int | None) -> int | None:
+    """Training memory budget for a device.
+
+    Accelerators get their free VRAM (or 90% of total when free is unknown);
+    cpu/mps/tpu/npu train out of system RAM: available memory minus a safety
+    margin, since the desktop and everything else keeps running alongside.
+    """
+    if device.kind in ("cuda", "rocm", "xpu"):
+        if device.free_memory is not None:
+            return device.free_memory
+        if device.total_memory is not None:
+            return int(device.total_memory * 0.9)
+        return None
+    if ram_available is None:
+        return None
+    margin = max(2 * 1024**3, int(ram_available * 0.15))
+    return max(0, ram_available - margin)
+
+
+def _system_ram() -> int | None:
+    """Currently available system RAM, or None when psutil is missing."""
+    try:
+        import psutil
+    except ImportError:
+        return None
+    return int(psutil.virtual_memory().available)
+
+
+def _too_large_error(
+    model: ModelInfo, plan: TrainingPlan, device: DeviceInfo, floor_gb: float, budget: int
+) -> BrainforgeError:
+    if device.kind in ("cuda", "rocm", "xpu"):
+        hint = "use a smaller student model, or train on CPU with --device cpu (slow)"
+    else:
+        hint = "use a smaller student model, or train on a machine with a GPU"
+    return BrainforgeError(
+        f"model '{model.id}' does not fit {device.kind}: training needs at least "
+        f"~{floor_gb:.1f} GB (weights + adapters + optimizer, {plan.dtype}"
+        f"{'/' + plan.quantization if plan.quantization != 'none' else ''}) but the "
+        f"{device.kind} budget is {budget / 1e9:.1f} GB. {hint}. (estimate, not a guarantee)"
+    )
+
+
 def auto_fit_config(
     training: TrainingConfig,
     dataset_dir: Path | str,
+    *,
+    kd: bool = False,
 ) -> tuple[TrainingConfig, list[str]]:
     """Public wiring point: fit seq/batch to hardware, warn on warmup/steps.
 
     Returns (adjusted config, warning lines). Raises BrainforgeError when the
-    model cannot fit on any device (no CPU offload possible either).
+    model cannot fit the device budget. Metadata or hardware detection
+    failures degrade to a skip warning instead of blocking training.
     """
     train_path = Path(dataset_dir) / "train.jsonl"
     rows = 0
     if train_path.exists():
         rows = sum(1 for _ in train_path.open(encoding="utf-8"))
+    base_model = getattr(training, "base_model", "")
     try:
         devices = detect_devices()
     except BrainforgeError as exc:
-        # no torch / no device info (CI, CPU-only boxes): keep the user
-        # config and say why - auto-fit must not block training
         return training, [f"auto-fit skipped: {exc}"]
     if not devices:
+        # merged semantics from PR 42: auto-fit must not block training it
+        # cannot reason about
         return training, ["auto-fit skipped: no compute device detected"]
-    base_model = getattr(training, "base_model", "")
     if not base_model:
         return training, ["auto-fit skipped: no base_model in training config"]
-    model = inspect_model(str(base_model))
-    result = _auto_fit(model, training, devices)
+    try:
+        model = inspect_model(str(base_model))
+    except BrainforgeError as exc:
+        return training, [f"auto-fit skipped: {exc}"]
+    result = _auto_fit(model, training, devices, kd=kd)
     config = training.model_copy(
         update={"max_length": result.max_length, "batch_size": result.batch_size}
     )
@@ -400,72 +448,69 @@ def _auto_fit(
     *,
     system_ram: int | None = None,
     total_steps: int | None = None,
+    kd: bool = False,
 ) -> AutoFitResult:
-    """Find seq/batch that fits the available VRAM, or warn about CPU offload.
+    """Fit seq/batch to the device budget, or refuse with an explicit error.
 
-    If the user explicitly set non-default max_length or batch_size, the
-    values are respected and warned about instead of silently adjusted.
-    Hardware-agnostic: works with any DeviceInfo kind.
+    The plan is the one training will actually use (resolve_plan), not an
+    idealized one: on CPU that means fp32 weights at 4 bytes/param, which is
+    what previously OOM-killed whole desktop sessions. The weights floor
+    (weights + adapters + optimizer) is refused even when the user set
+    max_length/batch_size explicitly; user-touched values are otherwise
+    respected and warned about instead of silently adjusted.
     """
     if not devices:
         raise BrainforgeError("no compute device detected")
     primary = devices[0]
-    vram_budget = primary.total_memory or 0
     if system_ram is None:
-        try:
-            import psutil
-
-            system_ram = psutil.virtual_memory().total
-        except ImportError:
-            system_ram = 0
-
-    if not vram_budget and not (system_ram or 0):
-        # device without memory information (CPU fake envs, exotic backends):
-        # nothing to fit against - keep the user config
-        return AutoFitResult(
-            max_length=config.max_length,
-            batch_size=config.batch_size,
-            gradient_accumulation=config.gradient_accumulation,
-            adjustments=["auto-fit skipped: no device memory information"],
-            cpu_offload=False,
-        )
+        system_ram = _system_ram()
+    budget = _device_budget(primary, system_ram)
 
     user_touched = _user_set(config, "max_length", TrainingConfig().max_length) or _user_set(
         config, "batch_size", TrainingConfig().batch_size
     )
 
-    plan = TrainingPlan(
-        backend="trl",
-        device=primary.device,
-        device_kind=primary.kind,
-        dtype="bfloat16" if primary.bf16 else "float16",
-        quantization="4bit",
-        peft=True,
-        attn_implementation="sdpa",
-        strategy="qlora",
-        effective_strategy="qlora",
-    )
+    plan = resolve_plan(config, primary, kd=kd)
     adjustments: list[str] = []
-    cpu_offload = False
     warmup = _warmup_warning(config, total_steps)
     if warmup:
         adjustments.append(warmup)
+    if budget is None:
+        adjustments.append(
+            f"auto-fit skipped: no memory budget known for {primary.kind}"
+            " (install psutil for CPU/MPS fit checks)"
+        )
+        return AutoFitResult(
+            max_length=config.max_length,
+            batch_size=config.batch_size,
+            gradient_accumulation=config.gradient_accumulation,
+            adjustments=adjustments,
+        )
+    est = estimate_memory(
+        model, plan, config.max_length, config.batch_size, config.lora_rank, budget
+    )
+    if est is None:
+        adjustments.append("auto-fit skipped: model parameter count unknown")
+        return AutoFitResult(
+            max_length=config.max_length,
+            batch_size=config.batch_size,
+            gradient_accumulation=config.gradient_accumulation,
+            adjustments=adjustments,
+        )
+    floor_gb = est.weights_gb + est.adapters_gb + est.optimizer_gb
+    if floor_gb * 1e9 > budget:
+        raise _too_large_error(model, plan, primary, floor_gb, budget)
 
     seq_options = [config.max_length] if user_touched else [4096, 2048, 1024]
     batch_options = [config.batch_size] if user_touched else [2, 1]
-
-    if not user_touched:
-        seq_options = sorted(set(seq_options), reverse=True)
-        batch_options = sorted(set(batch_options), reverse=True)
-
     for seq in seq_options:
         for batch in batch_options:
-            est = estimate_memory(model, plan, seq, batch, config.lora_rank, vram_budget)
-            if est is None or est.fits:
+            fit = estimate_memory(model, plan, seq, batch, config.lora_rank, budget)
+            if fit is None or fit.fits:
                 if seq != config.max_length:
                     adjustments.append(
                         f"max_length adjusted {config.max_length} -> {seq} "
-                        f"(VRAM budget {vram_budget / 1e9:.1f} GB)"
+                        f"(budget {budget / 1e9:.1f} GB)"
                     )
                 if batch != config.batch_size:
                     adjustments.append(f"batch_size adjusted {config.batch_size} -> {batch}")
@@ -474,32 +519,25 @@ def _auto_fit(
                     batch_size=batch,
                     gradient_accumulation=config.gradient_accumulation,
                     adjustments=adjustments,
-                    cpu_offload=False,
                 )
-            if system_ram and est.total_gb * 1e9 <= system_ram:
-                cpu_offload = True
-                if not user_touched:
-                    adjustments.append(
-                        f"CPU offload required at seq={seq}: throughput expected 5-20x slower"
-                    )
-                    continue
-                adjustments.append(
-                    f"CPU offload required at seq={seq}: throughput expected "
-                    "5-20x slower; consider seq=2048"
-                )
-
-    if cpu_offload:
+    if user_touched:
+        adjustments.append(
+            f"max_length={config.max_length} batch_size={config.batch_size} may not fit "
+            f"({est.total_gb:.1f} GB estimated vs {budget / 1e9:.1f} GB budget);"
+            " training proceeds as requested"
+        )
         return AutoFitResult(
             max_length=config.max_length,
             batch_size=config.batch_size,
             gradient_accumulation=config.gradient_accumulation,
             adjustments=adjustments,
-            cpu_offload=True,
         )
+    smallest = estimate_memory(model, plan, 1024, 1, config.lora_rank, budget)
     raise BrainforgeError(
-        f"auto-fit impossible: model too large for available devices "
-        f"(VRAM {vram_budget / 1e9:.1f} GB, system RAM "
-        f"{(system_ram or 0) / 1e9:.1f} GB)"
+        f"auto-fit impossible: model '{model.id}' too large for {primary.kind}: "
+        f"best estimate {(smallest.total_gb if smallest is not None else est.total_gb):.1f} GB "
+        f"exceeds the {budget / 1e9:.1f} GB budget even at seq=1024 batch=1"
+        " (estimate, not a guarantee)"
     )
 
 
