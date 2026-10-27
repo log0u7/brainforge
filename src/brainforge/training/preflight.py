@@ -6,6 +6,7 @@ model weights. Heavy training imports stay lazy.
 
 import importlib.util
 import json
+import math
 import re
 import shutil
 import sys
@@ -327,6 +328,157 @@ def estimate_memory(
         total_gb=total_gb,
         available_gb=available_gb,
         fits=fits,
+    )
+
+
+@dataclass(frozen=True)
+class AutoFitResult:
+    max_length: int
+    batch_size: int
+    gradient_accumulation: int
+    adjustments: list[str]
+    cpu_offload: bool
+
+
+def _user_set(config: TrainingConfig, field: str, default: int) -> bool:
+    return bool(getattr(config, field) != default)
+
+
+def _warmup_warning(config: TrainingConfig, total_steps: int | None) -> str | None:
+    """Warn when warmup_steps would eat the whole run (LR stays at 0)."""
+    if total_steps is not None and config.warmup_steps >= total_steps:
+        return (
+            f"warmup_steps ({config.warmup_steps}) >= total_steps ({total_steps}): "
+            "learning rate will stay at 0, training is a no-op. "
+            "Set warmup_steps=0 for short runs."
+        )
+    return None
+
+
+def auto_fit_config(
+    training: TrainingConfig,
+    dataset_dir: Path | str,
+) -> tuple[TrainingConfig, list[str]]:
+    """Public wiring point: fit seq/batch to hardware, warn on warmup/steps.
+
+    Returns (adjusted config, warning lines). Raises BrainforgeError when the
+    model cannot fit on any device (no CPU offload possible either).
+    """
+    train_path = Path(dataset_dir) / "train.jsonl"
+    rows = 0
+    if train_path.exists():
+        rows = sum(1 for _ in train_path.open(encoding="utf-8"))
+    devices = detect_devices()
+    model = inspect_model(str(training.base_model))
+    result = _auto_fit(model, training, devices)
+    config = training.model_copy(
+        update={"max_length": result.max_length, "batch_size": result.batch_size}
+    )
+    warnings = list(result.adjustments)
+    if rows:
+        steps = math.ceil(rows / (config.batch_size * config.gradient_accumulation)) * config.epochs
+        warmup = _warmup_warning(config, steps)
+        if warmup:
+            warnings.append(warmup)
+    return config, warnings
+
+
+def _auto_fit(
+    model: ModelInfo,
+    config: TrainingConfig,
+    devices: list[DeviceInfo],
+    *,
+    system_ram: int | None = None,
+    total_steps: int | None = None,
+) -> AutoFitResult:
+    """Find seq/batch that fits the available VRAM, or warn about CPU offload.
+
+    If the user explicitly set non-default max_length or batch_size, the
+    values are respected and warned about instead of silently adjusted.
+    Hardware-agnostic: works with any DeviceInfo kind.
+    """
+    if not devices:
+        raise BrainforgeError("no compute device detected")
+    primary = devices[0]
+    vram_budget = primary.total_memory or 0
+    if system_ram is None:
+        try:
+            import psutil
+
+            system_ram = psutil.virtual_memory().total
+        except ImportError:
+            system_ram = 0
+
+    user_touched = _user_set(config, "max_length", TrainingConfig().max_length) or _user_set(
+        config, "batch_size", TrainingConfig().batch_size
+    )
+
+    plan = TrainingPlan(
+        backend="trl",
+        device=primary.device,
+        device_kind=primary.kind,
+        dtype="bfloat16" if primary.bf16 else "float16",
+        quantization="4bit",
+        peft=True,
+        attn_implementation="sdpa",
+        strategy="qlora",
+        effective_strategy="qlora",
+    )
+    adjustments: list[str] = []
+    cpu_offload = False
+    warmup = _warmup_warning(config, total_steps)
+    if warmup:
+        adjustments.append(warmup)
+
+    seq_options = [config.max_length] if user_touched else [4096, 2048, 1024]
+    batch_options = [config.batch_size] if user_touched else [2, 1]
+
+    if not user_touched:
+        seq_options = sorted(set(seq_options), reverse=True)
+        batch_options = sorted(set(batch_options), reverse=True)
+
+    for seq in seq_options:
+        for batch in batch_options:
+            est = estimate_memory(model, plan, seq, batch, config.lora_rank, vram_budget)
+            if est is None or est.fits:
+                if seq != config.max_length:
+                    adjustments.append(
+                        f"max_length adjusted {config.max_length} -> {seq} "
+                        f"(VRAM budget {vram_budget / 1e9:.1f} GB)"
+                    )
+                if batch != config.batch_size:
+                    adjustments.append(f"batch_size adjusted {config.batch_size} -> {batch}")
+                return AutoFitResult(
+                    max_length=seq,
+                    batch_size=batch,
+                    gradient_accumulation=config.gradient_accumulation,
+                    adjustments=adjustments,
+                    cpu_offload=False,
+                )
+            if system_ram and est.total_gb * 1e9 <= system_ram:
+                cpu_offload = True
+                if not user_touched:
+                    adjustments.append(
+                        f"CPU offload required at seq={seq}: throughput expected 5-20x slower"
+                    )
+                    continue
+                adjustments.append(
+                    f"CPU offload required at seq={seq}: throughput expected "
+                    "5-20x slower; consider seq=2048"
+                )
+
+    if cpu_offload:
+        return AutoFitResult(
+            max_length=config.max_length,
+            batch_size=config.batch_size,
+            gradient_accumulation=config.gradient_accumulation,
+            adjustments=adjustments,
+            cpu_offload=True,
+        )
+    raise BrainforgeError(
+        f"auto-fit impossible: model too large for available devices "
+        f"(VRAM {vram_budget / 1e9:.1f} GB, system RAM "
+        f"{(system_ram or 0) / 1e9:.1f} GB)"
     )
 
 

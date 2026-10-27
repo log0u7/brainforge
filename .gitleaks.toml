@@ -1,0 +1,8 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Synthetic UUIDs inside public CTF challenge dumps (fictional content, not credentials)"
+paths = [
+    '''examples/cases/ctf-wqb-incident-001\.json''',
+]

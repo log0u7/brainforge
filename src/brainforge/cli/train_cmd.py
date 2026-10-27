@@ -88,10 +88,16 @@ def train_student(
         console.print(f"[yellow]warning:[/yellow] {warning}")
     if kd:
         from brainforge.training.kd import train_kd as train_fn
-    elif training.backend == "unsloth":
-        from brainforge.training.unsloth_backend import train_unsloth as train_fn
     else:
-        from brainforge.training.qlora import train_qlora as train_fn
+        from brainforge.training.preflight import auto_fit_config
+
+        training, fit_warnings = auto_fit_config(training, dataset_dir)
+        for line in fit_warnings:
+            console.print(f"[yellow]auto-fit:[/yellow] {line}")
+        if training.backend == "unsloth":
+            from brainforge.training.unsloth_backend import train_unsloth as train_fn
+        else:
+            from brainforge.training.qlora import train_qlora as train_fn
     return train_fn(training, dataset_dir, output_dir, resume=resume)
 
 
