@@ -47,7 +47,7 @@ def train_unsloth(
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     if resume:
-        resume = _latest_checkpoint(output_dir)
+        checkpoint = _latest_checkpoint(output_dir)
     _require_unsloth()
     from brainforge.training.hardware import plan_for_config
 
@@ -99,7 +99,7 @@ def train_unsloth(
         eval_dataset=eval_dataset,
         **trainer_kwargs,
     )
-    trainer.train(resume_from_checkpoint=str(resume) if resume else None)
+    trainer.train(resume_from_checkpoint=str(checkpoint) if checkpoint else None)
     model.save_pretrained(str(output_dir))
     tokenizer.save_pretrained(str(output_dir))
     summary = {

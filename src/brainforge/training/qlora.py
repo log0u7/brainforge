@@ -170,7 +170,7 @@ def train_qlora(
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     if resume:
-        resume = _latest_checkpoint(output_dir)
+        checkpoint = _latest_checkpoint(output_dir)
     from brainforge.training.hardware import plan_for_config
 
     plan = plan_for_config(config)
@@ -195,7 +195,7 @@ def train_qlora(
             sft_kwargs["quantization_config"] = _quantization_config(plan.quantization)
         sft_kwargs["peft_config"] = _lora_config(config)
     trainer = SFTTrainer(**sft_kwargs)
-    trainer.train(resume_from_checkpoint=str(resume) if resume else None)
+    trainer.train(resume_from_checkpoint=str(checkpoint) if checkpoint else None)
     trainer.save_model(str(output_dir))
     summary = {
         "base_model": config.base_model,
@@ -270,7 +270,9 @@ def evaluate(
     token_counts: list[int] = []
     with torch.no_grad():
         for start in range(0, len(tokenized), batch_size):
-            padded = tokenizer.pad(tokenized[start : start + batch_size], padding=True, return_tensors="pt")
+            padded = tokenizer.pad(
+                tokenized[start : start + batch_size], padding=True, return_tensors="pt"
+            )
             batch = {key: value.to(model.device) for key, value in padded.items()}
             labels = batch["input_ids"].clone()
             labels[batch["attention_mask"] == 0] = -100

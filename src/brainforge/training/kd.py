@@ -222,7 +222,7 @@ def train_kd(
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     if resume:
-        resume = _latest_checkpoint(output_dir)
+        checkpoint = _latest_checkpoint(output_dir)
     dataset_dir = Path(dataset_dir)
     sidecar_path = dataset_dir / "kd.jsonl"
     if not sidecar_path.exists():
@@ -287,7 +287,7 @@ def train_kd(
         kd_alpha=config.kd_alpha,
         kd_temperature=config.kd_temperature,
     )
-    trainer.train(resume_from_checkpoint=str(resume) if resume else None)
+    trainer.train(resume_from_checkpoint=str(checkpoint) if checkpoint else None)
     trainer.save_model(str(output_dir))
     summary = {
         "base_model": config.base_model,
