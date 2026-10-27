@@ -389,9 +389,15 @@
           "default": "qlora",
           "enum": [
             "qlora",
-            "full"
+            "full",
+            "grpo"
           ],
           "title": "Strategy",
+          "type": "string"
+        },
+        "grpo_reward": {
+          "default": "",
+          "title": "Grpo Reward",
           "type": "string"
         },
         "backend": {
@@ -559,6 +565,7 @@
         "device": "auto",
         "quantization": "auto",
         "strategy": "qlora",
+        "grpo_reward": "",
         "backend": "auto",
         "save_steps": 100,
         "seed": 42,

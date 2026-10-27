@@ -67,6 +67,17 @@ brainforge pipeline run security_dataset \
 | `--kd` | off | record judge top-k logprobs into `<dataset>.kd.jsonl` (see [KD](../explanation/knowledge-distillation.md)) |
 | `--config/-c` | `config/config.json` | configuration file |
 
+Every run also writes a structured state file next to the dataset
+(`<output>.state.json`), updated atomically before and after each case, so
+long runs stay observable while they happen: top-level `status`
+(`running`/`done`), `total_cases`, `done`, `accepted`, `rejected`, `errors`,
+`current_case`, plus one entry per case (`id`, `status`, `duration_ms`,
+`gate_reasons` count).
+
+| Command | Description |
+|---|---|
+| `brainforge pipeline status <dataset\|state path>` | print run progress (status, counts, per-case table) from the state file; exit 1 with a clean error when it is missing |
+
 ## rag
 
 | Command | Description |

@@ -1,5 +1,8 @@
 import hashlib
 import json
+import os
+import threading
+import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -369,12 +372,96 @@ class PipelineEngine:
         )
 
 
+class _PipelineState:
+    """Self-tracing structured state file for one ``run_pipeline`` call.
+
+    Long runs used to be invisible: no record of which case was running,
+    how many completed, accepted vs rejected (this hid a duplicate-instance
+    race once). The file is written atomically (sibling temp file, then
+    rename, same discipline as ``write_jsonl``) before and after every case,
+    so progress is observable from another shell without touching the run.
+    """
+
+    def __init__(self, path: Path, total_cases: int) -> None:
+        self.path = path
+        self._lock = threading.Lock()
+        self._cases: list[dict] = []
+        self._done = 0
+        self._accepted = 0
+        self._rejected = 0
+        self._errors = 0
+        self._payload: dict = {
+            "started_at": datetime.now(UTC).isoformat(),
+            "updated_at": datetime.now(UTC).isoformat(),
+            "status": "running",
+            "total_cases": total_cases,
+            "done": 0,
+            "accepted": 0,
+            "rejected": 0,
+            "errors": 0,
+            "current_case": None,
+            "cases": self._cases,
+        }
+        self._flush()
+
+    def _flush(self) -> None:
+        self._payload["updated_at"] = datetime.now(UTC).isoformat()
+        tmp = self.path.with_name(f".{self.path.name}.tmp")
+        tmp.parent.mkdir(parents=True, exist_ok=True)
+        with tmp.open("w", encoding="utf-8") as handle:
+            json.dump(self._payload, handle, ensure_ascii=False, indent=2)
+            handle.write("\n")
+        os.replace(tmp, self.path)
+
+    def case_started(self, case_id: str) -> dict:
+        with self._lock:
+            self._payload["current_case"] = case_id
+            entry: dict = {
+                "id": case_id,
+                "status": "running",
+                "duration_ms": None,
+                "gate_reasons": None,
+            }
+            self._cases.append(entry)
+            self._flush()
+            return entry
+
+    def case_finished(self, entry: dict, status: str, duration_ms: int, gate_reasons: int) -> None:
+        with self._lock:
+            entry["status"] = status
+            entry["duration_ms"] = duration_ms
+            entry["gate_reasons"] = gate_reasons
+            self._done += 1
+            if status == "accepted":
+                self._accepted += 1
+            elif status == "error":
+                self._errors += 1
+            else:
+                self._rejected += 1
+            self._payload["done"] = self._done
+            self._payload["accepted"] = self._accepted
+            self._payload["rejected"] = self._rejected
+            self._payload["errors"] = self._errors
+            self._flush()
+
+    def finish(self) -> None:
+        with self._lock:
+            self._payload["status"] = "done"
+            self._payload["current_case"] = None
+            self._flush()
+
+
+def _elapsed_ms(started: float) -> int:
+    return int((time.perf_counter() - started) * 1000)
+
+
 def run_pipeline(
     engine: PipelineEngine,
     cases: list[Case],
     output_path: Path | str,
     rejected_dir: Path | str | None = None,
     kd_sidecar: Path | str | None = None,
+    state_path: Path | str | None = None,
 ) -> dict:
     """Run cases through the engine, optionally in parallel (pipeline.concurrency).
 
@@ -384,17 +471,42 @@ def run_pipeline(
     this run, so a crash plus rerun can neither duplicate lines nor leave a
     stale record behind (re-runs are cheap anyway thanks to the sqlite
     response cache). Rejected-case artifacts keep streaming per case.
+
+    Progress is self-traced to a structured state file (``<output>.state.json``
+    by default, override with ``state_path``): it is written atomically before
+    and after every case, so long runs stay observable (which case is running,
+    done/accepted/rejected/error counts) even from another shell.
     """
     from concurrent.futures import ThreadPoolExecutor
 
     from brainforge.dataset.writer import write_jsonl, write_rejected
 
+    state_file = Path(state_path) if state_path is not None else Path(f"{output_path}.state.json")
+    state = _PipelineState(state_file, len(cases))
     workers = max(getattr(engine.pipeline, "concurrency", 1) or 1, 1)
+
+    def run_traced(case: Case) -> CaseResult:
+        entry = state.case_started(case.id)
+        started = time.perf_counter()
+        try:
+            result = engine.run_case(case)
+        except Exception:
+            state.case_finished(entry, "error", _elapsed_ms(started), 0)
+            raise
+        if result.provider_error is not None:
+            status = "error"
+        elif result.accepted:
+            status = "accepted"
+        else:
+            status = "rejected"
+        state.case_finished(entry, status, _elapsed_ms(started), len(result.gate_reasons))
+        return result
+
     if workers > 1:
         with ThreadPoolExecutor(max_workers=workers) as executor:
-            results = list(executor.map(engine.run_case, cases))
+            results = list(executor.map(run_traced, cases))
     else:
-        results = [engine.run_case(case) for case in cases]
+        results = [run_traced(case) for case in cases]
     accepted_count = 0
     rejected_count = 0
     fallback_count = 0
@@ -457,6 +569,7 @@ def run_pipeline(
     if sidecar_path is not None:
         sidecar_path.parent.mkdir(parents=True, exist_ok=True)
         sidecar_path.write_text("".join(f"{line}\n" for line in sidecar_lines), encoding="utf-8")
+    state.finish()
     return {
         "accepted": accepted_count,
         "rejected": rejected_count,
