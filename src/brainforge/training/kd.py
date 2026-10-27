@@ -221,8 +221,7 @@ def train_kd(
     """Fine-tune with SFT + knowledge distillation from the teacher sidecar."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    if resume:
-        checkpoint = _latest_checkpoint(output_dir)
+    checkpoint = _latest_checkpoint(output_dir) if resume else None
     dataset_dir = Path(dataset_dir)
     sidecar_path = dataset_dir / "kd.jsonl"
     if not sidecar_path.exists():
