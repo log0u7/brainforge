@@ -270,7 +270,7 @@ def evaluate(
     token_counts: list[int] = []
     with torch.no_grad():
         for start in range(0, len(tokenized), batch_size):
-            padded = tokenizer.pad(tokenized[start : start + batch_size], padding=True)
+            padded = tokenizer.pad(tokenized[start : start + batch_size], padding=True, return_tensors="pt")
             batch = {key: value.to(model.device) for key, value in padded.items()}
             labels = batch["input_ids"].clone()
             labels[batch["attention_mask"] == 0] = -100
