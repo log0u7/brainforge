@@ -365,3 +365,150 @@ def test_resolve_model_dir_wraps_hub_errors(tmp_path, monkeypatch):
     monkeypatch.setattr("huggingface_hub.snapshot_download", boom)
     with pytest.raises(BrainforgeError):
         _resolve_model_dir("org/a/b/c")
+
+
+def test_auto_fit_no_adjustment_needed():
+    """Model fits at requested config: no changes, no warnings."""
+    from brainforge.training.preflight import _auto_fit
+
+    model = _fake_model_info(params=1_700_000_000, hidden=2048, layers=28)
+    config = _fake_training_config(max_length=4096, batch_size=1, gradient_accumulation=8)
+    devices = [_fake_device(memory_total=10 * 1024**3)]
+    result = _auto_fit(model, config, devices)
+    assert result.max_length == 4096
+    assert result.batch_size == 1
+    assert not result.adjustments
+    assert not result.cpu_offload
+
+
+def test_auto_fit_reduces_seq_length():
+    """8B model at default seq overflows 10GB: auto-fit drops seq, fits."""
+    from brainforge.training.preflight import _auto_fit
+
+    model = _fake_model_info(params=8_000_000_000, hidden=4096, layers=36)
+    config = _fake_training_config()
+    devices = [_fake_device(memory_total=8 * 1024**3)]
+    result = _auto_fit(model, config, devices)
+    assert result.max_length < 4096
+    assert result.max_length >= 1024
+    assert any("max_length" in a for a in result.adjustments)
+    assert not result.cpu_offload
+
+
+def test_auto_fit_cpu_offload_warning():
+    """8B at 2048 still overflows GPU but fits in system RAM: CPU offload warning."""
+    from brainforge.training.preflight import _auto_fit
+
+    model = _fake_model_info(params=8_000_000_000, hidden=4096, layers=36)
+    config = _fake_training_config(max_length=4096, batch_size=1, gradient_accumulation=8)
+    gpu = _fake_device(memory_total=4 * 1024**3)
+    result = _auto_fit(model, config, [gpu], system_ram=32 * 1024**3)
+    assert result.cpu_offload
+    assert any("offload" in a.lower() or "slow" in a.lower() for a in result.adjustments)
+
+
+def test_auto_fit_impossible():
+    """Model too large for any available device: explicit error."""
+    import pytest
+
+    from brainforge.training.preflight import _auto_fit
+
+    model = _fake_model_info(params=80_000_000_000, hidden=8192, layers=80)
+    config = _fake_training_config(max_length=4096, batch_size=1, gradient_accumulation=8)
+    devices = [_fake_device(memory_total=8 * 1024**3)]
+    with pytest.raises(BrainforgeError, match="impossible|too large|no fit"):
+        _auto_fit(model, config, devices, system_ram=8 * 1024**3)
+
+
+def test_auto_fit_warmup_warning():
+    """warmup_steps >= total steps: LR stays at 0, training is a no-op."""
+    from brainforge.training.preflight import _auto_fit
+
+    model = _fake_model_info(params=1_700_000_000, hidden=2048, layers=28)
+    config = _fake_training_config(warmup_steps=5)
+    devices = [_fake_device(memory_total=10 * 1024**3)]
+    result = _auto_fit(model, config, devices, total_steps=3)
+    assert any("warmup" in a.lower() or "learning rate" in a.lower() for a in result.adjustments)
+
+
+def test_auto_fit_agnostic_mps():
+    """Works with MPS device info (Apple Silicon): no CUDA-specific code."""
+    from brainforge.training.preflight import _auto_fit
+
+    model = _fake_model_info(params=1_700_000_000, hidden=2048, layers=28)
+    config = _fake_training_config(max_length=4096, batch_size=1, gradient_accumulation=8)
+    devices = [_fake_device(memory_total=16 * 1024**3, kind="mps")]
+    result = _auto_fit(model, config, devices)
+    assert result.max_length == 4096
+    assert not result.adjustments
+
+
+def test_user_set_seq_respected_with_warning():
+    """User explicitly sets max_length != default: auto-fit respects it,
+    warns if CPU offload needed, suggests better value."""
+    from brainforge.training.preflight import _auto_fit
+
+    model = _fake_model_info(params=8_000_000_000, hidden=4096, layers=36)
+    config = _fake_training_config(max_length=4096, batch_size=1, gradient_accumulation=8)
+    gpu = _fake_device(memory_total=4 * 1024**3)
+    result = _auto_fit(model, config, [gpu], system_ram=32 * 1024**3)
+    # user set 4096 (non-default): respected
+    assert result.max_length == 4096
+    # but warned about CPU offload
+    assert result.cpu_offload
+    assert any("2048" in a or "seq" in a.lower() for a in result.adjustments)
+
+
+def test_auto_fit_user_override_preserved():
+    """User explicitly sets max_length=2048: auto-fit must not change it,
+    even if 4096 would also fit."""
+    from brainforge.training.preflight import _auto_fit
+
+    model = _fake_model_info(params=8_000_000_000, hidden=4096, layers=36)
+    config = _fake_training_config(max_length=2048, batch_size=1, gradient_accumulation=8)
+    devices = [_fake_device(memory_total=10 * 1024**3)]
+    result = _auto_fit(model, config, devices)
+    assert result.max_length == 2048
+    assert not result.adjustments
+
+
+def _fake_model_info(params: int, hidden: int, layers: int) -> ModelInfo:
+    return ModelInfo(
+        id="test/model",
+        source="local",
+        architecture="llama",
+        model_type="llama",
+        params=params,
+        max_position_embeddings=8192,
+        hidden_size=hidden,
+        num_layers=layers,
+        chat_template=True,
+        license=None,
+        gated=False,
+        private=False,
+        pre_quantized=False,
+        remote_code=False,
+        safetensors=True,
+        pipeline_tag="text-generation",
+        num_attention_heads=hidden // 128,
+    )
+
+
+def _fake_training_config(**overrides) -> TrainingConfig:
+    defaults = TrainingConfig()
+    base = {
+        "max_length": defaults.max_length,
+        "batch_size": defaults.batch_size,
+        "gradient_accumulation": defaults.gradient_accumulation,
+        "warmup_steps": 0,
+    }
+    base.update(overrides)
+    return TrainingConfig(**base)
+
+
+def _fake_device(memory_total: int, kind: str = "cuda") -> DeviceInfo:
+    return DeviceInfo(
+        kind=kind, device=f"test-{kind}", name=f"test-{kind}",
+        total_memory=memory_total, free_memory=memory_total,
+        bf16=True, fp16=True,
+    )
