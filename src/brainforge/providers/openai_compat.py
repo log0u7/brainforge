@@ -40,7 +40,15 @@ class OpenAICompatProvider(Provider):
         self._client = OpenAI(
             base_url=base_url,
             api_key=config.api_key or "not-needed",
-            timeout=config.timeout,
+            # total deadline: a bare float timeout only bounds the time
+            # BETWEEN reads, so a drip-feeding stream hangs a pipeline run
+            # forever (observed twice on gpu3080: 40-case runs frozen mid
+            # batch, zero CPU, zero new usage lines). total caps the whole
+            # request lifetime and converts the hang into a ProviderError,
+            # which the engine already retries/skips.
+            timeout=httpx.Timeout(
+                config.timeout, connect=min(30.0, config.timeout), total=config.timeout + 30.0
+            ),
             max_retries=0,
             http_client=http_client,  # type: ignore[arg-type]  # openai>=3 types httpx2 but accepts httpx at runtime
         )
