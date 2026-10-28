@@ -428,6 +428,14 @@ def task_eval(
         "--api-key-env",
         help="Name of the env var holding the endpoint API key (default: none needed)",
     ),
+    thinking: bool = typer.Option(
+        True,
+        "--thinking/--no-thinking",
+        help=(
+            "Qwen3 thinking mode on the served model (chat_template_kwargs);"
+            " thinking traces can consume the token budget and empty the answer"
+        ),
+    ),
     model_name: str = typer.Option(
         None,
         "--model-name",
@@ -451,7 +459,11 @@ def task_eval(
             raise typer.Exit(code=1)
         api_key = os.environ.get(api_key_env) if api_key_env else None
         generator = build_remote_generator(
-            endpoint, model_name, max_tokens=max_new_tokens, api_key=api_key
+            endpoint,
+            model_name,
+            max_tokens=max_new_tokens,
+            api_key=api_key,
+            enable_thinking=thinking,
         )
         result = evaluate_model_on_records(
             model_name, dataset, quantization, max_new_tokens, generator=generator

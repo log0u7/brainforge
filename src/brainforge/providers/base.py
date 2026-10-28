@@ -2,6 +2,7 @@ import json
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Callable
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -22,6 +23,10 @@ class ChatRequest(BaseModel):
     top_p: float | None = None
     max_tokens: int | None = None
     cache_extra: str | None = None
+    # OpenAI SDK extra_body passthrough (e.g. llama.cpp chat_template_kwargs
+    # for Qwen3 thinking control). Provider-specific fields ride here so the
+    # request model stays provider-agnostic.
+    extra_body: dict[str, Any] | None = None
 
 
 class PositionLogprobs(BaseModel):

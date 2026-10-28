@@ -260,19 +260,28 @@ def build_remote_generator(
     api_key: str | None = None,
     temperature: float = 0.7,
     concurrency: int = 4,
+    enable_thinking: bool | None = None,
 ) -> Callable[[list], list[str]]:
     """Generate task answers against a served model (OpenAI-compatible endpoint).
 
     One chat completion per record prompt; the served model may batch internally.
     Prompts are flattened through ``_flatten_message`` like the local generator,
     and responses are taken from the assistant ``content`` (a thinking trace in
-    ``reasoning_content`` is the model's, not the answer).
+    ``reasoning_content`` is the model's, not the answer). ``enable_thinking``
+    rides the OpenAI ``extra_body`` as ``chat_template_kwargs`` (Qwen3 thinking
+    control on llama.cpp): thinking traces can consume the whole token budget
+    and leave ``content`` empty.
     """
     from concurrent.futures import ThreadPoolExecutor
 
     from brainforge.providers.base import ChatMessage, ChatRequest
 
     provider = _build_provider(base_url, api_key)
+    extra_body = (
+        {"chat_template_kwargs": {"enable_thinking": enable_thinking}}
+        if enable_thinking is not None
+        else None
+    )
 
     def one(prompt: str) -> str:
         response = provider.complete(
@@ -280,6 +289,7 @@ def build_remote_generator(
                 messages=[ChatMessage(role="user", content=prompt)],
                 temperature=temperature,
                 max_tokens=max_tokens,
+                extra_body=extra_body,
             ),
             model,
         )

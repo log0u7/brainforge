@@ -19,9 +19,11 @@ class _FakeProvider:
         self.responses = responses
         self.fail_on = fail_on or set()
         self.requests: list[dict] = []
+        self.chat_requests: list[Any] = []
 
     def complete(self, request: Any, model: str) -> ChatResponse:
         prompt = request.messages[-1].content
+        self.chat_requests.append(request)
         self.requests.append({"prompt": prompt, "model": model, "max_tokens": request.max_tokens})
         if prompt in self.fail_on:
             raise ProviderError(f"server error on {prompt!r}")
@@ -134,3 +136,21 @@ def test_cli_endpoint_requires_model_name(tmp_path: Any, monkeypatch: Any):
     )
     assert result.exit_code == 1
     assert "--model-name is required" in result.output
+
+
+def test_remote_generator_wires_enable_thinking(monkeypatch: Any):
+    provider = _FakeProvider({"p": json.dumps({"verdict": "solved"})})
+    _install(monkeypatch, provider)
+    generate = build_remote_generator("http://localhost:9933/v1", "mymodel", enable_thinking=False)
+    generate([["p"]])
+    request = provider.chat_requests[-1]
+    assert request.extra_body == {"chat_template_kwargs": {"enable_thinking": False}}
+
+
+def test_remote_generator_default_sends_no_extra_body(monkeypatch: Any):
+    provider = _FakeProvider({"p": json.dumps({"verdict": "solved"})})
+    _install(monkeypatch, provider)
+    generate = build_remote_generator("http://localhost:9933/v1", "mymodel")
+    generate([["p"]])
+    request = provider.chat_requests[-1]
+    assert not request.extra_body

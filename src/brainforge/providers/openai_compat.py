@@ -64,6 +64,8 @@ class OpenAICompatProvider(Provider):
             kwargs["top_p"] = request.top_p
         if request.max_tokens is not None:
             kwargs["max_tokens"] = request.max_tokens
+        if request.extra_body:
+            kwargs["extra_body"] = request.extra_body
         attempts = self.config.max_retries + 1
         last_error: Exception | None = None
         deadline = self.config.timeout + 30.0
