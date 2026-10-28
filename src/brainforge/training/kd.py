@@ -72,15 +72,14 @@ def align_teacher_positions(
     return aligned
 
 
-def compute_kd_loss(
+def _compute_kd_loss_reference(
     logits: Any,
     topk: list[tuple[str, float]],
     tokenizer: Any,
     temperature: float,
 ) -> Any | None:
-    """Cross-entropy of the student's temperature-scaled distribution against
-    the teacher's renormalized top-k distribution (None when no top-k token
-    exists in the student vocabulary)."""
+    """Pre-vectorization per-position loss, kept as the equivalence reference
+    (issue #57 tests): one log_softmax over the full vocabulary per call."""
     import torch
 
     pairs: list[tuple[int, float]] = []
@@ -106,11 +105,77 @@ def compute_kd_loss(
     return -(teacher_probs * student_q).sum() * (temperature**2)
 
 
+_KD_LOG_SOFTMAX_CHUNK = 1024
+"""Positions per log_softmax chunk in compute_kd_loss_batch: bounds the
+[chunk, vocab] peak memory for 150k-vocab models (issue #57) while keeping
+one kernel call per chunk instead of one per position."""
+
+
+def compute_kd_loss_batch(
+    logits: Any,
+    positions: Any,
+    topk_ids: Any,
+    topk_logprobs: Any,
+    topk_mask: Any,
+    position_mask: Any,
+    temperature: float,
+) -> Any | None:
+    """Vectorized batch form of compute_kd_loss over collator-encoded targets.
+
+    ``positions``/``position_mask`` are [B, P]; ``topk_ids``/``topk_logprobs``/
+    ``topk_mask`` are [B, P, K]. Returns the mean loss over the positions with
+    at least one in-vocabulary top-k token (None when there is none), i.e.
+    exactly the value KDTrainer.compute_loss used to obtain by looping
+    compute_kd_loss over (row, position) pairs: teacher top-k renormalized
+    over the surviving tokens, student log-softmax at the temperature, T^2
+    scaling per position.
+    """
+    import torch
+
+    if not bool(position_mask.any()):
+        return None
+    batch_index, position_index = position_mask.nonzero(as_tuple=True)
+    keep = topk_mask[batch_index, position_index]
+    ids = topk_ids[batch_index, position_index]
+    # invalid top-k entries get teacher probability exactly 0 (that is the
+    # renormalization); the cast to the logits dtype rounds the float64
+    # logprobs once, like the reference loss builds its tensor.
+    teacher = topk_logprobs[batch_index, position_index].to(logits.dtype)
+    teacher = teacher.masked_fill(~keep, float("-inf"))
+    terms: list[Any] = []
+    for start in range(0, ids.shape[0], _KD_LOG_SOFTMAX_CHUNK):
+        rows = slice(start, start + _KD_LOG_SOFTMAX_CHUNK)
+        chunk_rows = batch_index[rows]
+        # index per chunk: the gathered [chunk, vocab] copy, not the full
+        # [N, vocab] one, must be the materialized tensor.
+        flat_logits = logits[chunk_rows, positions[chunk_rows, position_index[rows]]]
+        student_q = (
+            torch.log_softmax(flat_logits / temperature, dim=-1)
+            .gather(1, ids[rows])
+            .masked_fill(~keep[rows], 0.0)
+        )
+        teacher_probs = torch.softmax(teacher[rows] / temperature, dim=-1)
+        terms.append(-(teacher_probs * student_q).sum(dim=-1) * (temperature**2))
+    return torch.cat(terms).mean()
+
+
 class KDDataCollator:
-    """Pads input_ids/labels and passes per-row teacher targets through."""
+    """Pads input_ids/labels and encodes per-row teacher targets into tensors.
+
+    The KD targets are pre-encoded here (issue #57): token strings are mapped
+    to student vocabulary ids once per batch, so ``KDTrainer.compute_loss``
+    runs one vectorized kernel sequence instead of a Python loop per position.
+    """
 
     def __init__(self, tokenizer: Any):
         self.tokenizer = tokenizer
+        # get_vocab() builds a 250k-entry dict: build it once here and share
+        # the same cache the per-position reference loss uses (issue #57).
+        vocab = getattr(tokenizer, "_kd_vocab_cache", None)
+        if vocab is None:
+            vocab = tokenizer.get_vocab()
+            tokenizer._kd_vocab_cache = vocab
+        self._vocab: dict[str, int] = vocab
 
     def __call__(self, features: list[dict]) -> dict:
         import torch
@@ -131,13 +196,60 @@ class KDDataCollator:
             batch["labels"][row, : len(labels)] = labels
         # kd_targets arrive as JSON strings (arrow cannot type the
         # heterogeneous [str, float] topk pairs) - decode here.
-        batch["kd_targets"] = [
+        kd_targets = [
             json.loads(feature["kd_targets"])
             if isinstance(feature["kd_targets"], str)
             else feature["kd_targets"]
             for feature in features
         ]
+        batch["kd_targets"] = kd_targets
+        batch.update(self._encode_kd_targets(kd_targets))
         return batch
+
+    def _encode_kd_targets(self, kd_targets: list[Any]) -> dict[str, Any]:
+        """Encode per-row (position, topk) targets into padded tensors.
+
+        Rows are padded to [B, max_positions] and [B, max_positions, K].
+        Top-k tokens missing from the student vocabulary are masked out: the
+        loss renormalizes the teacher over the surviving tokens, exactly like
+        ``compute_kd_loss`` drops them. Logprobs are kept in float64 so the
+        cast to the logits dtype rounds once, like the reference loss.
+        """
+        import torch
+
+        rows = len(kd_targets)
+        max_positions = max((len(targets) for targets in kd_targets), default=0)
+        max_topk = max((len(topk) for targets in kd_targets for _, topk in targets), default=0)
+        positions = torch.zeros((rows, max_positions), dtype=torch.long)
+        topk_ids = torch.zeros((rows, max_positions, max_topk), dtype=torch.long)
+        topk_logprobs = torch.zeros((rows, max_positions, max_topk), dtype=torch.float64)
+        topk_mask = torch.zeros((rows, max_positions, max_topk), dtype=torch.bool)
+        position_mask = torch.zeros((rows, max_positions), dtype=torch.bool)
+        for row, targets in enumerate(kd_targets):
+            for index, (token_index, topk) in enumerate(targets):
+                valid = [
+                    (token_id, logprob)
+                    for token, logprob in topk
+                    if (token_id := self._vocab.get(token)) is not None
+                ]
+                if not valid:
+                    continue
+                position_mask[row, index] = True
+                positions[row, index] = token_index
+                topk_ids[row, index, : len(valid)] = torch.tensor(
+                    [token_id for token_id, _ in valid], dtype=torch.long
+                )
+                topk_logprobs[row, index, : len(valid)] = torch.tensor(
+                    [logprob for _, logprob in valid], dtype=torch.float64
+                )
+                topk_mask[row, index, : len(valid)] = True
+        return {
+            "kd_positions": positions,
+            "kd_topk_ids": topk_ids,
+            "kd_topk_logprobs": topk_logprobs,
+            "kd_topk_mask": topk_mask,
+            "kd_position_mask": position_mask,
+        }
 
 
 class KDTrainer:
@@ -154,6 +266,12 @@ class KDTrainer:
         self, model: Any, inputs: dict, return_outputs: bool = False, **kwargs: Any
     ) -> Any:
         kd_targets = inputs.pop("kd_targets")
+        encoded = inputs.pop("kd_positions", None)
+        if encoded is not None:
+            kd_topk_ids = inputs.pop("kd_topk_ids")
+            kd_topk_logprobs = inputs.pop("kd_topk_logprobs")
+            kd_topk_mask = inputs.pop("kd_topk_mask")
+            kd_position_mask = inputs.pop("kd_position_mask")
         outputs = model(
             input_ids=inputs["input_ids"],
             attention_mask=inputs["attention_mask"],
@@ -162,18 +280,35 @@ class KDTrainer:
         ce_loss = outputs.loss
         logits = outputs.logits
         kd_terms = []
-        tokenizer = getattr(self, "processing_class", None) or getattr(self, "tokenizer", None)
-        if tokenizer is None:
-            raise BrainforgeError("KD trainer has no tokenizer; cannot align teacher tokens")
-        for row, targets in enumerate(kd_targets):
-            for token_index, topk in targets:
-                if not topk:
-                    continue
-                term = compute_kd_loss(
-                    logits[row, token_index], topk, tokenizer, self.kd_temperature
-                )
-                if term is not None:
-                    kd_terms.append(term)
+        if encoded is not None:
+            # vectorized path (issue #57): the collator pre-encoded the
+            # teacher targets; one kernel sequence replaces the per-position
+            # Python loop.
+            term = compute_kd_loss_batch(
+                logits,
+                encoded,
+                kd_topk_ids,
+                kd_topk_logprobs,
+                kd_topk_mask,
+                kd_position_mask,
+                self.kd_temperature,
+            )
+            if term is not None:
+                kd_terms.append(term)
+        else:
+            # fallback for batches produced without the collator encoding
+            tokenizer = getattr(self, "processing_class", None) or getattr(self, "tokenizer", None)
+            if tokenizer is None:
+                raise BrainforgeError("KD trainer has no tokenizer; cannot align teacher tokens")
+            for row, targets in enumerate(kd_targets):
+                for token_index, topk in targets:
+                    if not topk:
+                        continue
+                    term = compute_kd_loss(
+                        logits[row, token_index], topk, tokenizer, self.kd_temperature
+                    )
+                    if term is not None:
+                        kd_terms.append(term)
         if kd_terms:
             import torch
 

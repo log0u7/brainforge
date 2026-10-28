@@ -109,6 +109,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- KD training vectorizes the distillation loss (issue #57): the
+  `KDDataCollator` now encodes the per-row teacher targets once into padded
+  tensors (position indices, in-vocabulary top-k ids, logprobs, masks) and
+  `KDTrainer.compute_loss` consumes them through the new
+  `compute_kd_loss_batch`, which runs one chunked log-softmax/gather kernel
+  sequence instead of a Python loop with a full-vocab log-softmax per
+  position. The math is unchanged (same renormalized-teacher top-k
+  cross-entropy, same None-when-no-valid-token semantics, same T^2
+  scaling; equivalence pinned bitwise on fp32 in
+  `tests/unit/test_kd_vectorized.py`); batches without the collator
+  encoding still fall back to the per-position loop.
+
 - KD training reads records through the new
   `brainforge.dataset.writer.iter_jsonl` reader instead of materializing
   every tokenized record in RAM at once, and builds the arrow datasets
