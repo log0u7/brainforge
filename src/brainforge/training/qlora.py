@@ -74,7 +74,18 @@ def extract_prompt_completion(records: list[dict]) -> list[dict]:
             )
         if messages[-1].get("role") != "assistant":
             raise BrainforgeError(f"record at index {index} does not end with an assistant message")
-        rows.append({"prompt": list(messages[:-1]), "completion": [messages[-1]]})
+        # Qwen3-style templates insert the empty think block into the
+        # generation prompt at --no-thinking inference; training must render
+        # the same prompt or the model answers after a prefix it never saw
+        # (found by the KD-GLM eval runs, which all used the mismatched
+        # render and fell back to base behavior).
+        rows.append(
+            {
+                "prompt": list(messages[:-1]),
+                "completion": [messages[-1]],
+                "chat_template_kwargs": {"enable_thinking": False},
+            }
+        )
     return rows
 
 

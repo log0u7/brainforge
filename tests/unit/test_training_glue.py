@@ -270,6 +270,7 @@ def test_extract_prompt_completion_shape():
         {
             "prompt": [{"role": "user", "content": "prompt text"}],
             "completion": [{"role": "assistant", "content": '{"verdict": "solved"}'}],
+            "chat_template_kwargs": {"enable_thinking": False},
         }
     ]
 
@@ -306,3 +307,23 @@ def test_extract_prompt_completion_rejects_empty():
         extract_prompt_completion([])
     with pytest.raises(BrainforgeError):
         extract_prompt_completion([{"messages": [{"role": "user", "content": "x"}]}])
+
+
+def test_extract_prompt_completion_carries_nothinking_template_kwarg():
+    """TRL renders the training completion after a bare assistant turn, but the
+    Qwen3 template inserts the empty think block at --no-thinking inference:
+    the trained model then answers after a prefix it never saw and falls back
+    to base behavior. Carrying chat_template_kwargs enable_thinking=False per
+    row renders training exactly like inference."""
+    from brainforge.training.qlora import extract_prompt_completion
+
+    records = [
+        {
+            "messages": [
+                {"role": "user", "content": "prompt text"},
+                {"role": "assistant", "content": '{"verdict": "solved"}'},
+            ]
+        }
+    ]
+    rows = extract_prompt_completion(records)
+    assert rows[0]["chat_template_kwargs"] == {"enable_thinking": False}
