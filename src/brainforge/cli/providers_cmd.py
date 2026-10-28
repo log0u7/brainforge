@@ -1,3 +1,5 @@
+from typing import Any
+
 import typer
 from rich.table import Table
 
@@ -56,7 +58,7 @@ def check_logprobs(
     console.print(f"latency_ms: {response.latency_ms:.1f}")
 
 
-def _check_all(cfg, topk: int) -> None:
+def _check_all(cfg: Any, topk: int) -> None:
     """Probe every configured (provider, model) pair; one failure is a row, not an abort."""
     pairs: list[tuple[str, str]] = []
     seen: set[tuple[str, str]] = set()
@@ -86,7 +88,7 @@ def _check_all(cfg, topk: int) -> None:
     console.print(table)
 
 
-def _send_probe(provider, model: str, topk: int):
+def _send_probe(provider: Any, model: str, topk: int) -> Any:
     from brainforge.providers.base import ChatMessage, ChatRequest
 
     request = ChatRequest(
