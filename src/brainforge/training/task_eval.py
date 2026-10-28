@@ -8,6 +8,7 @@ ground truth stored in each dataset record's assistant message.
 import json
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from brainforge.errors import BrainforgeError, ProviderError
 from brainforge.providers.base import extract_json
@@ -205,15 +206,23 @@ def evaluate_model_on_records(
     quantization: str = "auto",
     max_new_tokens: int = 512,
     batch_size: int = 4,
+    generator: Callable[[list], list[str]] | None = None,
 ) -> dict:
-    """Load the trained model and run task evaluation on a JSONL dataset split."""
+    """Load the trained model (or accept a served-model generator) and run task eval.
+
+    ``generator`` overrides local model loading: pass
+    :func:`build_remote_generator` to score a model served behind an
+    OpenAI-compatible endpoint. The report is only persisted next to locally
+    stored weights; served models have no local directory to write into.
+    """
     from brainforge.dataset.writer import read_jsonl
 
     model_path = Path(model_path)
     dataset_path = Path(dataset_path)
     records = read_jsonl(dataset_path)
-    generate = _build_generator(model_path, quantization, max_new_tokens, batch_size)
-    result = run_task_eval(records, generate)
+    if generator is None:
+        generator = _build_generator(model_path, quantization, max_new_tokens, batch_size)
+    result = run_task_eval(records, generator)
     # Hub ids (base-model evaluation) resolve outside the local filesystem:
     # the report is only persisted next to locally stored weights.
     if model_path.is_dir():
@@ -226,6 +235,69 @@ def _flatten_message(user_message: str | list[str]) -> str:
     if isinstance(user_message, list):
         return "\n\n".join(user_message)
     return user_message
+
+
+def _build_provider(base_url: str, api_key: str | None) -> Any:
+    """Build an OpenAI-compatible provider for a served model endpoint."""
+    from brainforge.config.models import ProviderConfig
+    from brainforge.providers.registry import build_provider
+    from brainforge.types import ProviderType
+
+    return build_provider(
+        "task-eval-remote",
+        ProviderConfig(
+            type=ProviderType.OPENAI,
+            base_url=base_url,
+            api_key=api_key or "not-needed",
+        ),
+    )
+
+
+def build_remote_generator(
+    base_url: str,
+    model: str,
+    max_tokens: int = 512,
+    api_key: str | None = None,
+    temperature: float = 0.7,
+    concurrency: int = 4,
+) -> Callable[[list], list[str]]:
+    """Generate task answers against a served model (OpenAI-compatible endpoint).
+
+    One chat completion per record prompt; the served model may batch internally.
+    Prompts are flattened through ``_flatten_message`` like the local generator,
+    and responses are taken from the assistant ``content`` (a thinking trace in
+    ``reasoning_content`` is the model's, not the answer).
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    from brainforge.providers.base import ChatMessage, ChatRequest
+
+    provider = _build_provider(base_url, api_key)
+
+    def one(prompt: str) -> str:
+        response = provider.complete(
+            ChatRequest(
+                messages=[ChatMessage(role="user", content=prompt)],
+                temperature=temperature,
+                max_tokens=max_tokens,
+            ),
+            model,
+        )
+        content = response.content or ""
+        if not content.strip():
+            raise ProviderError(
+                f"model '{model}' returned an empty completion for a task-eval prompt"
+            )
+        return content
+
+    def generate(user_messages: list) -> list[str]:
+        prompts = [_flatten_message(item) for item in user_messages]
+        if len(prompts) <= 1:
+            return [one(prompt) for prompt in prompts]
+        with ThreadPoolExecutor(max_workers=min(concurrency, len(prompts))) as pool:
+            return list(pool.map(one, prompts))
+
+    return generate
 
 
 def _conversations(batch: list[str]) -> list[list[dict]]:

@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `brainforge train task-eval --endpoint URL --model-name M`: score a model
+  served behind an OpenAI-compatible endpoint (llama-server) without loading
+  weights locally; `build_remote_generator` sends one chat completion per
+  record prompt through the provider abstraction.
+
 - `brainforge train evaluate --base`: evaluate the untouched base model (no
   adapter) with the same token-weighted scoring as adapter evaluation, so
   before/after perplexity numbers are directly comparable.
