@@ -262,7 +262,6 @@ def test_training_schedule_fields():
     assert config.max_grad_norm == 1.0
     assert config.max_length == 1024
     assert config.packing is False
-    assert config.assistant_only_loss is False
     assert config.attn_implementation == "sdpa"
     assert config.eval_batch_size == 4
     assert config.generate_batch_size == 4

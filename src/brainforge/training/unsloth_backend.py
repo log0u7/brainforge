@@ -19,8 +19,8 @@ from brainforge.errors import BrainforgeError
 from brainforge.training.hardware import TrainingPlan
 from brainforge.training.qlora import (
     _latest_checkpoint,
-    _messages_dataset,
     _sft_config,
+    _sft_dataset,
 )
 
 
@@ -55,11 +55,11 @@ def train_unsloth(
     from unsloth import FastLanguageModel
 
     dataset_dir = Path(dataset_dir)
-    train_dataset = _messages_dataset(dataset_dir / "train.jsonl")
+    train_dataset = _sft_dataset(dataset_dir / "train.jsonl")
     if train_dataset is None:
         raise BrainforgeError("empty dataset split")
     validation_path = dataset_dir / "validation.jsonl"
-    eval_dataset = _messages_dataset(validation_path) if validation_path.exists() else None
+    eval_dataset = _sft_dataset(validation_path) if validation_path.exists() else None
 
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=config.base_model,

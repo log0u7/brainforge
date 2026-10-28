@@ -122,7 +122,11 @@ def fake_training_modules(monkeypatch):
 def _dataset_dir(tmp_path: Path) -> Path:
     dataset_dir = tmp_path / "prepared"
     dataset_dir.mkdir()
-    record = {"id": "x", "messages": [{"role": "user", "content": "hi"}], "metadata": {}}
+    record = {
+        "id": "x",
+        "messages": [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "ok"}],
+        "metadata": {},
+    }
     (dataset_dir / "train.jsonl").write_text(json.dumps(record) + "\n")
     return dataset_dir
 

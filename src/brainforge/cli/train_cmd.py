@@ -99,12 +99,8 @@ def train_student(
     from brainforge.training.prepare import tool_turn_warning
 
     # KD consumes the dataset differently (it rejects tool messages outright
-    # and ignores assistant_only_loss), so the flag advice would be inert.
-    warning = (
-        None
-        if kd
-        else tool_turn_warning(Path(dataset_dir) / "train.jsonl", training.assistant_only_loss)
-    )
+    # and builds its own masked labels), so the multi-turn advice is inert.
+    warning = None if kd else tool_turn_warning(Path(dataset_dir) / "train.jsonl")
     if warning:
         console.print(f"[yellow]warning:[/yellow] {warning}")
     from brainforge.training.preflight import auto_fit_config

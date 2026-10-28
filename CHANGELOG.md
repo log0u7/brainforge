@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- SFT training now uses TRL's conversational prompt-completion format with
+  `completion_only_loss=True`: the loss lands on the final assistant message
+  only. The previous messages format with `assistant_only_loss=False` scored
+  the whole sequence, so on long CTF prompts (~90% of tokens) the model
+  learned to predict challenges instead of answers - measured on the
+  26-record holdout as perplexity -37% with generation behavior unchanged
+  from the base model. `training.assistant_only_loss` is removed (the
+  Qwen3 template has no `{% generation %}` markers, so the flag never
+  produced a mask); the agentic multi-turn warning is reworded for
+  prompt-completion semantics.
+
 ## [0.8.0] - 2026-10-28
 
 ### Added

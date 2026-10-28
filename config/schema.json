@@ -455,11 +455,6 @@
           "title": "Packing",
           "type": "boolean"
         },
-        "assistant_only_loss": {
-          "default": false,
-          "title": "Assistant Only Loss",
-          "type": "boolean"
-        },
         "attn_implementation": {
           "default": "sdpa",
           "enum": [
@@ -575,7 +570,6 @@
         "max_grad_norm": 1.0,
         "max_length": 1024,
         "packing": false,
-        "assistant_only_loss": false,
         "attn_implementation": "sdpa",
         "eval_batch_size": 4,
         "generate_batch_size": 4,

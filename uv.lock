@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.15' and sys_platform == 'win32'",
@@ -282,7 +282,7 @@ wheels = [
 
 [[package]]
 name = "brainforge"
-version = "0.4.0"
+version = "0.8.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastembed" },
@@ -3700,7 +3700,7 @@ dependencies = [
     { name = "tyro" },
     { name = "unsloth-zoo" },
     { name = "wheel" },
-    { name = "xformers", marker = "(platform_machine == 'AMD64' and 'linux' in sys_platform) or (platform_machine == 'x86_64' and 'linux' in sys_platform) or (platform_machine == 'AMD64' and sys_platform == 'win32') or (platform_machine == 'x86_64' and sys_platform == 'win32')" },
+    { name = "xformers", marker = "(platform_machine == 'AMD64' and sys_platform == 'win32') or (platform_machine == 'x86_64' and sys_platform == 'win32') or (platform_machine == 'AMD64' and 'linux' in sys_platform) or (platform_machine == 'x86_64' and 'linux' in sys_platform)" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/fb/55/a6a8fc6a493fb8d3bed1dbc7d80d53ae6c5e3dff82d4579a5600dc36341f/unsloth-2026.10.6-py3-none-any.whl", hash = "sha256:103efac52b090a1070c0083911119e34986a910df1118667ab2a1e8d6ccbab48", size = 30375029, upload-time = "2026-10-15T18:50:16.994Z" },

@@ -6,18 +6,16 @@ from brainforge.dataset.writer import DatasetRecord, read_jsonl, write_jsonl
 from brainforge.errors import BrainforgeError
 
 
-def tool_turn_warning(dataset_path: Path | str, assistant_only_loss: bool) -> str | None:
-    """Return a warning when the split holds agentic multi-turn records but
-    the run trains without ``assistant_only_loss``.
+def tool_turn_warning(dataset_path: Path | str) -> str | None:
+    """Return a warning when the split holds agentic multi-turn records.
 
-    Agentic records interleave assistant tool calls with ``tool``
-    observations or carry several assistant turns. Without
-    ``assistant_only_loss`` the trainer scores those observation tokens
-    too, so the flag matters exactly here. Returns ``None`` when the flag
-    is set, the records are single-turn, or the split is absent.
+    Training uses conversational prompt-completion with a completion-only
+    loss: the final assistant message is the completion, everything before
+    it is masked prompt. Agentic records that interleave assistant tool
+    calls with ``tool`` observations lose the training signal of their
+    intermediate assistant turns (only the last one is scored). Returns
+    ``None`` when every record is single-turn or the split is absent.
     """
-    if assistant_only_loss:
-        return None
     path = Path(dataset_path)
     if not path.is_file():
         return None
@@ -31,9 +29,9 @@ def tool_turn_warning(dataset_path: Path | str, assistant_only_loss: bool) -> st
         return None
     return (
         f"{flagged} record(s) contain tool observations or multiple assistant"
-        " turns; training without assistant_only_loss scores those tokens too."
-        " Set training.assistant_only_loss=true for agentic datasets"
-        " (requires a chat template with generation markers)."
+        " turns; prompt-completion training scores only the final assistant"
+        " turn, so intermediate turns receive no loss. Split agentic records"
+        " into per-turn examples if their intermediate turns must be learned."
     )
 
 
