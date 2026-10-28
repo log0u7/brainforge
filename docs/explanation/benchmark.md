@@ -243,11 +243,18 @@ max_length 4096, 25 epochs, 200 steps, 33 min on the RTX 3080. Eval:
 greedy decoding, 2048-token budget, `--no-thinking` (the prompt carries
 the empty think block, matching the training render).
 
-| Model | Train records | accuracy | FP rate | FN rate | flag_accuracy |
-|---|---|---|---|---|---|
-| base Qwen3-1.7B | 0 | 0.00 | 0.92 | 0.08 | None |
-| SFT (17 GLM records, contaminated) | 17 | 0.00 | 0.92 | 0.08 | None |
-| SFT (union, holdout-excluded) | 16 | 0.1923 | 0.73 | 0.08 | None |
+| Model | Train records | eval_loss | perplexity | accuracy | FP rate | FN rate | flag_accuracy |
+|---|---|---|---|---|---|---|---|
+| base Qwen3-1.7B | 0 | 2.534 | 12.61 | 0.00 | 0.92 | 0.08 | None |
+| SFT (17 GLM records, contaminated) | 17 | 2.999 | 20.07 | 0.00 | 0.92 | 0.08 | None |
+| SFT (union, holdout-excluded) | 16 | 2.984 | 19.77 | 0.1923 | 0.73 | 0.08 | None |
+
+The union perplexity (19.77) is worse than baseline (12.61) while the
+task accuracy is the first non-zero: the training set teaches detailed
+verdict JSON (768-2168 token completions) while the holdout ground
+truth runs shorter (548-1891), so the likelihood metric punishes the
+longer style the task metric rewards. The perplexity column measures
+style fit; the task-eval column measures the format the scorer wants.
 
 The contaminated 17-record run trained on 7 ids that appear in the
 holdout and still scored 0.00: the format was learned on in-distribution
