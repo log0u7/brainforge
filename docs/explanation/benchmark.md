@@ -170,6 +170,7 @@ every row. Base model Qwen3-1.7B, QLoRA 4-bit, bf16.
 | KD (qwen, hard 17-case subset) | 3 | 2.350 | 10.49 | −17.0% | 12 steps |
 | KD (glm-5.3-prime, mid-run snapshot) | 14 | 2.471 | 11.84 | −6.1% | 24 steps |
 | KD (glm-5.3-prime, full 17-record set) | 17 | 2.999 | 20.07 | +59.2% | 36 steps |
+| KD (qwen3.5-35b-a3b teacher, full pass) | 1 | 2.361 | 10.60 | −16.0% | 12 steps |
 
 SFT scales monotonically with usable records: the 17 GLM-solved
 records alone nearly match the 40-case arbitrated result (8.04 vs
@@ -202,12 +203,23 @@ separate them:
    text tokens fragment differently over the Qwen student vocabulary;
    with 4.7x more records the accumulated noise dominates the signal
    and the held-out perplexity collapses.
-3. **Teacher capability gates KD data volume.** Asked to solve the 17
-   cases GLM had solved, qwen3.5-9b produced gate-accepted records for
-   only 3 (14 rejected); the "same records, different teacher"
-   ablation is therefore impossible by construction, and the qwen-KD
-   result is stable (~10.4-10.5) on whatever subset its teacher can
-   actually solve.
+3. **Two locks bound KD data volume: tokenizer alignment AND the
+   verification gate.** A record enters the KD dataset only when the
+   teacher's predicted flag matches the corpus ground truth
+   (`expected_flag`, the verified-tier gate - which is the product).
+   Measured across teachers on the same 40 cases: glm-5.3-prime
+   passes the gate 17 times, qwen3.5-9b 3 times (its other 15
+   timeouts aside), and qwen3.5-35b-a3b ran 37 of 40 cases with zero
+   technical failures yet passed the gate exactly once. A teacher
+   that is tokenizer-compatible but cannot clear the gate yields
+   almost no distillation data; a teacher that clears the gate but
+   does not share the tokenizer yields poison. Both locks must open.
+
+Consequence for the roadmap: tuning KD hyperparameters (alpha 0.5,
+temperature 2.0) is pointless until the target representation itself
+is fixed (true teacher token ids in the student vocabulary) AND the
+teacher clears the gate. The honest next step is SFT scaling plus the
+task-eval capability measurement.
 
 Consequence for the roadmap: tuning KD hyperparameters (alpha 0.5,
 temperature 2.0) is pointless until the target representation itself
