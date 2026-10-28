@@ -84,7 +84,12 @@ def compute_kd_loss(
     import torch
 
     pairs: list[tuple[int, float]] = []
-    vocab = tokenizer.get_vocab()
+    # get_vocab() builds a 250k-entry dict: cache it on the tokenizer or the
+    # per-position loop costs minutes per optimizer step (issue #57).
+    vocab = getattr(tokenizer, "_kd_vocab_cache", None)
+    if vocab is None:
+        vocab = tokenizer.get_vocab()
+        tokenizer._kd_vocab_cache = vocab
     for token, logprob in topk:
         token_id = vocab.get(token)
         if token_id is not None:
