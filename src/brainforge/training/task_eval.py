@@ -207,13 +207,16 @@ def evaluate_model_on_records(
     max_new_tokens: int = 512,
     batch_size: int = 4,
     generator: Callable[[list], list[str]] | None = None,
+    enable_thinking: bool | None = None,
 ) -> dict:
     """Load the trained model (or accept a served-model generator) and run task eval.
 
     ``generator`` overrides local model loading: pass
     :func:`build_remote_generator` to score a model served behind an
-    OpenAI-compatible endpoint. The report is only persisted next to locally
-    stored weights; served models have no local directory to write into.
+    OpenAI-compatible endpoint. ``enable_thinking`` controls Qwen3-style
+    reasoning at generation time (both paths). The report is only persisted
+    next to locally stored weights; served models have no local directory
+    to write into.
     """
     from brainforge.dataset.writer import read_jsonl
 
@@ -221,7 +224,9 @@ def evaluate_model_on_records(
     dataset_path = Path(dataset_path)
     records = read_jsonl(dataset_path)
     if generator is None:
-        generator = _build_generator(model_path, quantization, max_new_tokens, batch_size)
+        generator = _build_generator(
+            model_path, quantization, max_new_tokens, batch_size, enable_thinking=enable_thinking
+        )
     result = run_task_eval(records, generator)
     # Hub ids (base-model evaluation) resolve outside the local filesystem:
     # the report is only persisted next to locally stored weights.
@@ -320,12 +325,26 @@ def _conversations(batch: list[str]) -> list[list[dict]]:
     return [[{"role": "user", "content": prompt}] for prompt in batch]
 
 
+def _generation_template_kwargs(enable_thinking: bool | None) -> dict:
+    """Chat-template kwargs for Qwen3-style thinking control.
+
+    ``enable_thinking=False`` skips the reasoning block at generation time;
+    thinking traces can otherwise consume the entire completion budget and
+    leave the scored answer empty. Templates that do not know the kwarg
+    ignore it silently.
+    """
+    if enable_thinking is None:
+        return {}
+    return {"enable_thinking": enable_thinking}
+
+
 def _build_generator(
     model_path: Path,
     quantization: str,
     max_new_tokens: int,
     batch_size: int = 4,
     attn_implementation: str = "sdpa",
+    enable_thinking: bool | None = None,
 ) -> Callable[[list], list[str]]:
     import torch
 
@@ -337,6 +356,7 @@ def _build_generator(
     )
     # Left padding keeps every prompt in the batch aligned at the same position.
     tokenizer.padding_side = "left"
+    template_kwargs = _generation_template_kwargs(enable_thinking)
 
     def generate(user_messages: list) -> list[str]:
         prompts = [_flatten_message(item) for item in user_messages]
@@ -351,6 +371,7 @@ def _build_generator(
                     padding=True,
                     return_tensors="pt",
                     return_dict=True,
+                    **template_kwargs,
                 ).to(model.device)
                 output = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
                 generated = output[:, inputs["input_ids"].shape[1] :]
