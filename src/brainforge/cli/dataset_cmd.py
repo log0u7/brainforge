@@ -231,7 +231,11 @@ def split(
         kept = 0
         with sidecar_path.open("w", encoding="utf-8") as handle:
             for entry in entries:
-                if entry.get("id") in train_ids:
+                entry_id = entry.get("id")
+                if not isinstance(entry_id, str):
+                    err_console.print("[yellow]sidecar entry without string id dropped[/yellow]")
+                    continue
+                if entry_id in train_ids:
                     handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
                     kept += 1
         console.print(f"  sidecar: {kept}/{len(entries)} -> {sidecar_path}")

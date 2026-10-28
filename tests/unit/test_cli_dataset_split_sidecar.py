@@ -190,3 +190,31 @@ def test_split_sidecar_missing_file_fails(project_env):
     )
     assert result.exit_code == 1
     assert "sidecar not found" in result.output
+
+
+def test_split_sidecar_non_string_id_dropped(project_env):
+    _write_dataset(project_env)
+    sidecar = _write_sidecar(project_env, [_kd_entry("train-0"), {"id": ["bad"]}])
+    result = runner.invoke(
+        app, ["dataset", "split", "datasets/ctf.jsonl", "--sidecar", str(sidecar)]
+    )
+    assert result.exit_code == 0, result.output
+    out = project_env / "datasets" / "ctf_split"
+    got = [
+        json.loads(line)
+        for line in (out / "kd.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert got == [_kd_entry("train-0")]
+
+
+def test_split_sidecar_empty_file_writes_empty_kd(project_env):
+    _write_dataset(project_env)
+    sidecar = _write_sidecar(project_env, [])
+    result = runner.invoke(
+        app, ["dataset", "split", "datasets/ctf.jsonl", "--sidecar", str(sidecar)]
+    )
+    assert result.exit_code == 0, result.output
+    out = project_env / "datasets" / "ctf_split" / "kd.jsonl"
+    assert out.is_file()
+    assert out.read_text(encoding="utf-8").strip() == ""
