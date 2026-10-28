@@ -102,6 +102,17 @@ def _fake_modules(with_unsloth: bool = True) -> dict:
         "Dataset", (), {"from_list": classmethod(lambda cls, rows: {"rows": rows})}
     )
     modules["transformers"].BitsAndBytesConfig = lambda **kwargs: {"quant": kwargs}
+    modules["transformers"].AutoTokenizer = type(
+        "AutoTokenizer",
+        (),
+        {
+            "from_pretrained": staticmethod(
+                lambda *a, **k: types.SimpleNamespace(
+                    apply_chat_template=lambda messages, **kw: {"input_ids": [0] * 8}
+                )
+            )
+        },
+    )
     modules["peft"].LoraConfig = lambda **kwargs: {"lora": kwargs}
     if with_unsloth:
         unsloth_mod = types.ModuleType("unsloth")
