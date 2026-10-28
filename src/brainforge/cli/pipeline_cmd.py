@@ -279,7 +279,7 @@ def kd_pass(
             cmd.extend(["-c", config])
         try:
             proc: subprocess.CompletedProcess[str] = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=kd_timeout
+                cmd, capture_output=True, text=True, errors="replace", timeout=kd_timeout
             )
         except subprocess.TimeoutExpired:
             failed += 1
