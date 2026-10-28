@@ -95,6 +95,7 @@ long runs stay observable while they happen: top-level `status`
 | `brainforge dataset validate <file.jsonl>` | strict record validation; exit 1 on any invalid record |
 | `brainforge dataset inspect <file.jsonl>` | contamination stats, agreement rates, duplicates |
 | `brainforge dataset split <file.jsonl>` | source-grouped splits + post-cutoff holdout (`--train-ratio`, `--val-ratio`, `--seed`) |
+| `brainforge dataset filter --sidecar <kd.jsonl>` | keep records whose id appears in the sidecar; `--out` writes a filtered JSONL, `--out-dir` writes a training-ready `train.jsonl` + `kd.jsonl` directory |
 
 ## train
 
@@ -103,7 +104,7 @@ long runs stay observable while they happen: top-level `status`
 | `brainforge train prepare <file.jsonl> [-o dir]` | validate, split, export for TRL (+ `stats.json`) |
 | `brainforge train check` | preflight: hardware, model compatibility and memory estimate before training |
 | `brainforge train run` | train the student (QLoRA, full fine-tuning, GRPO or KD distillation); requires the training extra |
-| `brainforge train evaluate` | student evaluation: loss + perplexity on a split (training extra) |
+| `brainforge train evaluate` | student evaluation: loss + perplexity on a split (training extra); `--base` evaluates the untouched base model instead of an adapter |
 | `brainforge train chat` | interactive chat with a trained student (training extra) |
 | `brainforge train task-eval` | task-level evaluation (verdict/CWE accuracy for the security domain; verdict/flag accuracy for the CTF domain) |
 | `brainforge train export` | export a trained student: merged HF weights or quantized GGUF |
@@ -156,6 +157,13 @@ before a GPU job.
 | `--quant` | `Q4_K_M` | GGUF quantization type (`--format gguf`) |
 | `--ollama <name>` | none | register the GGUF with Ollama (`--format gguf`) |
 | `--llama-cpp-path` | auto | path to a llama.cpp checkout (`--format gguf`) |
+
+## ops
+
+| Command | Description |
+|---|---|
+| `brainforge ops status` | summarize `datasets/*.state.json` run states (done/total, current case, age, STALE past `--stale-after`) plus optional log tails (`--logs`) |
+| `brainforge ops log <path>` | tail the last N non-empty lines (`--lines`, default 12) with an encoding fallback chain (utf-8, utf-16-le, cp1252); error lines are highlighted |
 
 ## quickstart
 
