@@ -77,6 +77,18 @@ long runs stay observable while they happen: top-level `status`
 | Command | Description |
 |---|---|
 | `brainforge pipeline status <dataset\|state path>` | print run progress (status, counts, per-case table) from the state file; exit 1 with a clean error when it is missing |
+| `brainforge pipeline kd-pass` | run `pipeline run ctf --kd --no-rag` per case file, then assemble a sidecar-aligned KD dataset (`train.jsonl` + `kd.jsonl`) |
+
+`kd-pass` options:
+
+| Option | Default | Description |
+|---|---|---|
+| `--cases/-i` | required | directory of case JSON files, processed one subprocess per case |
+| `--out-dir/-o` | required | output dataset directory |
+| `--scratch-dir` | `<out-dir>-parts` | per-case outputs; existing non-empty files are skipped on rerun (resume) |
+| `--only-solved` | off | keep only non-fallback (solved) records |
+| `--kd-timeout` | `900` | seconds per case subprocess; timed-out or failed cases are dropped and their scratch output deleted |
+| `--config/-c` | `config/config.json` | configuration file, forwarded to each case run |
 
 ## rag
 
