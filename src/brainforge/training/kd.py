@@ -72,14 +72,18 @@ def align_teacher_positions(
     return aligned
 
 
-def _compute_kd_loss_reference(
+def compute_kd_loss(
     logits: Any,
     topk: list[tuple[str, float]],
     tokenizer: Any,
     temperature: float,
 ) -> Any | None:
-    """Pre-vectorization per-position loss, kept as the equivalence reference
-    (issue #57 tests): one log_softmax over the full vocabulary per call."""
+    """Cross-entropy of the student's temperature-scaled distribution against
+    the teacher's renormalized top-k distribution (None when no top-k token
+    exists in the student vocabulary).
+
+    Per-position reference for the vectorized :func:`compute_kd_loss_batch`
+    (issue #57): one full-vocabulary log_softmax per call."""
     import torch
 
     pairs: list[tuple[int, float]] = []

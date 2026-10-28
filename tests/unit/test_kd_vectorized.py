@@ -15,8 +15,8 @@ torch = pytest.importorskip("torch")
 
 from brainforge.training.kd import (  # noqa: E402
     KDDataCollator,
-    _compute_kd_loss_reference,
     compute_kd_loss,
+    compute_kd_loss_batch,
 )
 
 VOCAB_SIZE = 128
@@ -62,9 +62,7 @@ def _reference_loss(logits, targets_per_row, tokenizer, temperature):
         for token_index, topk in targets:
             if not topk:
                 continue
-            term = _compute_kd_loss_reference(
-                logits[row, token_index], topk, tokenizer, temperature
-            )
+            term = compute_kd_loss(logits[row, token_index], topk, tokenizer, temperature)
             if term is not None:
                 terms.append(term)
     return torch.stack(terms).mean() if terms else None
@@ -72,12 +70,13 @@ def _reference_loss(logits, targets_per_row, tokenizer, temperature):
 
 def _vectorized_loss(logits, targets_per_row, tokenizer, temperature):
     batch = KDDataCollator(tokenizer)(_features(targets_per_row))
-    return compute_kd_loss(
+    return compute_kd_loss_batch(
         logits,
-        batch["kd_position_ids"],
+        batch["kd_positions"],
         batch["kd_topk_ids"],
         batch["kd_topk_logprobs"],
-        batch["kd_mask"],
+        batch["kd_topk_mask"],
+        batch["kd_position_mask"],
         temperature,
     )
 
@@ -117,32 +116,48 @@ def test_collator_builds_padded_tensors():
         [],  # row without any target
     ]
     batch = KDDataCollator(tokenizer)(_features(targets_per_row))
-    position_ids = batch["kd_position_ids"]
+    positions = batch["kd_positions"]
     topk_ids = batch["kd_topk_ids"]
     topk_logprobs = batch["kd_topk_logprobs"]
-    mask = batch["kd_mask"]
-    assert position_ids.shape == (3, 2)
+    topk_mask = batch["kd_topk_mask"]
+    position_mask = batch["kd_position_mask"]
+    assert positions.shape == (3, 2)
     assert topk_ids.shape == (3, 2, 2)
-    assert topk_logprobs.dtype == torch.float32
-    assert position_ids.dtype == torch.long
-    # row 0 keeps only its in-vocab pair at position slot 0; position 9 is gone
-    assert position_ids[0].tolist() == [5, 2]
+    assert topk_logprobs.dtype == torch.float64
+    assert positions.dtype == torch.long
+    # position 5 keeps its single in-vocab pair; empty-topk position 9 is dropped
+    assert position_mask[0].tolist() == [True, False]
+    assert positions[0, 0].item() == 5
     assert topk_ids[0, 0].tolist() == [ord("a"), 0]
-    assert mask[0, 0].tolist() == [True, False]  # OOV entry masked out
-    assert not mask[2].any()  # empty row contributes nothing
+    assert topk_mask[0, 0].tolist() == [True, False]  # OOV entry masked out
+    assert topk_logprobs[0, 0, 0].item() == pytest.approx(-0.1)
+    assert not position_mask[2].any()  # empty row contributes nothing
 
 
 def test_vectorized_speed_smoke():
-    """Timing smoke only: CI machines vary, so print the numbers, no assert."""
+    """Timing smoke only: CI machines vary, so print the numbers, no assert.
+
+    The production pathology is GPU-bound (one kernel launch + host-to-device
+    tensor build per position over a 150k vocab, issue #57); a CPU smoke
+    therefore shows a conservative speedup.
+    """
     tokenizer = _VocabTokenizer()
     rng = __import__("random").Random(0)
-    positions, k, vocab_size, sequence_length = 100, 8, 4096, 256
-    targets_per_row = [_random_targets(rng, positions, k) for _ in range(2)]
-    # remap positions into the sequence length and force in-vocab tokens
+    batch_size, positions, k, vocab_size, sequence_length = 2, 300, 8, 32768, 512
     targets_per_row = [
-        [(p % (sequence_length - 1), topk) for p, topk in row] for row in targets_per_row
+        [
+            (
+                position,
+                [
+                    [chr(rng.randrange(VOCAB_SIZE)), float(rng.uniform(-10.0, -0.01))]
+                    for _ in range(k)
+                ],
+            )
+            for position in rng.sample(range(sequence_length - 1), positions)
+        ]
+        for _ in range(batch_size)
     ]
-    logits = torch.randn(2, sequence_length, vocab_size)
+    logits = torch.randn(batch_size, sequence_length, vocab_size)
 
     start = time.perf_counter()
     reference = _reference_loss(logits, targets_per_row, tokenizer, 2.0)
@@ -155,7 +170,7 @@ def test_vectorized_speed_smoke():
     assert reference is not None and vectorized is not None
     assert (reference - vectorized).abs().item() < 1e-5
     print(
-        f"\nKD loss on {2 * positions} positions: "
+        f"\nKD loss on {batch_size * positions} positions (vocab {vocab_size}): "
         f"reference {reference_ms:.1f} ms, vectorized {vectorized_ms:.1f} ms "
         f"(x{reference_ms / max(vectorized_ms, 1e-9):.1f})"
     )
