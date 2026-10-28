@@ -355,3 +355,39 @@ def test_conversations_one_per_prompt():
         [{"role": "user", "content": "first prompt"}],
         [{"role": "user", "content": "second prompt"}],
     ]
+
+
+def test_generation_budget_warns_when_too_short(caplog):
+    """A 512-token default truncates CTF answers of ~2000 tokens: every
+    answer comes back cut and unparseable (accuracy 0 by construction).
+    The run must warn before scoring against an impossible budget."""
+    import json
+    import logging
+
+    from brainforge.training.task_eval import _budget_warning
+
+    record = {
+        "id": "rec-long",
+        "domain": "ctf",
+        "messages": [
+            {"role": "user", "content": "challenge"},
+            {"role": "assistant", "content": json.dumps({"verdict": "partial", "pad": "x" * 8000})},
+        ],
+    }
+    with caplog.at_level(logging.WARNING):
+        warning = _budget_warning([record], 512)
+    assert warning is not None
+    assert "512" in warning and "rec-long" in warning
+
+
+def test_generation_budget_accepts_generous_limit():
+    from brainforge.training.task_eval import _budget_warning
+
+    record = {
+        "id": "rec-short",
+        "messages": [
+            {"role": "user", "content": "challenge"},
+            {"role": "assistant", "content": "x" * 100},
+        ],
+    }
+    assert _budget_warning([record], 2048) is None

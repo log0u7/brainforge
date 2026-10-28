@@ -6,6 +6,7 @@ ground truth stored in each dataset record's assistant message.
 """
 
 import json
+import logging
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -155,6 +156,31 @@ def score_task(pairs: list[tuple[dict, dict]], domain: str = "security") -> dict
     return metrics
 
 
+def _budget_warning(records: list[dict], max_new_tokens: int) -> str | None:
+    """Warn when the generation budget cannot fit the longest expected answer.
+
+    A token budget below the longest ground-truth completion (about one token
+    per four characters) cuts every such answer mid-JSON: the outputs come
+    back unparseable and accuracy reads 0 by construction. Found by the
+    CTF eval runs, where 512- and 1024-token budgets truncated 1145-2168
+    token answers.
+    """
+    longest_chars = 0
+    longest_id = None
+    for record in records:
+        content = (record.get("messages") or [{}])[-1].get("content") or ""
+        if len(content) > longest_chars:
+            longest_chars, longest_id = len(content), record.get("id")
+    estimated = longest_chars // 4
+    if estimated > max_new_tokens:
+        return (
+            f"max_new_tokens {max_new_tokens} is below the longest ground-truth "
+            f"completion (record '{longest_id}' needs about {estimated} tokens): "
+            f"answers will be cut and scored unparseable, raise --max-new-tokens"
+        )
+    return None
+
+
 def run_task_eval(
     records: list[dict], generate: Callable[[list], list[str]], max_new_tokens: int = 512
 ) -> dict:
@@ -166,6 +192,9 @@ def run_task_eval(
     """
     if not records:
         raise BrainforgeError("empty evaluation dataset")
+    budget_warning = _budget_warning(records, max_new_tokens)
+    if budget_warning is not None:
+        logging.getLogger(__name__).warning(budget_warning)
     domains = {str(record["domain"]) for record in records if record.get("domain") is not None}
     unexpected = domains - {"security", "ctf"}
     if unexpected:

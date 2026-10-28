@@ -78,6 +78,32 @@ def extract_prompt_completion(records: list[dict]) -> list[dict]:
     return rows
 
 
+def _check_max_length_fit(records: list[dict], max_length: int, tokenizer: Any) -> None:
+    """Fail fast when max_length would truncate a completion.
+
+    TRL truncates the sequence tail, so a record whose prompt+completion
+    exceeds max_length loses the end of its completion: the model never sees
+    the answer terminator and never learns the answer format. Found by the
+    KD-GLM run, where every completion (1145-2168 tokens) exceeded the
+    default max_length=1024 and the student kept answering like the base
+    model despite a healthy-looking loss curve.
+    """
+    longest = 0
+    longest_id = None
+    for record in records:
+        tokenized = tokenizer.apply_chat_template(record.get("messages") or [], tokenize=True)
+        n_tokens = len(tokenized["input_ids"]) if isinstance(tokenized, dict) else len(tokenized)
+        if n_tokens > longest:
+            longest, longest_id = n_tokens, record.get("id")
+    if longest > max_length:
+        raise BrainforgeError(
+            f"max_length {max_length} truncates record '{longest_id}' ({longest} tokens "
+            f"for prompt+completion): raise training.max_length above the longest "
+            f"record or the completion tail is cut and the model never learns the "
+            f"answer terminator"
+        )
+
+
 def _sft_dataset(split_path: Path) -> "Dataset | None":
     records = read_jsonl(split_path)
     if not records:
@@ -202,6 +228,12 @@ def train_qlora(
     from trl import SFTTrainer
 
     dataset_dir = Path(dataset_dir)
+    records = read_jsonl(dataset_dir / "train.jsonl")
+    from transformers import AutoTokenizer
+
+    _check_max_length_fit(
+        records, config.max_length, AutoTokenizer.from_pretrained(config.base_model)
+    )
     train_dataset = _sft_dataset(dataset_dir / "train.jsonl")
     if train_dataset is None:
         raise BrainforgeError("empty dataset split")
