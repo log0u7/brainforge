@@ -2,10 +2,10 @@
 
 Primary target: a 7-9B student on a single RTX 3080 10GB
 ([ADR-0010](../adr/0010-qlora-training-single-rtx-3080.md)), with an
-Unsloth backend for roughly 2x speed and lower VRAM. Three strategies
-(QLoRA, full fine-tuning, knowledge distillation) and three backends
-(auto, trl, unsloth) compose freely; the dataset preparation is shared by
-all of them.
+Unsloth backend for roughly 2x speed and lower VRAM. Four strategies
+(QLoRA, full fine-tuning, knowledge distillation, GRPO reinforcement
+learning) and three backends (auto, trl, unsloth) compose freely; the
+dataset preparation is shared by all of them.
 
 All training commands require the training extra; the device, dtype and
 quantization resolve automatically for the detected hardware:
@@ -43,8 +43,9 @@ Options: `--train-ratio`, `--val-ratio`, `--seed`, `--output/-o`.
 |---|---|---|---|---|
 | `qlora` (default) | LoRA adapters | `auto`: 4-bit nf4 on CUDA/ROCm, none elsewhere | ~10GB on CUDA | first pass, fast iteration |
 | `full` | every weight | none (bf16/fp16 per device) | model-size dependent | decision model after the dataset is proven |
+| `grpo` | RL on sampled completions, scored by verifiable rewards | per backend | model-size dependent | domains with a verifiable signal (CTF flags, refusal compliance) |
 
-Selected with `training.strategy` or `train run --strategy {qlora,full}`.
+Selected with `training.strategy` or `train run --strategy {qlora,full,grpo}`.
 The LoRA rank/alpha/dropout come from config for `qlora`; `full` ignores
 them. `qlora` with quantization `none` (the auto default off CUDA/ROCm)
 trains plain LoRA.
@@ -66,6 +67,30 @@ AirLLM is evaluated and not adopted
 ([ADR-0017](../adr/0017-airllm-not-adopted.md)): layer streaming lowers VRAM
 but not for a 7-9B model that already fits, and its custom training API is
 incompatible with the PEFT/TRL, KD and GGUF contracts.
+
+## Reinforcement learning (GRPO)
+
+`strategy: "grpo"` (`train run --strategy grpo`) trains with TRL
+`GRPOTrainer`: the model samples several completions per prompt and a
+verifiable reward scores them, no labeled corpus required. Rewards are
+named callables in `brainforge.training.rewards`:
+
+| Reward | Signal | Scores |
+|---|---|---|
+| `ctf_flag` | flag found vs `grpo_flags.jsonl` (`id -> expected_flag` sidecar) | exact match 1.0 on the verified tier, format-only 0.3, absent 0 |
+| `compliance` | refusal tics after abliteration | compliant answer 1, refusal 0 |
+
+The registry API (`register_reward(name, fn)` / `get_reward(name)`) makes
+rewards pluggable, and `compose_reward("ctf_flag,compliance*0.5")` builds
+a weighted composition so one GRPO pass trains against several signals.
+
+Resolution order in `train_grpo`: an explicit reward spec >
+`training.grpo_reward` > the domain pack's `grpo_reward()` hook >
+`BrainforgeError` (no silent default: an unusable reward fails before
+training starts). A new domain joins RL training by declaring one reward
+in its pack; `CtfPack` declares `ctf_flag`. Phase-3 RL
+([ADR-0018](../adr/0018-post-training-expansion-deferred.md)) is
+therefore generic rather than CTF-specific.
 
 ## Multi-turn data and assistant-only loss
 
@@ -101,7 +126,7 @@ per run with `--base-model`.
 | Field | Default | Meaning |
 |---|---|---|
 | `base_model` | `Qwen/Qwen3-8B` | HF model id or local dir |
-| `strategy` | `qlora` | `qlora` or `full` |
+| `strategy` | `qlora` | `qlora`, `full` or `grpo` |
 | `backend` | `auto` | `auto` (trl), `trl` or `unsloth` |
 | `device` | `auto` | `auto`, `cuda`, `xpu`, `mps` or `cpu` |
 | `quantization` | `auto` | `auto`, `4bit`, `8bit`, `none` (unsloth: 4bit or none; CUDA/ROCm only) |
@@ -123,6 +148,7 @@ per run with `--base-model`.
 | `kd_alpha` | 0.5 | KD loss weight |
 | `kd_temperature` | 2.0 | KD temperature |
 | `kd_topk` | 8 | teacher alternatives per token |
+| `grpo_reward` | `""` | reward spec for `strategy: "grpo"` (`reward` or weighted list, e.g. `ctf_flag,compliance*0.5`); empty delegates to the domain pack hook |
 
 ## Train, evaluate, export
 

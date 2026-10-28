@@ -1,7 +1,15 @@
 # Post-training expansion: TRL v1, on-policy distillation, GRPO and OpenEnv deferred
 
-* Status: accepted
+* Status: accepted (amended 2026-10-28: GRPO pulled forward, see below)
 * Date: 2026-10-25
+
+> **Amendment (2026-10-28):** the GRPO stage shipped early, before the
+> first benchmark: `strategy: "grpo"` on TRL `GRPOTrainer` with a
+> verifiable-reward registry (`register_reward` / `compose_reward` /
+> `DomainPack.grpo_reward()`). See the
+> [training reference](../reference/training.md#reinforcement-learning-grpo).
+> The remaining stages (on-policy distillation, OpenEnv environments,
+> multi-harness RL) stay deferred as written.
 
 ## Context and Problem Statement
 

@@ -57,6 +57,12 @@ logprobs; `train run --kd` then trains with a distillation term. See
 
 ## 4. Watch the run
 
+- The run self-traces progress to `<output>.state.json` (written atomically
+  before and after every case). Watch it live with
+  `uv run brainforge pipeline status datasets/security_dataset.jsonl`:
+  counts plus a per-case table (`running`/`accepted`/`rejected`/`error`,
+  duration, gate reasons), so multi-hour runs are observable while they
+  happen.
 - `data/logs/usage.jsonl`: one line per call (tokens, latency, cache hits,
   cost when pricing is set).
 - The console summary counts accepted vs rejected.

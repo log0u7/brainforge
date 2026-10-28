@@ -23,7 +23,7 @@ It is a self-hosted Python package and CLI. Datasets, the RAG index, cache, and 
 1. **Generate.** Cases come from JSON or source files, optionally enriched with local RAG context. One or more teacher roles produce structured analyses.
 2. **Challenge (optional and preset-dependent).** A critic can attack the teachers' output before the judge. The ticket standard uses `ticket_teacher`, the `general_teacher` critic, and the judge. Security and coding standards use two teachers and the judge. Maximum modes add the `general_teacher` critic for security and coding, and ticket maximum also adds `ticket_teacher_2`. `retry_with_critic` runs a critic only after the first pass is rejected.
 3. **Adjudicate and gate.** The judge runs last. With the default `enforced` setting, it must use a different provider from every non-judge role, plus a different declared model family when both sides declare one. Domain gates check schema, evidence, format, confidence, and optional recitation risk; unresolved verdicts are rejected by default (`reject_unresolved`). Accepted records get provenance; rejected cases are quarantined with reasons.
-4. **Train.** Prepare source-grouped splits, fine-tune with QLoRA or full FT on the best detected device (CUDA/ROCm, Intel XPU, Apple MPS, or CPU), and export merged HF weights, GGUF, or an Ollama model.
+4. **Train.** Prepare source-grouped splits, fine-tune with QLoRA or full FT on the best detected device (CUDA/ROCm, Intel XPU, Apple MPS, or CPU), run GRPO reinforcement learning against verifiable rewards, and export merged HF weights, GGUF, or an Ollama model.
 
 Dataset-only users can stop after stage 3: the JSONL is the product, and training is optional.
 
@@ -131,9 +131,9 @@ and [training reference](docs/reference/training.md).
 | Providers and cost control | OpenRouter, OpenCode Zen (`chat_completions` only), MLGW, an OpenAI-compatible `chat_completions` endpoint, and a deterministic mock. Env-expanded keys, retries, SQLite response cache, and usage logs with cost estimates when pricing is configured. |
 | Multi-teacher ensemble | One or more teacher roles, an optional critic, and a separate judge. Presets for cheap, standard, and maximum modes; `retry_with_critic` adds criticism and a second judge pass after a rejection. |
 | Dataset contract | JSONL messages plus source, source date, teachers, judge, gate result, recitation risk and reason, RAG chunks, and agreement where the domain schema supports it. |
-| Gates and dataset tooling | Per-domain rules, rejected-case quarantine with reasons, validation, duplicate and contamination inspection, source-grouped splits, and a post-cutoff holdout. |
+| Gates and dataset tooling | Per-domain rules, rejected-case quarantine with reasons, validation, duplicate and contamination inspection, source-grouped splits, and a post-cutoff holdout. Long runs self-trace progress to a state file, readable live with `brainforge pipeline status`. |
 | Local RAG | fastembed ONNX embeddings on CPU (or hashing embeddings), SQLite plus NumPy store, chunk provenance, and `--no-rag` to bypass it. |
-| Training and export | QLoRA with 4-bit weights and LoRA, full fine-tuning, TRL or opt-in Unsloth, portable device selection (CUDA/ROCm, XPU, MPS, CPU) with preflight checks, resume support, merged HF weights, GGUF, and Ollama. |
+| Training and export | QLoRA with 4-bit weights and LoRA, full fine-tuning, TRL or opt-in Unsloth, GRPO reinforcement learning with a pluggable verifiable-reward registry, portable device selection (CUDA/ROCm, XPU, MPS, CPU) with preflight checks, resume support, merged HF weights, GGUF, and Ollama. |
 | Domain packs | Security and coding reference packs; ticket, CTF, review, audit, and agentic examples; generic fallback for prototypes. |
 
 Knowledge distillation (`--kd`) and abliteration are experimental: documented,
@@ -182,7 +182,7 @@ context go to configured providers.
 |---|---|
 | Structured output | JSON Schema in the prompt, Pydantic validation, and two parse retries |
 | Judge separation | At config load, with `enforced`: a different provider from every non-judge role, and a different declared family when both sides set one. `warn` and `off` relax this. |
-| Quality gate | Per-domain evidence, format, and confidence rules; unresolved verdicts rejected by default (`reject_unresolved`); optional recitation-risk rejection and abstention fallback |
+| Quality gate | Per-domain evidence, format, and confidence rules; unresolved verdicts rejected by default (`reject_unresolved`), except that a teacher/judge dispute on a case with a known ground-truth flag is arbitrated by that flag; optional recitation-risk rejection and abstention fallback |
 | Contamination | Source date plus every teacher and critic cutoff produce `recitation_risk` and a reason. Post-cutoff cases form the holdout split, which warns below 20 cases. |
 | Provenance | Source, teachers, judge, gate result, RAG chunks, dates, and agreement where supported |
 | Dataset validation | Re-checks schema, roles, assistant JSON, and the quality gate |
@@ -193,7 +193,7 @@ context go to configured providers.
 |---|---|
 | Maturity and evidence | Pre-1.0. First benchmark published: the end-to-end pipeline works (generation to task-eval on a post-cutoff holdout); no model-quality gain at the 6-record scale yet, scale-up queued. Numbers and reading: [benchmark](docs/explanation/benchmark.md). Pin a commit and measure your own holdout. |
 | Mock mode | Deterministic schema filler for plumbing, tests, and demos. It is not evidence of label or model quality. |
-| Training | QLoRA, full FT, KD, and task evaluation need the training extra. Chat needs the extra and enough memory. The CPU smoke test is one tiny LoRA step. CPU, ROCm, XPU, and MPS training paths are implemented and unit-tested but not hardware-validated; run `brainforge train check` on your machine first. Full FT needs more VRAM than QLoRA. |
+| Training | QLoRA, full FT, KD, and task evaluation need the training extra. Chat needs the extra and enough memory. The CPU smoke test is one tiny LoRA step. CPU, ROCm, XPU, and MPS training paths are implemented and unit-tested but not hardware-validated; run `brainforge train check` on your machine first. Full FT needs more VRAM than QLoRA. The full cycle was exercised end to end on a consumer Windows GPU host (RTX 3080). |
 | Judge separation and agreement | Enforced with providers and declared families only. The same upstream weights behind two providers, a mislabeled family, `warn`, or `off` defeat it. Agreement is reported only for schemas with boolean verdict signals, so ticket datasets may show none. |
 | Contamination | Requires source dates and every teacher and critic cutoff. Missing dates or cutoffs fail safe to `recitation_risk`. The post-cutoff split can be empty or under 20 cases; it is a split, not a benchmark. |
 | Deduplication and RAG | Duplicate detection is inspection-only, with exact and near matching; it does not remove records. RAG is brute-force NumPy over SQLite, without an ANN index. |

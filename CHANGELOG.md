@@ -20,8 +20,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   observable while they happen. New `brainforge pipeline status` command reads
   it and prints counts plus a per-case table; a missing or corrupt state file
   exits 1 with a clean error.
+- GRPO training backend: `strategy: "grpo"` (`train run --strategy grpo`)
+  trains with TRL `GRPOTrainer` against verifiable rewards instead of a
+  labeled corpus. Rewards are named callables in
+  `brainforge.training.rewards`: `register_reward`/`get_reward` manage the
+  registry, `compose_reward("ctf_flag,compliance*0.5")` builds a weighted
+  composition so one pass trains against several signals, and the built-ins
+  are `ctf_flag` (exact flag match 1.0 on the verified tier, format-only
+  0.3, absent 0) and `compliance` (refusal-tic scoring for GRPO-oblit). An
+  optional `grpo_flags.jsonl` sidecar (id -> expected_flag) feeds the
+  verification signal. Resolution order in `train_grpo`: explicit reward
+  spec > `training.grpo_reward` > the `DomainPack.grpo_reward()` hook >
+  `BrainforgeError` (no silent default: an unusable reward fails before
+  training starts). A new domain joins RL training by declaring a reward;
+  `CtfPack` declares `ctf_flag`.
+- Teacher/judge dispute arbitration by ground truth: on verified-tier cases
+  (an `expected_flag` is known), a judge `insufficient_information` verdict
+  no longer discards the case. If the correct flag appears in the teacher
+  outputs or in the judge's own reasoning, the case is accepted with the
+  `arbitrated_by_ground_truth` reason and the winning answer feeds
+  training. When nobody's flag matches, the strict abstention path applies;
+  tier-B cases keep the abstention gate unchanged.
 
 ### Fixed
+
+- Provider calls now enforce a wall-clock total deadline (configured
+  `timeout` plus a 30s grace). httpx timeouts bound the time between reads,
+  so a drip-feeding stream never tripped them and could freeze a pipeline
+  run forever (observed twice on gpu3080: zero-CPU hangs mid-batch, no
+  exception, no rejection). Each attempt now runs in a worker thread; on
+  expiry the attempt is abandoned without waiting on the orphaned thread
+  (a `shutdown(wait=True)` would have reintroduced the hang) and the retry
+  loop proceeds, ending in `ProviderUnavailableError` for the case as
+  designed.
+- `CachingProvider` now delegates `complete_logprobs` to the inner
+  provider: it only overrode `complete()`, so every logprobs call fell
+  through and raised "does not support logprobs", making the KD pass
+  unreachable through the cache wrapper (judge sidecar empty on gpu3080).
+  Logprobs responses stay uncached (live teacher signal).
+- KD training runs on Windows: datasets materialize eagerly with
+  `Dataset.from_list` instead of `Dataset.from_generator`, whose unstable
+  closure fingerprinting collided the train and eval builders onto one
+  cache directory and self-locked (WinError 32, reproduced with default
+  and fresh `HF_DATASETS_CACHE`); the `kd_targets` column travels through
+  the arrow table as a JSON string and `KDDataCollator` decodes it; and
+  the KD path sets `TrainingArguments.remove_unused_columns=False` so the
+  Trainer no longer strips `kd_targets` before the collator
+  (`KeyError: 'kd_targets'` on the first real KD run).
+- `evaluate()` pads batches with `return_tensors="pt"`.
 
 - Regenerated `config/schema.json`: the GRPO strategy/reward fields from
   #49 landed in `src/brainforge/config/models.py` without regenerating the
@@ -55,14 +101,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- KD training streams tokenized rows through `Dataset.from_generator` and
-  the new `brainforge.dataset.writer.iter_jsonl` reader instead of
-  materializing every tokenized record in RAM at once. Behavior
-  preserved: teacher-position validation still fails on the first record
-  without a sidecar entry, with the same error message; an empty or
-  missing validation split still disables evaluation. A missing
-  train.jsonl now raises a clean BrainforgeError instead of a raw
-  FileNotFoundError.
+- KD training reads records through the new
+  `brainforge.dataset.writer.iter_jsonl` reader instead of materializing
+  every tokenized record in RAM at once, and builds the arrow datasets
+  eagerly (`Dataset.from_list`): the `Dataset.from_generator` builder
+  cache is not Windows-safe (see Fixed above) and KD datasets are tiny by
+  construction. Behavior preserved: teacher-position validation still
+  fails on the first record without a sidecar entry, with the same error
+  message; an empty or missing validation split still disables
+  evaluation. A missing train.jsonl now raises a clean BrainforgeError
+  instead of a raw FileNotFoundError.
 
 ### Removed
 
