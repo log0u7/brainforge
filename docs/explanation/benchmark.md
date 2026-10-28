@@ -47,7 +47,8 @@ On a machine with provider keys configured:
      --output datasets/ctf-first.jsonl
    ```
 
-   Verified-tier cases (lictor lab, ROP Emporium) carry
+   Verified-tier cases ([lictor lab](https://github.com/log0u7/lictor/tree/main/lab),
+   [ROP Emporium](https://ropemporium.com/)) carry
    `metadata.expected_flag`: the CTF gate rejects a judge flag that
    does not match it. The mock run therefore rejects every
    verified-tier case by design.
@@ -87,8 +88,9 @@ On a machine with provider keys configured:
 The CTF ingestion (see `experiments/ctf_ingest/README.md`) feeds this
 benchmark with two tiers:
 
-* **verified** (12 cases): lictor lab targets and ROP Emporium
-  binaries with a known flag; the flag gate enforces the ground truth.
+* **verified** (12 cases): [lictor lab](https://github.com/log0u7/lictor/tree/main/lab)
+  targets and [ROP Emporium](https://ropemporium.com/) binaries with a
+  known flag; the flag gate enforces the ground truth.
 * **unverified** (11 cases): CTF-Archives 2026 dumps with a flag
   format only; judge-verdict agreement is measured, flags are not.
 
@@ -110,11 +112,12 @@ expected outcome of a 6-record training signal, not a tooling failure.
 | `coding_teacher` | qwen/qwen3-coder-next | OpenRouter |
 | `judge` | z-ai/glm-5.3-flash, 10000-token budget | OpenRouter |
 
-`judge_independence: warn` for this run: one provider served every
-role, so the model-family separation between judge and teachers could
-not be enforced. It returns with distinct providers or declared
-families per role; the per-record provenance lists the exact models of
-every role either way.
+`judge_independence: warn` for this run: the check is conservative and
+also warns when judge and teachers share a gateway, even though the
+model families differ here (qwen teachers, glm judge) - the separation
+that matters, model-family level, held. It tightens back to enforced
+when any role reuses another role's model family; the per-record
+provenance lists the exact models of every role either way.
 
 Data: 23 CTF cases (12 verified tier with curated technique ground
 truth, 11 Zeekr 2026 tier-B). **15 accepted** (12 verified + 3 tier-B,
