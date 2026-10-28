@@ -16,7 +16,12 @@ from brainforge.errors import BrainforgeError
 from brainforge.pipeline.engine import PipelineEngine, run_pipeline
 from brainforge.providers.base import ChatRequest, ChatResponse, PositionLogprobs, Provider
 from brainforge.providers.mock import MockProvider
-from brainforge.training.kd import _tokenize_row, align_teacher_positions
+from brainforge.training.kd import (
+    _family_mismatch_warning,
+    _tokenize_row,
+    _tokenizer_family,
+    align_teacher_positions,
+)
 
 runner = CliRunner()
 
@@ -408,3 +413,34 @@ def test_tokenize_row_rejects_multi_turn_record():
     }
     with pytest.raises(BrainforgeError, match="tool messages"):
         _tokenize_row(record, {"positions": []}, _FakeChatTokenizer())
+
+
+@pytest.mark.parametrize(
+    ("model_ref", "expected"),
+    [
+        ("z-ai/glm-5.3-prime", "glm"),
+        ("qwen/qwen3.5-35b-a3b", "qwen"),
+        ("Qwen/Qwen3-1.7B", "qwen"),
+        ("deepseek/deepseek-v4-pro", "deepseek"),
+        ("llama", "llama"),
+        ("123-x", None),
+    ],
+)
+def test_tokenizer_family_extracts_leading_letters(model_ref, expected):
+    assert _tokenizer_family(model_ref) == expected
+
+
+def test_family_mismatch_warning_mentions_refs_and_tokenizer():
+    warning = _family_mismatch_warning("z-ai/glm-5.3-prime", "Qwen/Qwen3-1.7B")
+    assert warning is not None
+    assert "z-ai/glm-5.3-prime" in warning
+    assert "Qwen/Qwen3-1.7B" in warning
+    assert "tokenizer" in warning
+
+
+def test_family_mismatch_warning_none_on_same_family():
+    assert _family_mismatch_warning("Qwen/Qwen3-32B", "Qwen/Qwen3-1.7B") is None
+
+
+def test_family_mismatch_warning_none_on_missing_teacher_model():
+    assert _family_mismatch_warning(None, "Qwen/Qwen3-1.7B") is None
