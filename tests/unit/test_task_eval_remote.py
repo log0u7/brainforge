@@ -164,11 +164,12 @@ def test_generation_template_kwargs():
     assert _generation_template_kwargs(None) == {}
 
 
-def test_cli_default_thinking_is_none_not_false(tmp_path: Any, monkeypatch: Any):
-    """The default task-eval thinking mode is None (render like training):
-    the --no-thinking default of v0.8 inserted an empty think block into the
-    prompt that TRL prompt-completion training never showed, so every
-    generation was measured against a template mismatch."""
+def test_cli_default_thinking_is_false_matching_training(tmp_path: Any, monkeypatch: Any):
+    """The task-eval thinking default is --no-thinking (False): the training
+    render carries the empty think block into the prompt (chat_template_kwargs
+    enable_thinking=False per row), so the inference prompt must match
+    byte-for-byte. The v0.8 default of --thinking also mismatches a model
+    trained with the kwarg."""
     import json as _json
     from pathlib import Path as _Path
 
@@ -211,4 +212,4 @@ def test_cli_default_thinking_is_none_not_false(tmp_path: Any, monkeypatch: Any)
     runner = CliRunner()
     result = runner.invoke(app, ["train", "task-eval", "-d", str(dataset)])
     assert result.exit_code == 0, result.output
-    assert captured["enable_thinking"] is None
+    assert captured["enable_thinking"] is False

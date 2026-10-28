@@ -424,16 +424,15 @@ def task_eval(
         "--api-key-env",
         help="Name of the env var holding the endpoint API key (default: none needed)",
     ),
-    thinking: bool | None = typer.Option(
-        None,
+    thinking: bool = typer.Option(
+        False,
         "--thinking/--no-thinking",
         help=(
             "Qwen3 thinking mode at generation (chat template kwargs locally,"
-            " chat_template_kwargs on the endpoint). Default None renders the"
-            " generation prompt exactly like TRL prompt-completion training"
-            " (the model emits the think block itself); --no-thinking inserts"
-            " the empty think block into the prompt, which is right for served"
-            " GGUF models whose thinking traces eat the token budget"
+            " chat_template_kwargs on the endpoint). Default --no-thinking"
+            " matches the training render (the prompt carries the empty think"
+            " block, the model answers with JSON directly); --thinking is for"
+            " models whose own think traces eat the token budget"
         ),
     ),
     model_name: str = typer.Option(
