@@ -195,6 +195,12 @@ def split(
     train_ratio: float = typer.Option(0.8, "--train-ratio"),
     val_ratio: float = typer.Option(0.1, "--val-ratio"),
     seed: int = typer.Option(42, "--seed"),
+    sidecar: Path = typer.Option(
+        None, "--sidecar", help="JSONL sidecar (e.g. kd.jsonl) filtered to the train split"
+    ),
+    sidecar_out: Path = typer.Option(
+        None, "--sidecar-out", help="Sidecar output path (default: <output>/kd.jsonl)"
+    ),
     config: str = typer.Option(None, "--config", "-c"),
 ) -> None:
     """Split a dataset into train/validation/test (+ post-cutoff holdout)."""
@@ -209,3 +215,23 @@ def split(
     console.print(f"[green]split written[/green] -> {target}")
     for name, count in stats.items():
         console.print(f"  {name}: {count}")
+
+    if sidecar is not None:
+        if not sidecar.is_file():
+            err_console.print(f"[red]sidecar not found:[/red] {sidecar}")
+            raise typer.Exit(code=1)
+        sidecar_path = sidecar_out or target / "kd.jsonl"
+        sidecar_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            train_ids = {record["id"] for record in read_jsonl(target / "train.jsonl")}
+            entries = _read_jsonl_generic(sidecar)
+        except BrainforgeError as exc:
+            err_console.print(f"[red]sidecar failed:[/red] {exc}")
+            raise typer.Exit(code=1) from exc
+        kept = 0
+        with sidecar_path.open("w", encoding="utf-8") as handle:
+            for entry in entries:
+                if entry.get("id") in train_ids:
+                    handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
+                    kept += 1
+        console.print(f"  sidecar: {kept}/{len(entries)} -> {sidecar_path}")

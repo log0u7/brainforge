@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `brainforge ops log <path>`: tail the last N non-empty lines of a log with
   an encoding fallback chain (utf-8, utf-16-le, cp1252) and error-line
   highlighting.
+- `brainforge dataset split --sidecar <kd.jsonl>`: optionally align a KD
+  sidecar to the train split (entries filtered to train ids, written to
+  `<output>/kd.jsonl` or `--sidecar-out`). Split outputs are unchanged when
+  the option is absent.
 
 - `pipeline run` now self-traces progress to a structured state file next to
   the dataset (`<output>.state.json`, overridable via the new `run_pipeline`
