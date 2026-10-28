@@ -7,6 +7,7 @@ from brainforge.cli import (
     models_cmd,
     ops_cmd,
     pipeline_cmd,
+    providers_cmd,
     quickstart_cmd,
     rag_cmd,
     roles_cmd,
@@ -30,6 +31,7 @@ for sub_app, name, help_text in [
     (roles_cmd, "roles", "Role inspection."),
     (teacher_cmd, "teacher", "Run teachers on cases."),
     (pipeline_cmd, "pipeline", "Run dataset generation pipelines."),
+    (providers_cmd, "providers", "Provider diagnostics (logprobs probe)."),
     (rag_cmd, "rag", "Local RAG index and search."),
     (dataset_cmd, "dataset", "Dataset utilities."),
     (
