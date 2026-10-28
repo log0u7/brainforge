@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sidecar to the train split (entries filtered to train ids, written to
   `<output>/kd.jsonl` or `--sidecar-out`). Split outputs are unchanged when
   the option is absent.
+- `brainforge pipeline kd-pass`: run `pipeline run ctf --kd --no-rag` per
+  case file (resume-safe per-case scratch files, per-case timeout, optional
+  `--only-solved`) and assemble a sidecar-aligned KD dataset directory
+  (`train.jsonl` + `kd.jsonl`). Replaces the ad-hoc kd_full.py/kd_pass.py
+  host scripts.
 
 - `pipeline run` now self-traces progress to a structured state file next to
   the dataset (`<output>.state.json`, overridable via the new `run_pipeline`
