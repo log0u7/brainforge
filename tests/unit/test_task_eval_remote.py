@@ -154,3 +154,11 @@ def test_remote_generator_default_sends_no_extra_body(monkeypatch: Any):
     generate([["p"]])
     request = provider.chat_requests[-1]
     assert not request.extra_body
+
+
+def test_generation_template_kwargs():
+    from brainforge.training.task_eval import _generation_template_kwargs
+
+    assert _generation_template_kwargs(False) == {"enable_thinking": False}
+    assert _generation_template_kwargs(True) == {"enable_thinking": True}
+    assert _generation_template_kwargs(None) == {}

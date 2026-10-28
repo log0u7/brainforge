@@ -429,11 +429,12 @@ def task_eval(
         help="Name of the env var holding the endpoint API key (default: none needed)",
     ),
     thinking: bool = typer.Option(
-        True,
+        False,
         "--thinking/--no-thinking",
         help=(
-            "Qwen3 thinking mode on the served model (chat_template_kwargs);"
-            " thinking traces can consume the token budget and empty the answer"
+            "Qwen3 thinking mode at generation (chat template kwargs locally,"
+            " chat_template_kwargs on the endpoint); thinking traces can"
+            " consume the token budget and empty the scored answer"
         ),
     ),
     model_name: str = typer.Option(
@@ -466,7 +467,12 @@ def task_eval(
             enable_thinking=thinking,
         )
         result = evaluate_model_on_records(
-            model_name, dataset, quantization, max_new_tokens, generator=generator
+            model_name,
+            dataset,
+            quantization,
+            max_new_tokens,
+            generator=generator,
+            enable_thinking=thinking,
         )
     else:
         result = evaluate_model_on_records(
@@ -475,6 +481,7 @@ def task_eval(
             quantization,
             max_new_tokens,
             batch_size=batch_size or training.generate_batch_size,
+            enable_thinking=thinking,
         )
     console.print(f"[green]task evaluation done[/green] ({result['n_records']} records)")
     for key in (
