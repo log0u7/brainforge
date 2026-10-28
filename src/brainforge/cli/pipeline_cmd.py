@@ -229,6 +229,44 @@ def _discard_scratch(scratch_file: Path) -> None:
     sidecar.unlink(missing_ok=True)
 
 
+def _run_one_case(
+    case_file: Path,
+    parts: Path,
+    prefix: list[str],
+    kd_timeout: int,
+    config: str | None,
+) -> str:
+    """Run one kd case subprocess; returns its status verb (ok/skip/timeout/failed)."""
+    scratch_file = parts / f"kdgen-{case_file.stem}.jsonl"
+    if scratch_file.is_file() and scratch_file.stat().st_size > 0:
+        return "skip"
+    cmd = [
+        *prefix,
+        "pipeline",
+        "run",
+        "ctf",
+        "-i",
+        str(case_file),
+        "-o",
+        str(scratch_file),
+        "--kd",
+        "--no-rag",
+    ]
+    if config is not None:
+        cmd.extend(["-c", config])
+    try:
+        proc: subprocess.CompletedProcess[str] = subprocess.run(
+            cmd, capture_output=True, text=True, errors="replace", timeout=kd_timeout
+        )
+    except subprocess.TimeoutExpired:
+        _discard_scratch(scratch_file)
+        return "timeout"
+    if proc.returncode != 0:
+        _discard_scratch(scratch_file)
+        return "failed"
+    return "ok"
+
+
 @app.command("kd-pass")
 @clamp_errors("kd-pass")
 def kd_pass(
@@ -241,6 +279,9 @@ def kd_pass(
         False, "--only-solved", help="Keep only non-fallback (solved) records"
     ),
     kd_timeout: int = typer.Option(900, "--kd-timeout", help="Seconds per case subprocess"),
+    workers: int = typer.Option(
+        1, "--workers", min=1, help="Parallel case subprocesses (1 = sequential)"
+    ),
     config: str = CONFIG_OPTION,
 ) -> None:
     """Run `pipeline run ctf --kd --no-rag` per case and assemble the KD dataset."""
@@ -259,50 +300,39 @@ def kd_pass(
         )
         raise typer.Exit(code=1)
     total = len(case_files)
-    succeeded = 0
-    skipped = 0
-    failed = 0
-    for index, case_file in enumerate(case_files, 1):
-        scratch_file = parts / f"kdgen-{case_file.stem}.jsonl"
-        if scratch_file.is_file() and scratch_file.stat().st_size > 0:
-            skipped += 1
-            console.print(f"[dim]{index}/{total} {case_file.stem}: skip (resume)[/dim]")
-            continue
-        cmd = [
-            *prefix,
-            "pipeline",
-            "run",
-            "ctf",
-            "-i",
-            str(case_file),
-            "-o",
-            str(scratch_file),
-            "--kd",
-            "--no-rag",
-        ]
-        if config is not None:
-            cmd.extend(["-c", config])
-        try:
-            proc: subprocess.CompletedProcess[str] = subprocess.run(
-                cmd, capture_output=True, text=True, errors="replace", timeout=kd_timeout
-            )
-        except subprocess.TimeoutExpired:
-            failed += 1
-            err_console.print(
-                f"[yellow]{index}/{total} {case_file.stem}: TIMEOUT (> {kd_timeout}s)[/yellow]"
-            )
-            _discard_scratch(scratch_file)
-            continue
-        if proc.returncode != 0:
-            failed += 1
-            err_console.print(
-                f"[yellow]{index}/{total} {case_file.stem}:"
-                f" FAILED (exit {proc.returncode})[/yellow]"
-            )
-            _discard_scratch(scratch_file)
-            continue
-        succeeded += 1
-        console.print(f"[dim]{index}/{total} {case_file.stem}: kd ok[/dim]")
+    results: dict[str, str] = {}
+
+    def _report(index: int, case_file: Path, status: str) -> None:
+        if status in ("ok", "skip"):
+            console.print(f"[dim]{index}/{total} {case_file.stem}: {status}[/dim]")
+        else:
+            console.print(f"[yellow]{index}/{total} {case_file.stem}: {status}[/yellow]")
+
+    pending = list(enumerate(case_files, 1))
+    if workers == 1:
+        for index, case_file in pending:
+            status = _run_one_case(case_file, parts, prefix, kd_timeout, config)
+            results[case_file.stem] = status
+            _report(index, case_file, status)
+    else:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = {
+                pool.submit(_run_one_case, case_file, parts, prefix, kd_timeout, config): (
+                    index,
+                    case_file,
+                )
+                for index, case_file in pending
+            }
+            for future in as_completed(futures):
+                index, case_file = futures[future]
+                status = future.result()
+                results[case_file.stem] = status
+                _report(index, case_file, status)
+    succeeded = sum(1 for status in results.values() if status == "ok")
+    skipped = sum(1 for status in results.values() if status == "skip")
+    failed = total - succeeded - skipped
 
     records: list[dict] = []
     sidecar: list[dict] = []
