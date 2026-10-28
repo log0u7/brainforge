@@ -1,15 +1,95 @@
+import json
+import shutil
 from pathlib import Path
 
 import typer
 from rich.table import Table
 
-from brainforge.cli._common import console, err_console
+from brainforge.cli._common import clamp_errors, console, err_console
 from brainforge.dataset.dedup import find_duplicates
 from brainforge.dataset.validation import validate_dataset
 from brainforge.dataset.writer import DatasetRecord, read_jsonl
 from brainforge.errors import BrainforgeError
 
 app = typer.Typer(help="Dataset validation, inspection and splitting.", no_args_is_help=True)
+
+
+def _read_jsonl_generic(path: Path) -> list[dict]:
+    """Read a JSONL file as raw dicts, skipping blank lines (no schema validation)."""
+    if not path.is_file():
+        err_console.print(f"[red]file not found:[/red] {path}")
+        raise typer.Exit(code=1)
+    entries = []
+    for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError as exc:
+            err_console.print(f"[red]invalid JSON at {path}:{lineno}:[/red] {line[:80]}")
+            raise BrainforgeError(str(exc)) from exc
+        if not isinstance(entry, dict):
+            err_console.print(f"[red]not a JSON object at {path}:{lineno}:[/red] {line[:80]}")
+            raise BrainforgeError("expected a JSON object per line")
+        entries.append(entry)
+    return entries
+
+
+@app.command("filter")
+@clamp_errors("dataset filter")
+def filter(
+    dataset: Path = typer.Option(..., "--dataset", "-d", help="Input records JSONL"),
+    sidecar: Path = typer.Option(..., "--sidecar", "-s", help="Sidecar JSONL with an id field"),
+    out: Path = typer.Option(None, "--out", help="Write filtered records JSONL here"),
+    out_dir: Path = typer.Option(None, "--out-dir", help="Write train.jsonl + kd.jsonl here"),
+) -> None:
+    """Keep records whose id appears in the sidecar; copy the sidecar for training."""
+    if out and out_dir:
+        err_console.print("[red]--out and --out-dir are mutually exclusive[/red]")
+        raise typer.Exit(code=1)
+    if not out and not out_dir:
+        err_console.print("[red]provide exactly one of --out or --out-dir[/red]")
+        raise typer.Exit(code=1)
+    if out and out.resolve() == dataset.resolve():
+        err_console.print(f"[red]--out must not overwrite the input dataset:[/red] {out}")
+        raise typer.Exit(code=1)
+
+    sidecar_entries = _read_jsonl_generic(sidecar)
+    ids = set()
+    for index, entry in enumerate(sidecar_entries):
+        if "id" not in entry:
+            err_console.print(f"[red]sidecar entry {index} has no id[/red]")
+            raise typer.Exit(code=1)
+        ids.add(entry["id"])
+    records = _read_jsonl_generic(dataset)
+    kept = [record for record in records if record.get("id") in ids]
+
+    written = out or out_dir / "train.jsonl"
+    if out_dir:
+        if out_dir.exists():
+            unexpected = [
+                p.name for p in out_dir.iterdir() if p.name not in ("train.jsonl", "kd.jsonl")
+            ]
+            if unexpected:
+                err_console.print(
+                    f"[red]refusing to replace {out_dir}: unexpected content[/red] {unexpected}"
+                )
+                raise typer.Exit(code=1)
+            shutil.rmtree(out_dir)
+        out_dir.mkdir(parents=True)
+    with written.open("w", encoding="utf-8") as handle:
+        for record in kept:
+            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+    if out_dir:
+        kd = out_dir / "kd.jsonl"
+        with kd.open("w", encoding="utf-8") as handle:
+            for entry in sidecar_entries:
+                handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+    console.print(f"[green]records kept[/green] {len(kept)}/{len(records)}")
+    console.print(f"[green]sidecar entries[/green] {len(sidecar_entries)}")
+    display = [str(record_id)[:40] for record_id in sorted(ids)]
+    console.print(f"[green]ids[/green] {display}")
 
 
 def _load_records(path: Path) -> list[DatasetRecord]:
