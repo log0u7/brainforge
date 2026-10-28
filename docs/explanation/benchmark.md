@@ -227,6 +227,44 @@ is fixed (true teacher token ids in the student vocabulary, or a
 same-tokenizer teacher); the honest next step is SFT scaling plus the
 task-eval capability measurement.
 
+## Third run results (2026-10-29) - first non-zero task-eval
+
+The union SFT run is the first student that answers the holdout in the
+scored format: accuracy 0.1923 (5/26), false-positive rate 0.7308.
+The base model and every earlier student sat at accuracy 0.0 with a
+0.92 false-positive rate, i.e. the model always answered and never
+right. The union student answers less often and sometimes right.
+
+### Config
+
+Data: 16-record union (10 KD-GLM + 6 ROP Emporium eval-format), holdout
+ids excluded by id. Training: Qwen3-1.7B, QLoRA 4-bit, rank 32,
+max_length 4096, 25 epochs, 200 steps, 33 min on the RTX 3080. Eval:
+greedy decoding, 2048-token budget, `--no-thinking` (the prompt carries
+the empty think block, matching the training render).
+
+| Model | Train records | accuracy | FP rate | FN rate | flag_accuracy |
+|---|---|---|---|---|---|
+| base Qwen3-1.7B | 0 | 0.00 | 0.92 | 0.08 | None |
+| SFT (17 GLM records, contaminated) | 17 | 0.00 | 0.92 | 0.08 | None |
+| SFT (union, holdout-excluded) | 16 | 0.1923 | 0.73 | 0.08 | None |
+
+The contaminated 17-record run trained on 7 ids that appear in the
+holdout and still scored 0.00: the format was learned on in-distribution
+prompts and the holdout is a different prompt distribution. The union
+run fixes the distribution mismatch (recon-style prompts for both) and
+scores the first non-zero accuracy.
+
+### What still does not work
+
+* flag_accuracy is None: the holdout carries no flag strings. The
+  manifest gates on `expected_flag` (a boolean), the corpus stores the
+  real flags only inside lictor/rop-emporium source dirs. Pulling the
+  real flags into the holdout is the next step.
+* 5/26 is one seed on one holdout, not a benchmark paper.
+* 0.73 FPR means the model still guesses on most records it cannot
+  parse; the abstention path is unused.
+
 ### Honest reading
 
 The perplexity gain is a pipeline-validation result, not a capability
