@@ -256,7 +256,7 @@ def evaluate_model_on_records(
         generator = _build_generator(
             model_path, quantization, max_new_tokens, batch_size, enable_thinking=enable_thinking
         )
-    result = run_task_eval(records, generator)
+    result = run_task_eval(records, generator, max_new_tokens=max_new_tokens)
     # Hub ids (base-model evaluation) resolve outside the local filesystem:
     # the report is only persisted next to locally stored weights.
     if model_path.is_dir():
