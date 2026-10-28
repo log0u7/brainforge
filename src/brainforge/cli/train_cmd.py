@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import typer
+from rich.table import Table
 
 from brainforge.cli._common import clamp_errors, console
 from brainforge.errors import BrainforgeError
@@ -120,6 +121,66 @@ def train_student(
     else:
         from brainforge.training.qlora import train_qlora as train_fn
     return train_fn(training, dataset_dir, output_dir, resume=resume)
+
+
+@app.command("runs")
+@clamp_errors("runs")
+def runs(
+    experiments_dir: Path = typer.Option(Path("experiments"), "--experiments-dir", "-e"),
+) -> None:
+    """Summarize every training run: config, steps, and eval metrics."""
+    summary_files = sorted(experiments_dir.glob("*/train_summary.json"))
+    if not summary_files:
+        console.print(f"[yellow]no runs found in {experiments_dir}[/yellow]")
+        return
+    table = Table(title="Training runs")
+    for col in (
+        "Run",
+        "Backend",
+        "Rows",
+        "Epochs",
+        "Steps",
+        "Alpha",
+        "Temp",
+        "Eval loss",
+        "PPL",
+        "Eval n",
+    ):
+        table.add_column(col)
+    for summary_path in summary_files:
+        try:
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(summary, dict):
+            continue
+        run_dir = summary_path.parent
+        eval_data: dict[str, Any] = {}
+        eval_path = run_dir / "eval.json"
+        if eval_path.exists():
+            try:
+                loaded = json.loads(eval_path.read_text(encoding="utf-8"))
+                if isinstance(loaded, dict):
+                    eval_data = loaded
+            except (OSError, ValueError):
+                pass
+        backend = str(summary.get("backend") or summary.get("effective_strategy") or "-")
+        steps = max(len(summary.get("log_history") or []) - 1, 0)
+        eval_loss = eval_data.get("eval_loss")
+        ppl = eval_data.get("perplexity")
+        table.add_row(
+            run_dir.name,
+            backend,
+            str(summary.get("train_rows", "-")),
+            str(summary.get("epochs", "-")),
+            str(steps),
+            str(summary.get("kd_alpha", "-")),
+            str(summary.get("kd_temperature", "-")),
+            f"{eval_loss:.4f}" if isinstance(eval_loss, float) else "-",
+            f"{ppl:.2f}" if isinstance(ppl, float) else "-",
+            str(eval_data.get("n_records", "-")),
+        )
+    console.print(table)
 
 
 @app.command("prepare")
