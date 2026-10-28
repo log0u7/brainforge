@@ -6,11 +6,11 @@
 [![python](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org)
 [![license](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
 
-**Status:** pre-1.0. Configuration and CLI may change. No model-quality benchmark is published yet.
+**Status:** 1.0-rc. Configuration and CLI are stabilizing. First training numbers are in: SFT on 40 arbitrated CTF cases cuts student perplexity from 12.61 to 7.94 (-37%) on a held-out split. The CTF benchmark runbook and task-eval scoring are in place; full benchmark numbers land with the trained-student task-eval. Numbers: [benchmark](docs/explanation/benchmark.md).
 
 ## What it is
 
-BrainForge turns domain cases into a gate-checked, provenance-tagged JSONL dataset with a multi-teacher LLM pipeline. It can then fine-tune a small open student on that dataset (QLoRA or full fine-tuning) and export it to HF, GGUF, or Ollama.
+BrainForge turns domain cases into a gate-checked, provenance-tagged JSONL dataset with a multi-teacher LLM pipeline. It can then fine-tune an open student on that dataset (QLoRA, full fine-tuning, or GRPO) and export it to HF, GGUF, or Ollama.
 
 It is a self-hosted Python package and CLI. Datasets, the RAG index, cache, and usage logs stay local. Prompts and retrieved context go to configured providers.
 
@@ -191,7 +191,7 @@ context go to configured providers.
 
 | Area | Status |
 |---|---|
-| Maturity and evidence | Pre-1.0. First benchmark published: the end-to-end pipeline works (generation to task-eval on a post-cutoff holdout); no model-quality gain at the 6-record scale yet, scale-up queued. Numbers and reading: [benchmark](docs/explanation/benchmark.md). Pin a commit and measure your own holdout. |
+| Maturity and evidence | 1.0-rc. The end-to-end pipeline works and the first training gain is measured: SFT on 40 gate-checked, arbitrated CTF cases cuts student perplexity 12.61 -> 7.94 (-37%) on a held-out split. Next: KD with a logprobs-capable teacher (loss vectorization tracked in issue #57) and the task-eval benchmark (flag accuracy) on the trained student. Numbers and reading: [benchmark](docs/explanation/benchmark.md). Pin a commit and measure your own holdout. |
 | Mock mode | Deterministic schema filler for plumbing, tests, and demos. It is not evidence of label or model quality. |
 | Training | QLoRA, full FT, KD, and task evaluation need the training extra. Chat needs the extra and enough memory. The CPU smoke test is one tiny LoRA step. CPU, ROCm, XPU, and MPS training paths are implemented and unit-tested but not hardware-validated; run `brainforge train check` on your machine first. Full FT needs more VRAM than QLoRA. The full cycle was exercised end to end on a consumer Windows GPU host (RTX 3080). |
 | Judge separation and agreement | Enforced with providers and declared families only. The same upstream weights behind two providers, a mislabeled family, `warn`, or `off` defeat it. Agreement is reported only for schemas with boolean verdict signals, so ticket datasets may show none. |

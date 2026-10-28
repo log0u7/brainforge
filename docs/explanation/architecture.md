@@ -97,7 +97,7 @@ teacher ablation (ADR-0002) a config change instead of a refactor.
 - **Judge**: canonical verdict; must re-derive conclusions from evidence.
   In KD mode its token-level distribution is the distillation signal.
 - **Dataset**: verified training knowledge with full provenance.
-- **Student**: the small local model trained on that dataset, exported to
+- **Student**: the local model trained on that dataset, exported to
   Ollama or distributed as GGUF.
 
 ## Design invariants
