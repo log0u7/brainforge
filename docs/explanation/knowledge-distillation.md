@@ -70,6 +70,9 @@ tokenizers are fine):
   out-of-vocab alternatives are dropped.
 - **Storage**: the sidecar roughly doubles dataset size (k = 8 by default).
 - **Packing**: rejected; the KD trainer needs per-position alignment.
+- **Platform**: the KD dataset path bypasses the datasets builder cache and
+  ships targets through the arrow table as JSON, so training runs on
+  Windows as well as Linux.
 - **Marked experimental**: the plumbing (sidecar, alignment, loss) is
   tested; the training-quality effect is not benchmarked. Compare
   `train task-eval` numbers against the non-KD run before trusting it.

@@ -102,7 +102,7 @@ long runs stay observable while they happen: top-level `status`
 |---|---|
 | `brainforge train prepare <file.jsonl> [-o dir]` | validate, split, export for TRL (+ `stats.json`) |
 | `brainforge train check` | preflight: hardware, model compatibility and memory estimate before training |
-| `brainforge train run` | train the student (QLoRA, full fine-tuning or KD distillation); requires the training extra |
+| `brainforge train run` | train the student (QLoRA, full fine-tuning, GRPO or KD distillation); requires the training extra |
 | `brainforge train evaluate` | student evaluation: loss + perplexity on a split (training extra) |
 | `brainforge train chat` | interactive chat with a trained student (training extra) |
 | `brainforge train task-eval` | task-level evaluation (verdict/CWE accuracy for the security domain; verdict/flag accuracy for the CTF domain) |
@@ -137,7 +137,7 @@ before a GPU job.
 | `--dataset-dir/-d` | `datasets/prepared` | directory with `train.jsonl` (+ optional `validation.jsonl`) |
 | `--epochs/-e` | config | override config epochs |
 | `--base-model/-b` | config | override config base model |
-| `--strategy` | config | `qlora` (4-bit + LoRA) or `full` (all weights) |
+| `--strategy` | config | `qlora` (4-bit + LoRA), `full` (all weights) or `grpo` (verifiable-reward RL) |
 | `--backend` | config | `auto` (trl), `trl` or `unsloth` (needs the `unsloth` extra) |
 | `--device` | config | `auto`, `cuda`, `xpu`, `mps` or `cpu` |
 | `--quantization` | config | `auto`, `4bit`, `8bit` or `none` |
@@ -170,7 +170,7 @@ brainforge quickstart run --domain ticket_triage --input data/raw --provider moc
 | `--provider` | none | provider override (e.g. `mock`) |
 | `--base-model/-b` | config | override config base model |
 | `--epochs/-e` | 1 | training epochs |
-| `--strategy` | `qlora` | `qlora` or `full` |
+| `--strategy` | `qlora` | `qlora`, `full` or `grpo` |
 | `--backend` | `auto` | `auto` (trl), `trl` or `unsloth` |
 | `--device` | `auto` | `auto`, `cuda`, `xpu`, `mps` or `cpu` |
 | `--quantization` | `auto` | `auto`, `4bit`, `8bit` or `none` |

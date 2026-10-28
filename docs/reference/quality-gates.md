@@ -51,6 +51,18 @@ fails. Records produced after a retry carry `metadata.critic_retry: true` and
 `metadata.first_pass_reasons`. If the retry also fails, the case is rejected
 (or becomes a fallback record when `fallback_examples` is on).
 
+## Dispute arbitration by ground truth
+
+Two experts disagreeing does not mean the example is lost: one of the two
+is right, and the ground truth tells which. On verified-tier cases (the
+case carries an `expected_flag`), a judge `insufficient_information`
+verdict no longer routes straight to rejection when
+`reject_unresolved` is set: if the correct flag appears in the teacher
+outputs or in the judge's own reasoning, the case is accepted with the
+reason `arbitrated_by_ground_truth` and the winning answer feeds
+training. When nobody's flag matches, the strict abstention path applies.
+Cases without a known flag (tier-B) keep the abstention gate unchanged.
+
 ## Security pack gates
 
 Teacher (`SecurityTeacherAnalysis`):

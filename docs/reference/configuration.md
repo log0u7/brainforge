@@ -91,7 +91,7 @@ judge role shares a provider or a declared `family` with any other role. Rationa
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `base_model` | string | `Qwen/Qwen3-8B` | student base model |
-| `strategy` | `qlora` \| `full` | `qlora` | LoRA adapters or every weight |
+| `strategy` | `qlora` \| `full` \| `grpo` | `qlora` | LoRA adapters, every weight, or GRPO reinforcement learning |
 | `backend` | `auto` \| `trl` \| `unsloth` | `auto` | training backend (`auto` resolves to `trl`; unsloth needs the extra) |
 | `device` | `auto` \| `cuda` \| `xpu` \| `mps` \| `cpu` | `auto` | training device (`auto`: CUDA/ROCm, XPU, MPS, then CPU) |
 | `lora_rank` | int | `16` | LoRA rank |
@@ -117,6 +117,7 @@ judge role shares a provider or a declared `family` with any other role. Rationa
 | `kd_alpha` | float | `0.5` | KD loss weight (0-1) |
 | `kd_temperature` | float | `2.0` | KD temperature (> 0) |
 | `kd_topk` | int | `8` | teacher alternatives per token (1-20) |
+| `grpo_reward` | string | `""` | reward spec for `strategy: "grpo"` (`name` or weighted list, e.g. `ctf_flag,compliance*0.5`); empty delegates to the domain pack's `grpo_reward()` hook |
 
 See [ADR-0010](../adr/0010-qlora-training-single-rtx-3080.md) and the
 [training reference](training.md).

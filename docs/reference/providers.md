@@ -17,6 +17,13 @@ All providers implement the same interface
 timeouts, retry/backoff on 429/5xx, immediate failure on other 4xx, and usage
 extraction. Accepts an injected `httpx.Client` for testing.
 
+Each attempt also enforces a wall-clock total deadline (the configured
+`timeout` plus a 30s grace): httpx timeouts bound the time *between* reads,
+so a drip-feeding stream never trips them and would otherwise freeze a
+pipeline run forever. On expiry the attempt is abandoned (the hung request
+thread is not waited on) and the retry loop proceeds; exhausted retries
+surface as `ProviderUnavailableError`.
+
 ## OpenRouter
 
 ```json
@@ -82,6 +89,9 @@ strings, midpoint numbers for bounded fields, one-element arrays. Powers
 `sha256(provider, model, messages, temperature, top_p, max_tokens,
 cache_extra)` where `cache_extra` hashes case + RAG content. Hits replay the
 stored response with `cached: true`; `--fresh` bypasses the wrapper.
+`complete_logprobs` delegates to the inner provider, so the KD pass works
+through the cache; logprobs responses are not cached (live teacher
+signal).
 Decision: [ADR-0009](../adr/0009-sqlite-response-cache.md).
 
 ## Observability
