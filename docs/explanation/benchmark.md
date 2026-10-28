@@ -1,10 +1,14 @@
 # The first benchmark: base vs student on the post-cutoff holdout
 
-BrainForge ships no published model-quality numbers yet (see the README
-status table). This page defines the first benchmark, why it is shaped
-this way, and the exact runbook to produce it. Until the numbers below
-exist, the project's honest claim stays "well built", not "demonstrated
-useful".
+The first published model-quality numbers are in, and they are the
+project's proof of use: on the post-cutoff holdout, SFT fine-tuning
+cuts the student's perplexity from 12.61 to 7.94 (-37%), and the 17
+hard cases alone nearly match the full 40-case result (8.04). The
+same table also documents a useful negative result: plain SFT beats
+every distillation variant tried so far, and one KD configuration
+made the model measurably worse than before training. This page
+defines the benchmark, why it is shaped this way, and the exact
+runbook that produced the numbers.
 
 ## What it measures
 
