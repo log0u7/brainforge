@@ -17,6 +17,7 @@ imported lazily so the package and the unit test suite run without the
 """
 
 import json
+import logging
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -376,6 +377,45 @@ def _tokenize_row(record: dict, teacher: dict, tokenizer: Any) -> dict:
     }
 
 
+def _tokenizer_family(model_ref: str) -> str | None:
+    """Tokenizer family hint: the leading letters of the model slug.
+
+    Same-family tokenizer => teacher text tokens re-tokenize 1:1 into the
+    student vocabulary, so KD targets stay clean. A cross-family teacher
+    (e.g. a GLM teacher for a Qwen student) re-tokenizes onto a foreign
+    vocabulary and produces noisy targets.
+    """
+    slug = model_ref.rsplit("/", 1)[-1].lower()
+    family = ""
+    for char in slug:
+        if not char.isalpha():
+            break
+        family += char
+    return family or None
+
+
+def _family_mismatch_warning(teacher_model: str | None, base_model: str) -> str | None:
+    """Warning message when the teacher tokenizer family differs from the student's.
+
+    KD targets are text tokens + top-k logprobs re-tokenized onto the student
+    vocabulary; a cross-tokenizer teacher produces noisy KD targets and
+    measurably degrades the student. Returns None when the teacher model is
+    unknown (old sidecars carry no "model" field) or both families match.
+    """
+    if teacher_model is None:
+        return None
+    teacher_family = _tokenizer_family(teacher_model)
+    student_family = _tokenizer_family(base_model)
+    if teacher_family is None or student_family is None or teacher_family == student_family:
+        return None
+    return (
+        f"KD teacher '{teacher_model}' uses a different tokenizer family than the "
+        f"student '{base_model}' ({teacher_family} vs {student_family}): re-tokenized "
+        "teacher top-k become noisy KD targets and can degrade the student. "
+        "Use a same-family teacher, e.g. a Qwen teacher for a Qwen student."
+    )
+
+
 def train_kd(
     config: TrainingConfig,
     dataset_dir: Path | str,
@@ -412,6 +452,14 @@ def train_kd(
     tokenizer = AutoTokenizer.from_pretrained(config.base_model)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
+
+    teacher_model = next(
+        (entry.get("model") for entry in teacher_by_id.values() if entry.get("model") is not None),
+        None,
+    )
+    warning = _family_mismatch_warning(teacher_model, config.base_model)
+    if warning is not None:
+        logging.getLogger(__name__).warning(warning)
 
     validation_path = dataset_dir / "validation.jsonl"
     splits = [train_path, *((validation_path,) if validation_path.exists() else ())]
