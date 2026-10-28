@@ -174,3 +174,72 @@ def test_vectorized_speed_smoke():
         f"reference {reference_ms:.1f} ms, vectorized {vectorized_ms:.1f} ms "
         f"(x{reference_ms / max(vectorized_ms, 1e-9):.1f})"
     )
+
+
+class _FakeOutput:
+    def __init__(self, logits):
+        self.loss = torch.tensor(0.5)
+        self.logits = logits
+
+
+class _FakeModel:
+    """Stands in for the CausalLM forward: no transformers needed."""
+
+    def __init__(self, batch, sequence_length):
+        self.batch = batch
+        self.sequence_length = sequence_length
+
+    def __call__(self, input_ids, attention_mask, labels):
+        return _FakeOutput(torch.randn(self.batch, self.sequence_length, 4 * VOCAB_SIZE))
+
+
+def _bare_trainer():
+    """A KDTrainer without the transformers Trainer base: compute_loss only
+    needs kd_alpha, kd_temperature and the tokenizer attribute."""
+    from brainforge.training.kd import KDTrainer
+
+    trainer = KDTrainer.__new__(KDTrainer)
+    trainer.kd_alpha = 0.5
+    trainer.kd_temperature = 2.0
+    trainer.processing_class = _VocabTokenizer()
+    return trainer
+
+
+def test_compute_loss_uses_the_encoded_targets():
+    features = [
+        {
+            "input_ids": [1, 2, 3],
+            "labels": [-100, 2, 3],
+            "kd_targets": json.dumps([(1, [["a", -0.1]])]),
+        }
+    ]
+    inputs = KDDataCollator(_VocabTokenizer())(features)
+    loss = _bare_trainer().compute_loss(_FakeModel(1, 3), inputs)
+    assert loss.ndim == 0
+
+
+def test_compute_loss_falls_back_to_the_reference_loop():
+    inputs = {
+        "input_ids": torch.zeros(1, 3, dtype=torch.long),
+        "attention_mask": torch.ones(1, 3, dtype=torch.long),
+        "labels": torch.zeros(1, 3, dtype=torch.long),
+        "kd_targets": [[(1, [["a", -0.1]])]],
+    }
+    loss = _bare_trainer().compute_loss(_FakeModel(1, 3), inputs)
+    assert loss.ndim == 0
+
+
+def test_compute_loss_without_tokenizer_raises():
+    from brainforge.errors import BrainforgeError
+
+    inputs = {
+        "input_ids": torch.zeros(1, 3, dtype=torch.long),
+        "attention_mask": torch.ones(1, 3, dtype=torch.long),
+        "labels": torch.zeros(1, 3, dtype=torch.long),
+        "kd_targets": [[(1, [["a", -0.1]])]],
+    }
+    trainer = _bare_trainer()
+    trainer.processing_class = None
+    trainer.tokenizer = None
+    with pytest.raises(BrainforgeError):
+        trainer.compute_loss(_FakeModel(1, 3), inputs)
