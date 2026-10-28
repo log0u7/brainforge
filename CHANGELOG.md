@@ -98,6 +98,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   access through auto-fit, cached real transformers mappings). They
   now hide torch via sys.modules or stub the causal-LM mapping, so the
   suite is green with and without the training extra.
+- On-policy self-training adoption: ADR-0019 records the decision to
+  adopt OPST (data-free self-improvement, arXiv 2610.32770) as an
+  experimental `train` strategy `opst`, gated on the vectorized KD loss
+  (issue #57, closed) and a validated VRAM plan for the 10GB RTX 3080.
+  The ADR fixes the contract shift versus the ADR-0015 KD backend
+  (privileged trace z as teacher context, on-policy ordering, asymmetric
+  JSD target, EMA teacher, round driver) and the minimal smoke that
+  serves as the acceptance test.
 
 ### Changed
 
