@@ -252,3 +252,57 @@ def test_resolve_run_output_dir_explicit_output_wins(tmp_path):
     training = TrainingConfig()
     out = resolve_run_output_dir(True, tmp_path / "custom", training, "run-x")
     assert out == tmp_path / "custom"
+
+
+def test_extract_prompt_completion_shape():
+    from brainforge.training.qlora import extract_prompt_completion
+
+    records = [
+        {
+            "messages": [
+                {"role": "user", "content": "prompt text"},
+                {"role": "assistant", "content": '{"verdict": "solved"}'},
+            ]
+        }
+    ]
+    rows = extract_prompt_completion(records)
+    assert rows == [
+        {
+            "prompt": [{"role": "user", "content": "prompt text"}],
+            "completion": [{"role": "assistant", "content": '{"verdict": "solved"}'}],
+        }
+    ]
+
+
+def test_extract_prompt_completion_multiturn_prompt():
+    from brainforge.training.qlora import extract_prompt_completion
+
+    records = [
+        {
+            "messages": [
+                {"role": "user", "content": "first"},
+                {"role": "assistant", "content": "reply"},
+                {"role": "user", "content": "second"},
+                {"role": "assistant", "content": "final"},
+            ]
+        }
+    ]
+    rows = extract_prompt_completion(records)
+    assert rows[0]["prompt"] == [
+        {"role": "user", "content": "first"},
+        {"role": "assistant", "content": "reply"},
+        {"role": "user", "content": "second"},
+    ]
+    assert rows[0]["completion"] == [{"role": "assistant", "content": "final"}]
+
+
+def test_extract_prompt_completion_rejects_empty():
+    import pytest
+
+    from brainforge.errors import BrainforgeError
+    from brainforge.training.qlora import extract_prompt_completion
+
+    with pytest.raises(BrainforgeError):
+        extract_prompt_completion([])
+    with pytest.raises(BrainforgeError):
+        extract_prompt_completion([{"messages": [{"role": "user", "content": "x"}]}])

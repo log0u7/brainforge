@@ -52,7 +52,33 @@ def extract_messages(records: list[dict]) -> list[dict]:
     return rows
 
 
-def _messages_dataset(split_path: Path) -> "Dataset | None":
+def extract_prompt_completion(records: list[dict]) -> list[dict]:
+    """Map chat records to TRL's conversational prompt-completion format.
+
+    Everything but the final assistant message becomes the prompt; the final
+    assistant message is the completion. With ``completion_only_loss`` the
+    training signal lands on the answer only - with the previous messages
+    format and ``assistant_only_loss=False`` the loss covered the whole
+    sequence, so on long CTF prompts (~90% of the tokens) the model learned
+    to predict challenges instead of answers (measured on the 26-record
+    holdout: perplexity -37% while generation behavior stayed base-like).
+    """
+    if not records:
+        raise BrainforgeError("empty dataset split")
+    rows = []
+    for index, record in enumerate(records):
+        messages = record.get("messages")
+        if not messages or len(messages) < 2:
+            raise BrainforgeError(
+                f"record at index {index} needs at least a user and an assistant message"
+            )
+        if messages[-1].get("role") != "assistant":
+            raise BrainforgeError(f"record at index {index} does not end with an assistant message")
+        rows.append({"prompt": list(messages[:-1]), "completion": [messages[-1]]})
+    return rows
+
+
+def _sft_dataset(split_path: Path) -> "Dataset | None":
     records = read_jsonl(split_path)
     if not records:
         # prepare() can legitimately emit a 0-record split on tiny datasets:
@@ -61,7 +87,7 @@ def _messages_dataset(split_path: Path) -> "Dataset | None":
         return None
     from datasets import Dataset
 
-    return Dataset.from_list(extract_messages(records))
+    return Dataset.from_list(extract_prompt_completion(records))
 
 
 def _quantization_config(quantization: str) -> Any:
@@ -155,7 +181,7 @@ def _sft_config(
         **_trainer_kwargs(config, output_dir, has_eval, plan, gradient_checkpointing),
         max_length=config.max_length,
         packing=config.packing,
-        assistant_only_loss=config.assistant_only_loss,
+        completion_only_loss=True,
         model_init_kwargs=_model_init_kwargs(plan),
     )
 
@@ -176,11 +202,11 @@ def train_qlora(
     from trl import SFTTrainer
 
     dataset_dir = Path(dataset_dir)
-    train_dataset = _messages_dataset(dataset_dir / "train.jsonl")
+    train_dataset = _sft_dataset(dataset_dir / "train.jsonl")
     if train_dataset is None:
         raise BrainforgeError("empty dataset split")
     validation_path = dataset_dir / "validation.jsonl"
-    eval_dataset = _messages_dataset(validation_path) if validation_path.exists() else None
+    eval_dataset = _sft_dataset(validation_path) if validation_path.exists() else None
 
     sft_args = _sft_config(config, output_dir, eval_dataset is not None, plan)
     sft_kwargs: dict[str, Any] = {

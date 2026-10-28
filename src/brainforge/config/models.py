@@ -113,7 +113,6 @@ class TrainingConfig(BaseModel):
     max_grad_norm: float = Field(default=1.0, gt=0)
     max_length: int = Field(default=1024, gt=0)
     packing: bool = False
-    assistant_only_loss: bool = False
     attn_implementation: Literal["sdpa", "flash_attention_2", "eager"] = "sdpa"
     eval_batch_size: int = Field(default=4, ge=1)
     generate_batch_size: int = Field(default=4, ge=1)

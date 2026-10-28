@@ -1,9 +1,9 @@
-"""Warning for agentic multi-turn datasets trained without assistant-only loss.
+"""Warning for agentic multi-turn datasets under prompt-completion training.
 
 The agentic pack emits records that interleave assistant tool calls with
-`tool` observations. Training such a dataset with
-`training.assistant_only_loss=false` puts tool observations inside the
-loss; the train entry point warns instead of silently training on them.
+`tool` observations. Prompt-completion training scores only the final
+assistant turn of each record; the train entry point warns instead of
+silently dropping the intermediate turns' signal.
 """
 
 import json
@@ -27,32 +27,27 @@ def _write(tmp_path: Path, records: list[dict]) -> Path:
     return path
 
 
-def test_warns_on_tool_turns_without_assistant_only_loss(tmp_path):
+def test_warns_on_tool_turns(tmp_path):
     path = _write(tmp_path, [_record("user", "assistant", "tool", "assistant")])
-    warning = tool_turn_warning(path, assistant_only_loss=False)
+    warning = tool_turn_warning(path)
     assert warning is not None
     assert "1" in warning
-    assert "assistant_only_loss" in warning
+    assert "final assistant turn" in warning
 
 
 def test_warns_on_multi_assistant_without_tool_role(tmp_path):
     path = _write(tmp_path, [_record("user", "assistant", "user", "assistant")])
-    warning = tool_turn_warning(path, assistant_only_loss=False)
+    warning = tool_turn_warning(path)
     assert warning is not None
-
-
-def test_silent_when_assistant_only_loss_enabled(tmp_path):
-    path = _write(tmp_path, [_record("user", "assistant", "tool", "assistant")])
-    assert tool_turn_warning(path, assistant_only_loss=True) is None
 
 
 def test_silent_on_single_turn_records(tmp_path):
     path = _write(tmp_path, [_record("user", "assistant"), _record("user", "assistant")])
-    assert tool_turn_warning(path, assistant_only_loss=False) is None
+    assert tool_turn_warning(path) is None
 
 
 def test_silent_on_missing_train_split(tmp_path):
-    assert tool_turn_warning(tmp_path / "does-not-exist.jsonl", assistant_only_loss=False) is None
+    assert tool_turn_warning(tmp_path / "does-not-exist.jsonl") is None
 
 
 def test_counts_across_records(tmp_path):
@@ -63,7 +58,7 @@ def test_counts_across_records(tmp_path):
             _record("user", "assistant", "user", "assistant"),
         ],
     )
-    warning = tool_turn_warning(path, assistant_only_loss=False)
+    warning = tool_turn_warning(path)
     assert warning is not None
     assert "2" in warning
 
@@ -76,7 +71,6 @@ def test_train_student_prints_warning_for_agentic_split(
     path = _write(tmp_path, [_record("user", "assistant", "tool", "assistant")])
 
     class _Training:
-        assistant_only_loss = False
         backend = "trl"
 
     captured = {}
@@ -87,13 +81,13 @@ def test_train_student_prints_warning_for_agentic_split(
 
     monkeypatch.setattr(
         "brainforge.training.prepare.tool_turn_warning",
-        lambda dataset_path, assistant_only_loss: tool_turn_warning(path, assistant_only_loss),
+        lambda dataset_path: tool_turn_warning(path),
     )
     monkeypatch.setattr("brainforge.training.qlora.train_qlora", fake_train_fn)
     summary = train_cmd.train_student(_Training(), tmp_path, tmp_path / "out")
     assert captured["dataset_dir"] == tmp_path
     output = capsys.readouterr().out
-    assert "assistant_only_loss" in output
+    assert "final assistant turn" in output
     assert summary["output_dir"].endswith("out")
 
 
@@ -103,13 +97,12 @@ def test_train_student_suppresses_warning_on_kd_path(tmp_path, monkeypatch, caps
     path = _write(tmp_path, [_record("user", "assistant", "tool", "assistant")])
 
     class _Training:
-        assistant_only_loss = False
         backend = "trl"
 
     monkeypatch.setattr(
         "brainforge.training.prepare.tool_turn_warning",
-        lambda dataset_path, assistant_only_loss: tool_turn_warning(path, assistant_only_loss),
+        lambda dataset_path: tool_turn_warning(path),
     )
     monkeypatch.setattr("brainforge.training.kd.train_kd", lambda *a, **k: {"output_dir": "x"})
     train_cmd.train_student(_Training(), tmp_path, tmp_path / "out", kd=True)
-    assert "assistant_only_loss" not in capsys.readouterr().out
+    assert "final assistant turn" not in capsys.readouterr().out
