@@ -218,43 +218,26 @@ def train_qlora(
     return summary
 
 
-def evaluate(
-    model_path: Path | str,
-    eval_dataset: Path | str,
-    quantization: str = "auto",
-    batch_size: int = 4,
-    attn_implementation: str = "sdpa",
-) -> dict:
-    """Compute eval loss and perplexity of a trained adapter on a dataset split.
-
-    Forward passes are batched (padded) and the reported ``perplexity`` is the
-    true corpus perplexity: exp of the token-weighted mean negative log-likelihood.
-    """
-    from brainforge.training.hardware import plan_for_inference, torch_dtype
-
-    plan = plan_for_inference(quantization, attn_implementation)
-    import torch
-    from peft import AutoPeftModelForCausalLM
+def _eval_tokenizer(model_ref: str) -> Any:
+    """Load the tokenizer for an evaluation run and enforce the chat template."""
     from transformers import AutoTokenizer
 
-    model_path = Path(model_path)
-    eval_dataset = Path(eval_dataset)
-    rows = extract_messages(read_jsonl(eval_dataset))
-
-    tokenizer = AutoTokenizer.from_pretrained(str(model_path))
+    tokenizer = AutoTokenizer.from_pretrained(model_ref)
     if tokenizer.chat_template is None:
         raise BrainforgeError(
-            f"tokenizer at {model_path} has no chat template; cannot evaluate chat records"
+            f"tokenizer at {model_ref} has no chat template; cannot evaluate chat records"
         )
-    load_kwargs: dict[str, Any] = {
-        "device_map": "auto",
-        "torch_dtype": torch_dtype(plan),
-        "attn_implementation": attn_implementation,
-    }
-    if plan.quantization != "none":
-        load_kwargs["quantization_config"] = _quantization_config(plan.quantization)
-    model = AutoPeftModelForCausalLM.from_pretrained(str(model_path), **load_kwargs)
-    model.eval()
+    return tokenizer
+
+
+def _score_records(model: Any, tokenizer: Any, rows: list[dict], batch_size: int) -> float:
+    """Token-weighted mean NLL over ``rows`` via batched padded forward passes.
+
+    The reported loss is the true corpus NLL: HF returns the mean over
+    non-ignored shifted positions per batch, so batches are weighted by the
+    number of scored tokens.
+    """
+    import torch
 
     tokenized: list[Any] = [
         tokenizer.apply_chat_template(
@@ -280,7 +263,42 @@ def evaluate(
             n_tokens = int(batch["attention_mask"][:, 1:].sum())
             loss_terms.append(outputs.loss * n_tokens)
             token_counts.append(n_tokens)
-    eval_loss = float(sum(loss_terms)) / sum(token_counts)
+    return float(sum(loss_terms)) / sum(token_counts)
+
+
+def evaluate(
+    model_path: Path | str,
+    eval_dataset: Path | str,
+    quantization: str = "auto",
+    batch_size: int = 4,
+    attn_implementation: str = "sdpa",
+) -> dict:
+    """Compute eval loss and perplexity of a trained adapter on a dataset split.
+
+    Forward passes are batched (padded) and the reported ``perplexity`` is the
+    true corpus perplexity: exp of the token-weighted mean negative log-likelihood.
+    """
+    from brainforge.training.hardware import plan_for_inference, torch_dtype
+
+    plan = plan_for_inference(quantization, attn_implementation)
+    from peft import AutoPeftModelForCausalLM
+
+    model_path = Path(model_path)
+    eval_dataset = Path(eval_dataset)
+    rows = extract_messages(read_jsonl(eval_dataset))
+
+    tokenizer = _eval_tokenizer(str(model_path))
+    load_kwargs: dict[str, Any] = {
+        "device_map": "auto",
+        "torch_dtype": torch_dtype(plan),
+        "attn_implementation": attn_implementation,
+    }
+    if plan.quantization != "none":
+        load_kwargs["quantization_config"] = _quantization_config(plan.quantization)
+    model = AutoPeftModelForCausalLM.from_pretrained(str(model_path), **load_kwargs)
+    model.eval()
+
+    eval_loss = _score_records(model, tokenizer, rows, batch_size)
     result = {
         "model": str(model_path),
         "dataset": str(eval_dataset),
@@ -295,6 +313,52 @@ def evaluate(
     }
     (model_path / "eval.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     return result
+
+
+def evaluate_base(
+    model_id: str,
+    eval_dataset: Path | str,
+    quantization: str = "none",
+    batch_size: int = 4,
+    attn_implementation: str = "sdpa",
+) -> dict:
+    """Compute eval loss and perplexity of the untouched base model on a split.
+
+    Same batched, token-weighted scoring as :func:`evaluate`, but the model is
+    loaded straight from ``model_id`` with AutoModelForCausalLM (no adapter).
+    """
+    from brainforge.training.hardware import plan_for_inference, torch_dtype
+
+    plan = plan_for_inference(quantization, attn_implementation)
+    from transformers import AutoModelForCausalLM
+
+    eval_dataset = Path(eval_dataset)
+    rows = extract_messages(read_jsonl(eval_dataset))
+
+    tokenizer = _eval_tokenizer(str(model_id))
+    load_kwargs: dict[str, Any] = {
+        "device_map": "auto",
+        "torch_dtype": torch_dtype(plan),
+        "attn_implementation": attn_implementation,
+    }
+    if plan.quantization != "none":
+        load_kwargs["quantization_config"] = _quantization_config(plan.quantization)
+    model = AutoModelForCausalLM.from_pretrained(str(model_id), **load_kwargs)
+    model.eval()
+
+    eval_loss = _score_records(model, tokenizer, rows, batch_size)
+    return {
+        "model": str(model_id),
+        "dataset": str(eval_dataset),
+        "n_records": len(rows),
+        "eval_loss": eval_loss,
+        "perplexity": math.exp(eval_loss),
+        "device": plan.device,
+        "device_kind": plan.device_kind,
+        "dtype": plan.dtype,
+        "quantization": plan.quantization,
+        "attn_implementation": plan.attn_implementation,
+    }
 
 
 def export(model_path: Path | str, output_dir: Path | str) -> dict:

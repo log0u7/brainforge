@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `brainforge train evaluate --base`: evaluate the untouched base model (no
+  adapter) with the same token-weighted scoring as adapter evaluation, so
+  before/after perplexity numbers are directly comparable.
 - `brainforge ops status`: summarize `*.state.json` run states (done/total,
   current, freshness) plus optional log tails, replacing ad-hoc host check
   scripts.
