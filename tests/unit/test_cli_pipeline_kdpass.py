@@ -294,3 +294,22 @@ def test_command_prefix_resolution(monkeypatch: Any) -> None:
     assert pipeline_cmd._kd_command_prefix() == ["/usr/bin/brainforge"]
     monkeypatch.setattr(pipeline_cmd.shutil, "which", lambda name: None)
     assert pipeline_cmd._kd_command_prefix() == []
+
+
+def test_command_prefix_falls_back_to_sibling_exe(tmp_path: Any, monkeypatch: Any) -> None:
+    """Editable install + no PATH entry: the exe next to sys.executable works."""
+    scripts = tmp_path / "Scripts"
+    scripts.mkdir()
+    exe = scripts / "brainforge.exe"
+    exe.write_bytes(b"")
+    monkeypatch.setattr(pipeline_cmd.shutil, "which", lambda name: None)
+    monkeypatch.setattr(pipeline_cmd.sys, "executable", str(scripts / "python.exe"))
+    assert pipeline_cmd._kd_command_prefix() == [str(exe)]
+
+
+def test_command_prefix_sibling_missing_still_empty(tmp_path: Any, monkeypatch: Any) -> None:
+    scripts = tmp_path / "Scripts"
+    scripts.mkdir()
+    monkeypatch.setattr(pipeline_cmd.shutil, "which", lambda name: None)
+    monkeypatch.setattr(pipeline_cmd.sys, "executable", str(scripts / "python.exe"))
+    assert pipeline_cmd._kd_command_prefix() == []

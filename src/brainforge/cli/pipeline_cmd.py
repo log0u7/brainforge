@@ -215,6 +215,11 @@ def _kd_command_prefix() -> list[str]:
     if main_py.is_file():
         return [sys.executable, "-m", "brainforge"]
     exe = shutil.which("brainforge")
+    if exe is None:
+        # Editable installs on Windows may not have the venv Scripts dir on
+        # PATH; the entry-point exe sits next to sys.executable.
+        sibling = Path(sys.executable).with_name("brainforge.exe")
+        exe = str(sibling) if sibling.is_file() else None
     return [exe] if exe is not None else []
 
 
