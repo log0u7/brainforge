@@ -163,7 +163,11 @@ def set_value(
     path, raw = _load_raw(config)
     old = _set_leaf(raw, dotted_path, new_value)
     _write_raw(path, raw)
-    console.print(f"[green]{dotted_path}:[/green] {old} -> {new_value}")
+    leaf = dotted_path.rsplit(".", 1)[-1].lower()
+    if "key" in leaf or "secret" in leaf or "token" in leaf or "password" in leaf:
+        console.print(f"[green]{dotted_path}:[/green] [old value redacted] -> [new value redacted]")
+    else:
+        console.print(f"[green]{dotted_path}:[/green] {old} -> {new_value}")
 
 
 @app.command("set-model")
