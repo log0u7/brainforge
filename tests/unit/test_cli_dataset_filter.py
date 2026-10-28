@@ -252,9 +252,9 @@ def test_filter_malformed_sidecar_line_exits_cleanly(tmp_path):
     assert not out.exists()
 
 
-def test_filter_sidecar_entry_missing_id_exits_cleanly(tmp_path):
+def test_filter_sidecar_entry_missing_id_dropped(tmp_path):
     _write_jsonl(tmp_path / "records.jsonl", [{"id": "r1"}])
-    _write_jsonl(tmp_path / "sidecar.jsonl", [{"no_id": True}])
+    _write_jsonl(tmp_path / "sidecar.jsonl", [{"no_id": True}, {"id": "r1"}])
     out = tmp_path / "filtered.jsonl"
 
     result = runner.invoke(
@@ -270,9 +270,12 @@ def test_filter_sidecar_entry_missing_id_exits_cleanly(tmp_path):
         ],
     )
 
-    assert result.exit_code == 1
-    assert "id" in result.output
-    assert not out.exists()
+    assert result.exit_code == 0, result.output
+    assert "without string id" in result.output
+    kept = [
+        json.loads(line) for line in out.read_text(encoding="utf-8").splitlines() if line.strip()
+    ]
+    assert [r["id"] for r in kept] == ["r1"]
 
 
 def test_filter_truncates_long_ids_in_summary(tmp_path):
@@ -326,3 +329,46 @@ def test_filter_refuses_out_dir_with_unexpected_content(tmp_path):
     )
     assert result.exit_code != 0, result.output
     assert (out_dir / "precious.txt").exists()
+
+
+def test_filter_refuses_out_equal_to_sidecar(tmp_path):
+    side = tmp_path / "kd.jsonl"
+    side.write_text('{"id": "a"}\n', encoding="utf-8")
+    recs = tmp_path / "recs.jsonl"
+    recs.write_text('{"id": "a", "text": "x"}\n', encoding="utf-8")
+    result = runner.invoke(
+        dataset_cmd.app, ["filter", "-d", str(recs), "-s", str(side), "--out", str(side)]
+    )
+    assert result.exit_code != 0, result.output
+    assert side.read_text(encoding="utf-8") == '{"id": "a"}\n'
+
+
+def test_filter_drops_non_string_ids(tmp_path):
+    recs = tmp_path / "recs.jsonl"
+    recs.write_text(
+        '{"id": "a", "text": "x"}\n{"text": "no-id"}\n{"id": 7, "text": "y"}\n',
+        encoding="utf-8",
+    )
+    side = tmp_path / "kd.jsonl"
+    side.write_text('{"id": "a"}\n{"id": null}\n{"id": 7}\n', encoding="utf-8")
+    out = tmp_path / "out.jsonl"
+    result = runner.invoke(
+        dataset_cmd.app, ["filter", "-d", str(recs), "-s", str(side), "--out", str(out)]
+    )
+    assert result.exit_code == 0, result.output
+    kept = [
+        json.loads(line) for line in out.read_text(encoding="utf-8").splitlines() if line.strip()
+    ]
+    assert [r["id"] for r in kept] == ["a"]
+
+
+def test_filter_rejects_non_utf8_input(tmp_path):
+    recs = tmp_path / "recs.jsonl"
+    recs.write_bytes(b'{"id": "a", "text": "\xff\xfe"}\n')
+    side = tmp_path / "kd.jsonl"
+    side.write_text('{"id": "a"}\n', encoding="utf-8")
+    result = runner.invoke(
+        dataset_cmd.app,
+        ["filter", "-d", str(recs), "-s", str(side), "--out", str(tmp_path / "o.jsonl")],
+    )
+    assert result.exit_code != 0, result.output

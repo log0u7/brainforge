@@ -24,7 +24,7 @@ def _state(tmp_path: Path, name: str, payload: dict) -> Path:
 
 
 def test_status_prints_done_total_and_current(tmp_path):
-    _state(tmp_path, "jobA", {"done": 3, "total": 10, "current": "case-42 summary"})
+    _state(tmp_path, "jobA", {"done": 3, "total_cases": 10, "current_case": "case-42 summary"})
     result = runner.invoke(app, ["status", "--datasets-dir", str(tmp_path)])
     assert result.exit_code == 0, result.output
     assert "jobA" in result.output
@@ -180,3 +180,11 @@ def test_log_replaces_undecodable_bytes(tmp_path):
     result = runner.invoke(app, ["log", str(log)])
     assert result.exit_code == 0, result.output
     assert "\ufffd" in result.output
+
+
+def test_status_accepts_legacy_total_current_keys(tmp_path):
+    _state(tmp_path, "legacy", {"done": 2, "total": 5, "current": "old-case"})
+    result = runner.invoke(app, ["status", "--datasets-dir", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    assert "done=2/5" in result.output
+    assert "old-case" in result.output

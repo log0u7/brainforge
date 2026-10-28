@@ -73,8 +73,10 @@ def status(
             err_console.print(f"[yellow]skipping {path.name}: not a JSON object[/yellow]")
             continue
         done = data.get("done", 0)
-        total = data.get("total", -1)
-        current = str(data.get("current") or "")
+        # the pipeline state writer emits total_cases/current_case
+        # (engine.py); accept the shorter aliases too.
+        total = data.get("total_cases", data.get("total", -1))
+        current = str(data.get("current_case", data.get("current")) or "")
         age = int(now - path.stat().st_mtime)
         stale = " [red]STALE[/red]" if age > stale_after else ""
         shown = current[:CURRENT_TRUNC] if current else "-"

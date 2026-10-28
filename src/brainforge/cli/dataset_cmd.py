@@ -19,8 +19,13 @@ def _read_jsonl_generic(path: Path) -> list[dict]:
     if not path.is_file():
         err_console.print(f"[red]file not found:[/red] {path}")
         raise typer.Exit(code=1)
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        err_console.print(f"[red]not valid utf-8:[/red] {path}: {exc}")
+        raise BrainforgeError(str(exc)) from exc
     entries = []
-    for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+    for lineno, line in enumerate(text.splitlines(), start=1):
         if not line.strip():
             continue
         try:
@@ -53,14 +58,18 @@ def filter(
     if out and out.resolve() == dataset.resolve():
         err_console.print(f"[red]--out must not overwrite the input dataset:[/red] {out}")
         raise typer.Exit(code=1)
+    if out and out.resolve() == sidecar.resolve():
+        err_console.print(f"[red]--out must not overwrite the sidecar:[/red] {out}")
+        raise typer.Exit(code=1)
 
     sidecar_entries = _read_jsonl_generic(sidecar)
-    ids = set()
+    ids: set[str] = set()
     for index, entry in enumerate(sidecar_entries):
-        if "id" not in entry:
-            err_console.print(f"[red]sidecar entry {index} has no id[/red]")
-            raise typer.Exit(code=1)
-        ids.add(entry["id"])
+        entry_id = entry.get("id")
+        if not isinstance(entry_id, str):
+            err_console.print(f"[yellow]sidecar entry {index} without string id dropped[/yellow]")
+            continue
+        ids.add(entry_id)
     records = _read_jsonl_generic(dataset)
     kept = [record for record in records if record.get("id") in ids]
 
