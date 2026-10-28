@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, Literal
 import typer
 from rich.table import Table
 
-from brainforge.cli._common import clamp_errors, console
+from brainforge.cli._common import clamp_errors, console, err_console
 from brainforge.errors import BrainforgeError
 
 if TYPE_CHECKING:
@@ -415,23 +415,55 @@ def task_eval(
         "auto", "--quantization", help="4bit, 8bit, none or auto (device default)"
     ),
     max_new_tokens: int = typer.Option(512, "--max-new-tokens"),
+    endpoint: str = typer.Option(
+        None,
+        "--endpoint",
+        help=(
+            "OpenAI-compatible base URL of a served model (e.g. llama-server on"
+            " http://localhost:9933/v1); skips local model loading"
+        ),
+    ),
+    api_key_env: str = typer.Option(
+        None,
+        "--api-key-env",
+        help="Name of the env var holding the endpoint API key (default: none needed)",
+    ),
+    model_name: str = typer.Option(
+        None,
+        "--model-name",
+        help="Model id sent to the endpoint (required with --endpoint)",
+    ),
     config: str = typer.Option(None, "--config", "-c"),
     batch_size: int = typer.Option(
         0, "--batch-size", help="Generation batch size (0 = config default)"
     ),
 ) -> None:
     """Task-level evaluation: verdict + CWE accuracy (security) or verdict + flag accuracy (CTF)."""
+    import os
+
     from brainforge.config import load_config
-    from brainforge.training.task_eval import evaluate_model_on_records
+    from brainforge.training.task_eval import build_remote_generator, evaluate_model_on_records
 
     training = load_config(config).training
-    result = evaluate_model_on_records(
-        model or latest_run_dir(),
-        dataset,
-        quantization,
-        max_new_tokens,
-        batch_size=batch_size or training.generate_batch_size,
-    )
+    if endpoint:
+        if not model_name:
+            err_console.print("[red]--model-name is required with --endpoint[/red]")
+            raise typer.Exit(code=1)
+        api_key = os.environ.get(api_key_env) if api_key_env else None
+        generator = build_remote_generator(
+            endpoint, model_name, max_tokens=max_new_tokens, api_key=api_key
+        )
+        result = evaluate_model_on_records(
+            model_name, dataset, quantization, max_new_tokens, generator=generator
+        )
+    else:
+        result = evaluate_model_on_records(
+            model or latest_run_dir(),
+            dataset,
+            quantization,
+            max_new_tokens,
+            batch_size=batch_size or training.generate_batch_size,
+        )
     console.print(f"[green]task evaluation done[/green] ({result['n_records']} records)")
     for key in (
         "accuracy",

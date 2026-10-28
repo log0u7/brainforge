@@ -122,7 +122,7 @@ long runs stay observable while they happen: top-level `status`
 | `brainforge train evaluate` | student evaluation: loss + perplexity on a split (training extra); `--base` evaluates the untouched base model instead of an adapter (full precision, no quantization: the reference point) |
 | `brainforge train runs [--experiments-dir D]` | summary table over every `experiments/<run>`: backend, train rows, epochs, steps, KD alpha/temperature, eval loss and perplexity when an `eval.json` exists |
 | `brainforge train chat` | interactive chat with a trained student (training extra) |
-| `brainforge train task-eval` | task-level evaluation (verdict/CWE accuracy for the security domain; verdict/flag accuracy for the CTF domain) |
+| `brainforge train task-eval` | task-level evaluation (verdict/CWE accuracy for the security domain; verdict/flag accuracy for the CTF domain); `--endpoint URL --model-name M` scores a model served behind an OpenAI-compatible endpoint (e.g. llama-server) instead of loading weights locally |
 | `brainforge train export` | export a trained student: merged HF weights or quantized GGUF |
 
 `train check` options:
