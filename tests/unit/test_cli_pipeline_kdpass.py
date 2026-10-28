@@ -59,7 +59,11 @@ def _install_fake_runner(monkeypatch: Any, plans: dict[str, dict[str, Any]]) -> 
     calls: list[list[str]] = []
 
     def fake_run(
-        cmd: list[str], capture_output: bool = False, text: bool = False, timeout: int | None = None
+        cmd: list[str],
+        capture_output: bool = False,
+        text: bool = False,
+        errors: str | None = None,
+        timeout: int | None = None,
     ) -> _Proc:
         calls.append(list(cmd))
         stem = Path(cmd[cmd.index("-i") + 1]).stem
