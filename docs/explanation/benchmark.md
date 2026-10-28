@@ -159,24 +159,57 @@ every row. Base model Qwen3-1.7B, QLoRA 4-bit, bf16.
 |---|---|---|---|---|---|
 | base Qwen3-1.7B | — | 2.534 | 12.61 | — | — |
 | SFT (smoke pass) | 3 | 2.242 | 9.42 | −25.3% | 2.5 min |
-| SFT | 37 | 2.090 | 8.09 | −35.9% | ~5 min |
-| SFT (arbitrated 40-case set) | 40 | 2.072 | 7.94 | −37.0% | ~5 min |
-| KD (qwen3.5-9b teacher) | 3 | 2.345 | 10.43 | −17.3% | blocked, see below |
+| SFT | 31 (37-case slice) | 2.090 | 8.09 | −35.9% | ~5 min |
+| SFT (arbitrated 40-case set) | 31 (40-case slice) | 2.072 | 7.94 | −37.0% | ~5 min |
+| SFT (17 GLM-solved records) | 17 | 2.084 | 8.04 | −36.2% | ~30 min |
+| KD (qwen3.5-9b teacher) | 3 | 2.345 | 10.43 | −17.3% | 12 steps |
+| KD (qwen, hard 17-case subset) | 3 | 2.350 | 10.49 | −17.0% | 12 steps |
+| KD (glm-5.3-prime, mid-run snapshot) | 14 | 2.471 | 11.84 | −6.1% | 24 steps |
+| KD (glm-5.3-prime, full 17-record set) | 17 | 2.999 | 20.07 | +59.2% | 36 steps |
 
-Monotone scaling: more examples, more gain. The 40-case pass includes
-the cases saved by ground-truth arbitration plus abstention records
-from gate rejections - nothing discarded.
+SFT scales monotonically with usable records: the 17 GLM-solved
+records alone nearly match the 40-case arbitrated result (8.04 vs
+7.94). The two 31-record rows are the same trainer on the 37- and
+40-case slices; `train_rows` after gate filtering is 31 in both.
 
 ### KD status
 
-The KD pass (SFT + distillation term against the teacher's per-token
-top-k logprobs) runs end-to-end at the 3-record scale (10.43, −17.3%
-vs baseline) but is currently compute-bound: `compute_kd_loss` rebuilds
-the 250k-token vocabulary per position and loops in Python (issue
-#57). First step of the 14-record GLM-teacher run: 28+ minutes at 100%
-CPU. Vectorization (vocab cached once, targets as tensors, batched
-loss) is the tracked fix; after it lands, KD runs at the 30+-record
-scale with a glm-5.3-prime sidecar already generated.
+The KD loss is vectorized since issue #57 (PR #63): the 14-record
+GLM-teacher snapshot that used to stall 28+ minutes on its first step
+now trains 24 steps in ~30 minutes (~16x on this workload). Vectorized
+KD at the 17-record scale produced the most instructive negative
+result of the run: **more distillation data from the glm-5.3-prime
+teacher made the student worse than the untrained baseline**
+(11.84 at 14 records -> 20.07 at 17 records, baseline 12.61). The
+training loss is bimodal: one batch group converges steadily (~16 ->
+~11) while another stays stuck at 50-78 - the student is fitting
+where the teacher signal is coherent and fighting it where it is not.
+
+Three mechanisms plausibly combine, and the 2026-10-28 ablations
+separate them:
+
+1. **The KD path loses to plain SFT even with a clean teacher.** On the
+   same 3 records, SFT@3 (9.42) beats KD@3 with a qwen3.5-9b teacher
+   (10.43). The sidecar stores teacher positions as *text tokens with
+   top-k logprobs*, which are re-tokenized onto the student vocabulary;
+   that approximation costs accuracy even when teacher and student
+   share a tokenizer family.
+2. **Cross-tokenizer teachers amplify the noise.** The GLM teacher's
+   text tokens fragment differently over the Qwen student vocabulary;
+   with 4.7x more records the accumulated noise dominates the signal
+   and the held-out perplexity collapses.
+3. **Teacher capability gates KD data volume.** Asked to solve the 17
+   cases GLM had solved, qwen3.5-9b produced gate-accepted records for
+   only 3 (14 rejected); the "same records, different teacher"
+   ablation is therefore impossible by construction, and the qwen-KD
+   result is stable (~10.4-10.5) on whatever subset its teacher can
+   actually solve.
+
+Consequence for the roadmap: tuning KD hyperparameters (alpha 0.5,
+temperature 2.0) is pointless until the target representation itself
+is fixed (true teacher token ids in the student vocabulary, or a
+same-tokenizer teacher); the honest next step is SFT scaling plus the
+task-eval capability measurement.
 
 ### Honest reading
 
@@ -184,11 +217,12 @@ The perplexity gain is a pipeline-validation result, not a capability
 claim: part of it is the student adopting the teacher output format,
 the holdout is 26 records, and the metric measures likelihood, not
 solving. The capability metric for the trained student is the CTF
-task-eval (flag accuracy) on the same holdout - queued after the KD
-loss vectorization (issue #57). What the run did demonstrate: the
-40-case dataset generation, ground-truth arbitration, training and
-evaluation run end-to-end on a consumer Windows GPU host, with every
-step state-traced.
+task-eval (flag accuracy) on the same holdout - still queued. What the
+run did demonstrate: the 40-case dataset generation, ground-truth
+arbitration, training and evaluation run end-to-end on a consumer
+Windows GPU host, with every step state-traced - and that the
+distillation term needs a target-representation fix before it can
+compete with direct SFT.
 
 ## First run results (2026-10-26) - task-eval attempt
 
