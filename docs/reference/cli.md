@@ -120,6 +120,7 @@ long runs stay observable while they happen: top-level `status`
 | `brainforge train check` | preflight: hardware, model compatibility and memory estimate before training |
 | `brainforge train run` | train the student (QLoRA, full fine-tuning, GRPO or KD distillation); requires the training extra |
 | `brainforge train evaluate` | student evaluation: loss + perplexity on a split (training extra); `--base` evaluates the untouched base model instead of an adapter (full precision, no quantization: the reference point) |
+| `brainforge train runs [--experiments-dir D]` | summary table over every `experiments/<run>`: backend, train rows, epochs, steps, KD alpha/temperature, eval loss and perplexity when an `eval.json` exists |
 | `brainforge train chat` | interactive chat with a trained student (training extra) |
 | `brainforge train task-eval` | task-level evaluation (verdict/CWE accuracy for the security domain; verdict/flag accuracy for the CTF domain) |
 | `brainforge train export` | export a trained student: merged HF weights or quantized GGUF |
