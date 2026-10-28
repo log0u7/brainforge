@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `brainforge train evaluate --base`: evaluate the untouched base model (no
+  adapter) with the same token-weighted scoring as adapter evaluation, so
+  before/after perplexity numbers are directly comparable.
+- `brainforge ops status`: summarize `*.state.json` run states (done/total,
+  current, freshness) plus optional log tails, replacing ad-hoc host check
+  scripts.
+- `brainforge ops log <path>`: tail the last N non-empty lines of a log with
+  an encoding fallback chain (utf-8, utf-16-le, cp1252) and error-line
+  highlighting.
+
 - `pipeline run` now self-traces progress to a structured state file next to
   the dataset (`<output>.state.json`, overridable via the new `run_pipeline`
   `state_path` parameter): written atomically (temp file + rename) before and

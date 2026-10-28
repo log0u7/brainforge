@@ -125,3 +125,71 @@ def test_train_check_missing_model_config_fails_cleanly(project_env, monkeypatch
     assert result.exit_code == 1
     assert "could not read" in result.output
     assert "Traceback" not in result.output
+
+
+def test_evaluate_base_flag_uses_base_model(project_env, monkeypatch):
+    _fake_env(monkeypatch)
+    config = json.loads((project_env / "config" / "config.json").read_text())
+    expected = config["training"]["base_model"]
+    calls = {}
+
+    def fake_evaluate_base(model_id, eval_dataset, **kwargs):
+        calls["model_id"] = model_id
+        return {
+            "model": model_id,
+            "dataset": str(eval_dataset),
+            "n_records": 3,
+            "eval_loss": 0.5,
+            "perplexity": 1.6487,
+            "device": "cpu",
+            "device_kind": "cpu",
+            "dtype": "bfloat16",
+            "quantization": "none",
+            "attn_implementation": "sdpa",
+        }
+
+    monkeypatch.setattr("brainforge.training.qlora.evaluate_base", fake_evaluate_base)
+    result = runner.invoke(
+        app,
+        ["train", "evaluate", "--base", "-d", str(project_env / "eval.jsonl")],
+    )
+    assert result.exit_code == 0, result.output
+    assert calls["model_id"] == expected
+    assert "1.6487" in result.output
+    assert "3 records" in result.output
+
+
+def test_evaluate_base_explicit_model_wins(project_env, monkeypatch):
+    _fake_env(monkeypatch)
+    calls = {}
+
+    def fake_evaluate_base(model_id, eval_dataset, **kwargs):
+        calls["model_id"] = model_id
+        return {
+            "model": model_id,
+            "dataset": str(eval_dataset),
+            "n_records": 1,
+            "eval_loss": 0.5,
+            "perplexity": 1.6487,
+            "device": "cpu",
+            "device_kind": "cpu",
+            "dtype": "bfloat16",
+            "quantization": "none",
+            "attn_implementation": "sdpa",
+        }
+
+    monkeypatch.setattr("brainforge.training.qlora.evaluate_base", fake_evaluate_base)
+    result = runner.invoke(
+        app,
+        [
+            "train",
+            "evaluate",
+            "--base",
+            "-m",
+            "some/other-base",
+            "-d",
+            str(project_env / "eval.jsonl"),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert calls["model_id"] == "some/other-base"

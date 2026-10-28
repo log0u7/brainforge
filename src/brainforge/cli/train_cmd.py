@@ -290,12 +290,29 @@ def evaluate(
     batch_size: int = typer.Option(
         0, "--batch-size", help="Eval forward batch size (0 = config default)"
     ),
+    base: bool = typer.Option(
+        False, "--base", help="Evaluate the bare base model (no adapter); -m defaults to it"
+    ),
 ) -> None:
     """Evaluate a trained student (loss + perplexity, written to eval.json)."""
     from brainforge.config import load_config
-    from brainforge.training.qlora import evaluate as evaluate_model
 
     training = load_config(config).training
+    if base:
+        from brainforge.training.qlora import evaluate_base
+
+        result = evaluate_base(
+            str(model or training.base_model),
+            dataset,
+            batch_size=batch_size or training.eval_batch_size,
+            attn_implementation=training.attn_implementation,
+        )
+        console.print(f"[green]evaluated[/green] {result['n_records']} records")
+        console.print(f"  eval_loss: {result['eval_loss']:.4f}")
+        console.print(f"  perplexity: {result['perplexity']:.4f}")
+        return
+    from brainforge.training.qlora import evaluate as evaluate_model
+
     result = evaluate_model(
         model or latest_run_dir(),
         dataset,
