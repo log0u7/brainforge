@@ -110,10 +110,11 @@ expected outcome of a 6-record training signal, not a tooling failure.
 | `coding_teacher` | qwen/qwen3-coder-next | OpenRouter |
 | `judge` | z-ai/glm-5.3-flash, 10000-token budget | OpenRouter |
 
-`judge_independence: warn` for this run: every provider was OpenRouter
-(the session's Zen key had expired). The provider-level separation
-returns with a fresh Zen key; the per-record provenance lists the exact
-models of every role either way.
+`judge_independence: warn` for this run: one provider served every
+role, so the model-family separation between judge and teachers could
+not be enforced. It returns with distinct providers or declared
+families per role; the per-record provenance lists the exact models of
+every role either way.
 
 Data: 23 CTF cases (12 verified tier with curated technique ground
 truth, 11 Zeekr 2026 tier-B). **15 accepted** (12 verified + 3 tier-B,
@@ -136,7 +137,62 @@ holdout = the 9 post-cutoff cases the teachers cannot have recited.
 n = 9, one seed, greedy decoding, 2048-token generation budget:
 an observation on one holdout, not a benchmark paper.
 
+## Second run results (2026-10-28)
+
+Scale-up: 40 CTF cases through the pipeline with dispute arbitration
+(the ground-truth flag resolves teacher/judge disagreements instead of
+discarding the case) and `fallback_examples` on (gate-rejected cases
+become abstention training records). Teachers: qwen3.5-9b via
+OpenRouter; judge: deepseek-v4.1-flash, then glm-5.3-prime for the KD
+sidecar pass (the only models in the run that serve per-token
+logprobs).
+
+### Numbers - perplexity progression
+
+Held-out split: 26 records (`test_postcutoff`), the same split for
+every row. Base model Qwen3-1.7B, QLoRA 4-bit, bf16.
+
+| Model | Train records | eval_loss | perplexity | vs baseline | Train time |
+|---|---|---|---|---|---|
+| base Qwen3-1.7B | — | 2.534 | 12.61 | — | — |
+| SFT (smoke pass) | 3 | 2.242 | 9.42 | −25.3% | 2.5 min |
+| SFT | 37 | 2.090 | 8.09 | −35.9% | ~5 min |
+| SFT (arbitrated 40-case set) | 40 | 2.072 | 7.94 | −37.0% | ~5 min |
+| KD (qwen3.5-9b teacher) | 3 | 2.345 | 10.43 | −17.3% | blocked, see below |
+
+Monotone scaling: more examples, more gain. The 40-case pass includes
+the cases saved by ground-truth arbitration plus abstention records
+from gate rejections - nothing discarded.
+
+### KD status
+
+The KD pass (SFT + distillation term against the teacher's per-token
+top-k logprobs) runs end-to-end at the 3-record scale (10.43, −17.3%
+vs baseline) but is currently compute-bound: `compute_kd_loss` rebuilds
+the 250k-token vocabulary per position and loops in Python (issue
+#57). First step of the 14-record GLM-teacher run: 28+ minutes at 100%
+CPU. Vectorization (vocab cached once, targets as tensors, batched
+loss) is the tracked fix; after it lands, KD runs at the 30+-record
+scale with a glm-5.3-prime sidecar already generated.
+
 ### Honest reading
+
+The perplexity gain is a pipeline-validation result, not a capability
+claim: part of it is the student adopting the teacher output format,
+the holdout is 26 records, and the metric measures likelihood, not
+solving. The capability metric for the trained student is the CTF
+task-eval (flag accuracy) on the same holdout - queued after the KD
+loss vectorization (issue #57). What the run did demonstrate: the
+40-case dataset generation, ground-truth arbitration, training and
+evaluation run end-to-end on a consumer Windows GPU host, with every
+step state-traced.
+
+## First run results (2026-10-26) - task-eval attempt
+
+The honest reading of the first end-to-end run on real data:
+**no measurable gain at this scale** - and why that is the expected
+outcome of a 6-record training signal, not a tooling failure. Config
+and task-eval numbers: the First run results section above.
 
 No measurable gain at this scale. Both models answer the challenge in
 prose reasoning and never emit the `CtfVerdict` JSON the task scores:
