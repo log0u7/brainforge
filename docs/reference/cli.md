@@ -21,6 +21,7 @@ in, verified dataset out, trained model out. Domains are pluggable
 | `brainforge config path` | print the resolved config path |
 | `brainforge config set <dotted.path> <value>` | set a nested value (created as dict when missing, refused when a non-dict is in the way); value parsed as JSON scalar first, raw string otherwise |
 | `brainforge config set-model <role> <provider> <model>` | set `models.<role>.provider` and `.model` in one write, preserving sibling keys; role and provider must exist |
+| `brainforge providers check-logprobs [--provider P --model M] [--topk N] [--all-configured]` | probe whether a provider serves per-token logprobs for a model (KD teacher signal); `--all-configured` sweeps every provider/model pair into a table |
 
 ## models
 
