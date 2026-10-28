@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--only-solved`) and assemble a sidecar-aligned KD dataset directory
   (`train.jsonl` + `kd.jsonl`). Replaces the ad-hoc kd_full.py/kd_pass.py
   host scripts.
+- `brainforge config set <dotted.path> <value>` and
+  `brainforge config set-model <role> <provider> <model>`: edit the config
+  file from the CLI (JSON-scalar parsing, nested creation, sibling
+  preservation), replacing the ad-hoc fix_*.py host scripts.
 
 - `pipeline run` now self-traces progress to a structured state file next to
   the dataset (`<output>.state.json`, overridable via the new `run_pipeline`
