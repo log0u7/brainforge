@@ -185,7 +185,7 @@ def test_nonzero_rc_deletes_partial_and_continues(tmp_path: Any, monkeypatch: An
     assert not (parts / "kdgen-a.jsonl").exists()
     assert not (parts / "kdgen-a.kd.jsonl").exists()
     assert _read_ids(tmp_path / "ds" / "train.jsonl") == ["b-ok"]
-    assert "FAILED (exit 3)" in result.output
+    assert "failed" in result.output
     assert "1 failed" in result.output
 
 
@@ -205,7 +205,7 @@ def test_timeout_deletes_partial_and_continues(tmp_path: Any, monkeypatch: Any) 
     assert not (parts / "kdgen-a.jsonl").exists()
     assert not (parts / "kdgen-a.kd.jsonl").exists()
     assert _read_ids(tmp_path / "ds" / "train.jsonl") == ["b-ok"]
-    assert "TIMEOUT" in result.output
+    assert "timeout" in result.output
 
 
 def test_default_keeps_fallback_records(tmp_path: Any, monkeypatch: Any) -> None:
@@ -313,3 +313,59 @@ def test_command_prefix_sibling_missing_still_empty(tmp_path: Any, monkeypatch: 
     monkeypatch.setattr(pipeline_cmd.shutil, "which", lambda name: None)
     monkeypatch.setattr(pipeline_cmd.sys, "executable", str(scripts / "python.exe"))
     assert pipeline_cmd._kd_command_prefix() == []
+
+
+def _write_case(dir_path: Path, stem: str) -> None:
+    dir_path.mkdir(exist_ok=True)
+    (dir_path / f"{stem}.json").write_text(json.dumps({"id": stem}), encoding="utf-8")
+
+
+def test_workers_parallel_runs_all_cases(tmp_path: Any, monkeypatch: Any) -> None:
+    cases = tmp_path / "cases"
+    for stem in ("a", "b", "c", "d"):
+        _write_case(cases, stem)
+    plans = {s: {"records": [_record(f"{s}-ok")], "entries": [_entry(f"{s}-ok")]} for s in "abcd"}
+    calls = _install_fake_runner(monkeypatch, plans)
+    result = _invoke(tmp_path, ("--workers", "3"))
+
+    assert result.exit_code == 0, result.output
+    assert len(calls) == 4
+    assert "4 cases (4 ok, 0 skipped, 0 failed)" in result.output
+    out = tmp_path / "ds"
+    assert sorted(_read_ids(out / "train.jsonl")) == [f"{s}-ok" for s in "abcd"]
+    assert sorted(_read_ids(out / "kd.jsonl")) == [f"{s}-ok" for s in "abcd"]
+
+
+def test_workers_parallel_survives_failures(tmp_path: Any, monkeypatch: Any) -> None:
+    cases = tmp_path / "cases"
+    for stem in ("a", "b", "c", "d"):
+        _write_case(cases, stem)
+    plans = {
+        "a": {"records": [_record("a-ok")], "entries": [_entry("a-ok")]},
+        "b": {"rc": 3},
+        "c": {"timeout": True},
+        "d": {"records": [_record("d-ok")], "entries": [_entry("d-ok")]},
+    }
+    calls = _install_fake_runner(monkeypatch, plans)
+    result = _invoke(tmp_path, ("--workers", "4"))
+
+    assert result.exit_code == 0, result.output
+    assert len(calls) == 4
+    assert "4 cases (2 ok, 0 skipped, 2 failed)" in result.output
+    out = tmp_path / "ds"
+    assert sorted(_read_ids(out / "train.jsonl")) == ["a-ok", "d-ok"]
+    parts = tmp_path / "ds-parts"
+    assert not (parts / "kdgen-b.jsonl").exists()
+    assert not (parts / "kdgen-c.kd.jsonl").exists()
+
+
+def test_workers_default_one_is_sequential(tmp_path: Any, monkeypatch: Any) -> None:
+    cases = tmp_path / "cases"
+    for stem in ("a", "b"):
+        _write_case(cases, stem)
+    plans = {s: {"records": [_record(f"{s}-ok")], "entries": [_entry(f"{s}-ok")]} for s in "ab"}
+    calls = _install_fake_runner(monkeypatch, plans)
+    result = _invoke(tmp_path)
+
+    assert result.exit_code == 0, result.output
+    assert len(calls) == 2
