@@ -25,11 +25,12 @@ VALUE_DOMAINS: dict[str, set[str]] = {
     "nx": {"true", "false"},
     "pie": {"true", "false"},
     "canary": {"true", "false"},
+    "vuln": {"sof", "fmtstr", "uaf"},
 }
 
-# The predicates the LLM may emit: source-knowledge facts only.
-# leaked_address is a measured fact (lictor harvest), not source
-# knowledge; the profiler emits the binary facts on its own.
+# The predicates the LLM may emit: engine-known source-knowledge facts
+# only. leaked_address is measured by lictor harvest, win() presence is
+# a profiler fact (target_function); the engine rejects anything else.
 LLM_ALLOWED = {
     "vuln",
     "fmtstr_read",
@@ -37,7 +38,6 @@ LLM_ALLOWED = {
     "allocator",
     "glibc_minor",
     "function_pointer_on_heap",
-    "win_function",
 }
 
 FACT_PROMPT = """You are feeding an auditable exploitation decision engine.
@@ -49,8 +49,10 @@ binary facts and the leak addresses are measured separately):
 vuln, fmtstr_read, seccomp, allocator, glibc_minor,
 function_pointer_on_heap, win_function.
 Value domains are strict: fmtstr_read, seccomp and
-function_pointer_on_heap take ONLY true or false. vuln takes a
-technique keyword (fmtstr, uaf, orw, ret2func, ret2plt, shellcode).
+function_pointer_on_heap take ONLY true or false. vuln takes exactly
+one of: "sof", "fmtstr", "uaf". allocator takes "tcache" when the
+source shows tcache/heap use, nothing otherwise. glibc_minor takes a
+bare integer.
 Emit nothing else: no prose, no markdown, no code fences.
 Only emit facts the source actually shows.
 
