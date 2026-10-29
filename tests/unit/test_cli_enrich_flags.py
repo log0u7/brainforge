@@ -78,9 +78,10 @@ def test_ingest_trajectories_cli_merges_into_dataset_dir(tmp_path: Any) -> None:
             }
         ],
     )
-    _write(tmp_path / "cases" / "orw.json", [
-        {"id": "ctf-lictor-orw-001", "metadata": {"expected_flag": "FLAG{orw_reads_the_flag}"}}
-    ])
+    _write(
+        tmp_path / "cases" / "orw.json",
+        [{"id": "ctf-lictor-orw-001", "metadata": {"expected_flag": "FLAG{orw_reads_the_flag}"}}],
+    )
     dataset_dir = tmp_path / "ds"
     dataset_dir.mkdir()
     stale = {"id": "ctf-lictor-orw-001", "messages": [{"role": "user", "content": "stale"}]}
