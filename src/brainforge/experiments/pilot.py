@@ -253,7 +253,12 @@ def run_pilot(
         decision = runner(workdir, ["plan", "target.facts", "-s", "7"])
         # the build failure is not fatal: fmtstr-class exploits need no
         # measured offset (the write goes through %n, not a return
-        # address) - the run goes out without a payload instead
+        # address) - the run goes out without a payload instead. The
+        # stale payload of the PREVIOUS target must go too: a shared
+        # workdir run fed the ret2func payload to the fmtstr exploit
+        # (measured: executed/failed x2 on every target after the first
+        # successful build).
+        (workdir / "payload.bin").unlink(missing_ok=True)
         built = runner(
             workdir, ["build", binary, "--facts", "target.facts", "-o", "payload.bin", "-s", "7"]
         )
