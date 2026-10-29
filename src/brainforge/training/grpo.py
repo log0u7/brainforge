@@ -117,10 +117,13 @@ def train_grpo(
         expected_flags = [flags.get(i, "") for i in ids]
         return reward_fn(completions, expected_flag=expected_flags)
 
+    from datasets import Dataset
+
     trainer = GRPOTrainer(
         model=config.base_model,
         args=grpo_config,
-        train_dataset=rows,
+        # TRL rejects a plain list: the rows ride a Dataset
+        train_dataset=Dataset.from_list(rows),
         reward_funcs=[cast(Any, _reward_with_flags if flags else reward_fn)],
         peft_config=_lora_config(config),
     )
