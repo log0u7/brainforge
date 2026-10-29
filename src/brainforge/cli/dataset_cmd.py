@@ -278,3 +278,74 @@ def enrich_flags_cmd(
     temp.write_text(text, encoding="utf-8")
     temp.replace(dataset)
     console.print(f"[green]flags stamped[/green]: {stamped}/{len(records)} records")
+
+
+@app.command("ingest-trajectories")
+def ingest_trajectories_cmd(
+    trajectories: Path = typer.Argument(..., help="Path to the pilot's trajectories.jsonl"),
+    dataset_dir: Path = typer.Argument(
+        ..., help="GRPO dataset dir (train.jsonl + grpo_flags.jsonl)"
+    ),
+    cases_dir: Path = typer.Option(
+        Path("examples/cases"), "--cases-dir", help="Directory of case JSON files"
+    ),
+) -> None:
+    """The pilot's execution-verified trajectories become the GRPO
+    dataset: train.jsonl merged by id (a re-ingested challenge replaces
+    its stale row) and the grpo_flags.jsonl sidecar carrying the flag
+    the SERVICE read - the execution is the ground truth."""
+    from brainforge.dataset.flag_ground_truth import ingest_trajectories
+
+    if not trajectories.is_file():
+        err_console.print(f"[red]file not found:[/red] {trajectories}")
+        raise typer.Exit(code=1)
+    cases: list[dict] = []
+    for path in sorted(cases_dir.glob("*.json")):
+        try:
+            case = json.loads(path.read_text(encoding="utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            err_console.print(f"[red]invalid case file {path}:[/red] {exc}")
+            raise BrainforgeError(str(exc)) from exc
+        if isinstance(case, dict):
+            cases.append(case)
+    records = _read_jsonl_generic(trajectories)
+    rows, flags = ingest_trajectories(records, cases)
+
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+    train_path = dataset_dir / "train.jsonl"
+    merged: dict[str, dict] = {}
+    if train_path.is_file():
+        for line in train_path.open(encoding="utf-8"):
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            if row.get("id"):
+                merged[row["id"]] = row
+    fresh = sum(1 for r in rows if r.get("id") in merged)
+    for row in rows:
+        if row.get("id"):
+            merged[row["id"]] = row
+    train_path.write_text(
+        "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in merged.values()),
+        encoding="utf-8",
+    )
+
+    flags_path = dataset_dir / "grpo_flags.jsonl"
+    known: dict[str, dict] = {}
+    if flags_path.is_file():
+        for line in flags_path.open(encoding="utf-8"):
+            if not line.strip():
+                continue
+            entry = json.loads(line)
+            if entry.get("id"):
+                known[entry["id"]] = entry
+    for entry in flags:
+        known[entry["id"]] = entry
+    flags_path.write_text(
+        "".join(json.dumps(e, ensure_ascii=False) + "\n" for e in known.values()),
+        encoding="utf-8",
+    )
+    console.print(
+        f"[green]trajectories ingested[/green]: {len(rows)} rows "
+        f"({fresh} replaced), {len(flags)} flags -> {dataset_dir}"
+    )

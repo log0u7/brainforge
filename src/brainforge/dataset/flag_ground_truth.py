@@ -53,3 +53,37 @@ def enrich_flags(records: list[dict], cases: list[dict]) -> list[dict]:
         record = {**record, "messages": messages, "metadata": metadata}
         out.append(record)
     return out
+
+
+def ingest_trajectories(records: list[dict], cases: list[dict]) -> tuple[list[dict], list[dict]]:
+    """The pilot's execution-verified trajectories become GRPO dataset
+    material.
+
+    Returns (rows, flags): the rows keep ``id`` + ``messages`` + the
+    pilot metadata (the trainer renders the prompt by popping the
+    trailing assistant verdict); the flags rows carry the flag the
+    SERVICE read - the execution is the ground truth, never the model's
+    guess. Targets whose execution produced no flag (handoffs, budget
+    exhaustion) enter the rows without a sidecar entry: the trainer's
+    reward falls back to the empty-expected behavior (format only).
+    """
+    flags_by_id: dict[str, str] = {}
+    for case in cases:
+        if not isinstance(case, dict):
+            continue
+        cid = case.get("id")
+        expected = (case.get("metadata") or {}).get("expected_flag")
+        if cid and isinstance(expected, str) and expected.strip():
+            flags_by_id[cid] = expected.strip()
+    rows: list[dict] = []
+    flags: list[dict] = []
+    for record in records:
+        rid = record.get("id")
+        messages = record.get("messages") or []
+        if not rid or not messages:
+            continue
+        rows.append(record)
+        expected = flags_by_id.get(rid)
+        if expected:
+            flags.append({"id": rid, "expected_flag": expected})
+    return rows, flags
