@@ -248,6 +248,7 @@ the empty think block, matching the training render).
 | base Qwen3-1.7B | 0 | 2.534 | 12.61 | 0.00 | 0.92 | 0.08 | None |
 | SFT (17 GLM records, contaminated) | 17 | 2.999 | 20.07 | 0.00 | 0.92 | 0.08 | None |
 | SFT (union, holdout-excluded) | 16 | 2.984 | 19.77 | 0.1923 | 0.73 | 0.08 | None |
+| SFT (union2, flagged ground truth) | 16 | - | - | 0.2692 | 0.65 | 0.08 | 0.0000 |
 
 The union perplexity (19.77) is worse than baseline (12.61) while the
 task accuracy is the first non-zero: the training set teaches detailed
@@ -260,16 +261,23 @@ The contaminated 17-record run trained on 7 ids that appear in the
 holdout and still scored 0.00: the format was learned on in-distribution
 prompts and the holdout is a different prompt distribution. The union
 run fixes the distribution mismatch (recon-style prompts for both) and
-scores the first non-zero accuracy.
+scores the first non-zero accuracy. The union2 run adds
+`dataset enrich-flags` (verified-tier flags stamped into ground truth
+and training targets) and moves accuracy to 0.2692 with the FPR down
+to 0.65; flag_accuracy becomes computable for the first time.
 
 ### What still does not work
 
-* flag_accuracy is None: the holdout carries no flag strings. The
-  manifest gates on `expected_flag` (a boolean), the corpus stores the
-  real flags only inside lictor/rop-emporium source dirs. Pulling the
-  real flags into the holdout is the next step.
-* 5/26 is one seed on one holdout, not a benchmark paper.
-* 0.73 FPR means the model still guesses on most records it cannot
+* flag_accuracy is 0.0000 on the union2 run (after
+  `dataset enrich-flags` stamped the real lictor flags into the holdout
+  ground truth). The reading stays sober: a 1.7B student trained on 16
+  records cannot resolve flags by prediction, and the flag must come
+  from execution - the student produces the facts, augure decides the
+  technique, lictor executes against the local lab target, and the flag
+  read from the running service is the ground truth (and the GRPO
+  reward).
+* 7/26 is one seed on one holdout, not a benchmark paper.
+* 0.65 FPR means the model still guesses on most records it cannot
   parse; the abstention path is unused.
 
 ### Honest reading
