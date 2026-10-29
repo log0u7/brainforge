@@ -264,10 +264,18 @@ scores the first non-zero accuracy.
 
 ### What still does not work
 
-* flag_accuracy is None: the holdout carries no flag strings. The
-  manifest gates on `expected_flag` (a boolean), the corpus stores the
-  real flags only inside lictor/rop-emporium source dirs. Pulling the
-  real flags into the holdout is the next step.
+* flag_accuracy is 0.0000 on the union2 run (after
+  `dataset enrich-flags` stamped the real lictor flags into the holdout
+  ground truth): on the 6 flagged lictor records the model emits no
+  flag-shaped token on 5, and on the sixth it recites
+  `FLAG{a_placeholder_32byte_hex_flag!}` - the ROP Emporium placeholder
+  all 6 verified training records share. On tier-B records it
+  hallucinates plausible flags (`flag{hackers_in_WEB}`). The student
+  cannot guess flags it never saw; emitted flags are recitations or
+  hallucinations. The flag must come from execution: the student
+  produces the facts, augure decides the technique, lictor executes
+  against the local lab target, and the flag read from the running
+  service is the ground truth (and the GRPO reward).
 * 5/26 is one seed on one holdout, not a benchmark paper.
 * 0.73 FPR means the model still guesses on most records it cannot
   parse; the abstention path is unused.
