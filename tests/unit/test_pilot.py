@@ -144,3 +144,40 @@ def test_suggest_failure_does_not_abort_the_run():
     assert verdict["flag"] == "FLAG{the_data_decides_ret2plt}"
     assert "run" in seen
     out.unlink(missing_ok=True)
+
+
+def test_run_omits_payload_when_build_found_no_offset(tmp_path: Any):
+    """fmtstr exploits need no measured offset (the write goes through %n,
+    not a return address): a failed build is not fatal, and the run goes
+    out without a --payload instead of pointing at a missing file."""
+    import brainforge.experiments.pilot as pilot
+    from brainforge.providers.base import ChatResponse
+
+    class FakeProvider:
+        def complete(self, request, model):
+            return ChatResponse(
+                content='vuln("fmtstr").\nfmtstr_read("true").', provider="fake", model=model
+            )
+
+    seen = []
+
+    def fake_lictor(workdir: Path, args: list[str]) -> dict:
+        seen.append(args)
+        if args[0] == "build":
+            return {"status": "error", "stderr": "no measured offset"}
+        if args[0] == "plan":
+            return {"technique": "fmtstr_write"}
+        return {"status": "flagged", "flag": "FLAG{the_format_is_the_weapon}"}
+
+    results = pilot.run_pilot(
+        targets=[("ctf-lictor-fmtstr-001", "127.0.0.1:9996", "fmtstr", "material")],
+        workdir=tmp_path,
+        provider=FakeProvider(),
+        model="m",
+        lictor_runner=fake_lictor,
+        output=tmp_path / "trajectories.jsonl",
+    )
+    run_args = next(a for a in seen if a[0] == "run")
+    assert "--payload" not in run_args
+    verdict = json.loads(results[0]["messages"][-1]["content"])
+    assert verdict["flag"] == "FLAG{the_format_is_the_weapon}"

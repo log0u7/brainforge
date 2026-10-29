@@ -218,30 +218,33 @@ def run_pilot(
         else:
             merged = {"status": "no_llm_facts"}
         decision = runner(workdir, ["plan", "target.facts", "-s", "7"])
-        runner(
+        # the build failure is not fatal: fmtstr-class exploits need no
+        # measured offset (the write goes through %n, not a return
+        # address) - the run goes out without a payload instead
+        built = runner(
             workdir, ["build", binary, "--facts", "target.facts", "-o", "payload.bin", "-s", "7"]
         )
-        outcome = runner(
-            workdir,
-            [
-                "run",
-                target,
-                "--facts",
-                "target.facts",
-                "--executor",
-                "ronin",
-                "--payload",
-                "payload.bin",
-                "--max-attempts",
-                "2",
-                "-s",
-                "7",
-                "--flag-regex",
-                "FLAG\\{[^}]+\\}",
-            ],
-        )
+        run_args = [
+            "run",
+            target,
+            "--facts",
+            "target.facts",
+            "--executor",
+            "ronin",
+            "--max-attempts",
+            "2",
+            "-s",
+            "7",
+            "--flag-regex",
+            "FLAG\\{[^}]+\\}",
+        ]
+        if (workdir / "payload.bin").is_file():
+            run_args += ["--payload", "payload.bin"]
+        outcome = runner(workdir, run_args)
         if merged.get("status") == "error":
             outcome["suggest_error"] = merged.get("stderr")
+        if built.get("status") == "error":
+            outcome["build_error"] = built.get("stderr")
         record = build_trajectory(
             challenge_id=challenge_id,
             student_input=f"Solve this CTF challenge against the local lab target {binary}.",
