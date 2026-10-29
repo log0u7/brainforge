@@ -149,9 +149,10 @@ def test_suggest_failure_does_not_abort_the_run():
 
 
 def test_run_omits_payload_when_build_found_no_offset(tmp_path: Any):
-    """fmtstr exploits need no measured offset (the write goes through %n,
-    not a return address): a failed build is not fatal, and the run goes
-    out without a --payload instead of pointing at a missing file."""
+    """fmtstr exploits need no payload file (the write goes through %n,
+    not a return address): the build succeeds without writing one, and
+    the run goes out without a --payload instead of pointing at a
+    missing file."""
     import brainforge.experiments.pilot as pilot
     from brainforge.providers.base import ChatResponse
 
@@ -166,7 +167,9 @@ def test_run_omits_payload_when_build_found_no_offset(tmp_path: Any):
     def fake_lictor(workdir: Path, args: list[str]) -> dict:
         seen.append(args)
         if args[0] == "build":
-            return {"status": "error", "stderr": "no measured offset"}
+            # fmtstr-class: the build succeeds but writes no payload
+            # (the write goes through %n, not a return address)
+            return {"status": "done"}
         if args[0] == "plan":
             return {"technique": "fmtstr_write"}
         return {"status": "flagged", "flag": "FLAG{the_format_is_the_weapon}"}
@@ -337,3 +340,93 @@ def test_build_receives_the_decided_technique(tmp_path: Any):
     build_args = next(a for a in seen if a[0] == "build")
     assert "--technique" in build_args
     assert build_args[build_args.index("--technique") + 1] == "shellcode"
+
+
+def test_build_walks_the_ranking_when_the_draw_is_unbuildable(tmp_path: Any):
+    """The plan's ranking IS the decision: a draw whose layout the facts
+    cannot supply (measured: ret2libc drawn on the shellcode binary,
+    whose facts carry no pop_rdi_ret) must not burn the target - the
+    build walks the ranking and the first buildable technique runs."""
+    import brainforge.experiments.pilot as pilot
+    from brainforge.providers.base import ChatResponse
+
+    class FakeProvider:
+        def complete(self, request, model):
+            return ChatResponse(content='vuln("sof").', provider="fake", model=model)
+
+    builds: list[list[str]] = []
+    calls: list[list[str]] = []
+
+    def fake_lictor(workdir: Path, args: list[str]) -> dict:
+        calls.append(args)
+        if args[0] == "plan":
+            return {
+                "status": "done",
+                "stdout": "selected:   ret2libc\nranking:    ret2libc > shellcode > ret2func",
+            }
+        if args[0] == "build":
+            builds.append(args)
+            technique = args[args.index("--technique") + 1]
+            if technique == "ret2libc":
+                return {"status": "error", "stderr": "lictor: no pop_rdi_ret gadget in the facts"}
+            (workdir / "payload.bin").write_bytes(b"\xeb\x16")
+            return {"status": "done"}
+        if args[0] == "run":
+            return {"status": "flagged", "flag": "FLAG{ranked_walk}"}
+        return {"status": "done"}
+
+    records = pilot.run_pilot(
+        targets=[("ctf-lictor-shellcode-001", "127.0.0.1:9997", "shellcode", "material")],
+        workdir=tmp_path,
+        provider=FakeProvider(),
+        model="m",
+        lictor_runner=fake_lictor,
+        output=tmp_path / "t.jsonl",
+    )
+    assert len(builds) == 2
+    assert builds[0][builds[0].index("--technique") + 1] == "ret2libc"
+    assert builds[1][builds[1].index("--technique") + 1] == "shellcode"
+    run_args = next(a for a in calls if a[0] == "run")
+    assert "--payload" in run_args
+    verdict = records[0]["messages"][-1]["content"]
+    assert "ranked_walk" in verdict
+
+
+fake_lictor_calls: list[list[str]] = []
+
+
+def test_all_ranked_builds_failing_never_burns_the_run(tmp_path: Any):
+    """No ranked technique builds: the run would spend its attempts
+    payload-less - the honest verdict is unbuildable, the failures stay
+    in the outcome (zero-reward rollouts for the trainer)."""
+    import brainforge.experiments.pilot as pilot
+    from brainforge.providers.base import ChatResponse
+
+    class FakeProvider:
+        def complete(self, request, model):
+            return ChatResponse(content='vuln("sof").', provider="fake", model=model)
+
+    fake_lictor_calls.clear()
+
+    def fake_lictor(workdir: Path, args: list[str]) -> dict:
+        fake_lictor_calls.append(args)
+        if args[0] == "plan":
+            return {
+                "status": "done",
+                "stdout": "selected:   ret2libc\nranking:    ret2libc > shellcode",
+            }
+        if args[0] == "build":
+            return {"status": "error", "stderr": "lictor: no gadget in the facts"}
+        return {"status": "done"}
+
+    records = pilot.run_pilot(
+        targets=[("ctf-lictor-shellcode-001", "127.0.0.1:9997", "shellcode", "material")],
+        workdir=tmp_path,
+        provider=FakeProvider(),
+        model="m",
+        lictor_runner=fake_lictor,
+        output=tmp_path / "t.jsonl",
+    )
+    assert not [a for a in fake_lictor_calls if a[0] == "run"]
+    verdict = records[0]["messages"][-1]["content"]
+    assert "unbuildable" in verdict

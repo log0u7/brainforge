@@ -277,43 +277,80 @@ def run_pilot(
         # (measured: executed/failed x2 on every target after the first
         # successful build).
         (tgt / "payload.bin").unlink(missing_ok=True)
-        # the per-target flag file: the stubs must read THEIR flag, not
-        # the shared flag.txt (the ret2func's)
-        build_args = ["build", binary, "--facts", "target.facts", "-o", "payload.bin", "-s", seed]
-        build_args += (
-            ["--shellcode-path", f"/opt/target/{binary}.flag"] if binary != "shellcode" else []
-        )
-        # the build re-plans with its own bandit draw: --technique pins
-        # the technique the plan just decided, so the built layout is
-        # the decided one
-        drawn = re.search(r"selected:\s+(\S+)", str(decision.get("stdout", "")))
+        # the plan's ranking IS the decision: a draw whose layout the
+        # facts cannot supply (measured: ret2libc drawn on the shellcode
+        # binary, whose facts carry no pop_rdi_ret) must not burn the
+        # target - the build walks the ranking, the first buildable
+        # technique is the one that runs, and the failed builds stay in
+        # the outcome (zero-reward rollouts for the trainer)
+        stdout = str(decision.get("stdout", ""))
+        drawn = re.search(r"selected:\s+(\S+)", stdout)
+        rank_line = re.search(r"ranking:\s+(.+)", stdout)
+        ranked = [t.strip() for t in rank_line.group(1).split(">")] if rank_line else []
         if drawn:
-            build_args += ["--technique", drawn.group(1)]
-        built = runner(tgt, build_args)
-        run_args = [
-            "run",
-            target,
-            "--facts",
-            "target.facts",
-            "--executor",
-            "ronin",
-            "--max-attempts",
-            "4",
-            "-s",
-            seed,
-            "--flag-regex",
-            re.escape(expected_flag) if expected_flag else "FLAG\\{[^}]+\\}",
-        ]
-        if (tgt / "payload.bin").is_file():
-            run_args += ["--payload", "payload.bin"]
-        outcome = runner(tgt, run_args)
-        # a handoff stops the run (the recipe is identical, nothing was
-        # attempted): the seeded bandit explored a technique without an
-        # exploit - the next seed draws the next rank
-        while outcome.get("status") == "handoff" and int(seed) < 11:
-            seed = str(int(seed) + 1)
-            run_args[run_args.index("-s") + 1] = seed
+            ranked = [drawn.group(1)] + [t for t in ranked if t != drawn.group(1)]
+        build_failures: list[dict[str, Any]] = []
+        built: dict[str, Any] = {}
+        built_technique: str | None = None
+        for technique in ranked or [None]:
+            # the per-target flag file: the stubs must read THEIR flag,
+            # not the shared flag.txt (the ret2func's)
+            build_args = [
+                "build",
+                binary,
+                "--facts",
+                "target.facts",
+                "-o",
+                "payload.bin",
+                "-s",
+                seed,
+            ]
+            build_args += (
+                ["--shellcode-path", f"/opt/target/{binary}.flag"] if binary != "shellcode" else []
+            )
+            # the build re-plans with its own bandit draw: --technique
+            # pins the ranked technique, so the built layout is the
+            # decided one
+            if technique:
+                build_args += ["--technique", technique]
+            (tgt / "payload.bin").unlink(missing_ok=True)
+            built = runner(tgt, build_args)
+            if built.get("status") != "error":
+                built_technique = technique
+                break
+            build_failures.append(
+                {"technique": technique, "error": str(built.get("stderr", ""))[-200:]}
+            )
+        if built.get("status") == "error":
+            # no ranked technique built: the run would burn its attempts
+            # payload-less - the honest verdict is the build's
+            outcome: dict[str, Any] = {"status": "unbuildable", "build_failures": build_failures}
+        else:
+            run_args = [
+                "run",
+                target,
+                "--facts",
+                "target.facts",
+                "--executor",
+                "ronin",
+                "--max-attempts",
+                "4",
+                "-s",
+                seed,
+                "--flag-regex",
+                re.escape(expected_flag) if expected_flag else "FLAG\\{[^}]+\\}",
+            ]
+            if (tgt / "payload.bin").is_file():
+                run_args += ["--payload", "payload.bin"]
             outcome = runner(tgt, run_args)
+            outcome["built_technique"] = built_technique
+            # a handoff stops the run (the recipe is identical, nothing
+            # was attempted): the seeded bandit explored a technique
+            # without an exploit - the next seed draws the next rank
+            while outcome.get("status") == "handoff" and int(seed) < 11:
+                seed = str(int(seed) + 1)
+                run_args[run_args.index("-s") + 1] = seed
+                outcome = runner(tgt, run_args)
         if merged.get("status") == "error":
             outcome["suggest_error"] = merged.get("stderr")
         if built.get("status") == "error":
