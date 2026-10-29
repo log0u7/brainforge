@@ -258,10 +258,15 @@ def run_pilot(
         facts = ask_facts(provider, model, material)
         if facts:
             merged = runner(
-                workdir, ["suggest", "target.facts", "\n".join(facts), "-o", "target.facts"]
+                tgt, ["suggest", "target.facts", "\n".join(facts), "-o", "target.facts"]
+            )
+            print(
+                f"[pilot] {binary}: {len(facts)} facts -> "
+                f"{str(merged.get('stdout', merged.get('status', '')))[:110]}"
             )
         else:
             merged = {"status": "no_llm_facts"}
+            print(f"[pilot] {binary}: the LLM emitted no usable facts")
         seed = "7"
         decision = runner(tgt, ["plan", "target.facts", "-s", seed])
         # the build failure is not fatal: fmtstr-class exploits need no
