@@ -30,6 +30,7 @@ before planning a deployment.
 | understand the quality gate | [Quality gates](reference/quality-gates.md) |
 | understand contamination tagging | [Contamination](explanation/contamination.md) |
 | understand *why* it is built this way | [Architecture](explanation/architecture.md) |
+| see which paper backs a training method | [Method references](explanation/references.md) |
 | read the design decisions and trade-offs | [Decision records](adr/index.md) |
 | trace the research behind a design choice | [Research and references](reference/references.md) |
 | check what is not supported or not tested | [Status and known limits](../README.md#status-and-known-limits) |

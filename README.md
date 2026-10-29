@@ -225,6 +225,7 @@ Start at [docs/index.md](docs/index.md) for the full map.
 | [CLI](docs/reference/cli.md) and [config](docs/reference/configuration.md) | Commands, flags, and configuration |
 | [Dataset format](docs/reference/dataset-format.md) and [quality gates](docs/reference/quality-gates.md) | Record fields, splits, quality gates |
 | [Architecture](docs/explanation/architecture.md) | How the pipeline fits together |
+| [Method references](docs/explanation/references.md) | The paper behind each training method, anchored to the code |
 | [Decision records](docs/adr/index.md) | What was chosen, what was rejected |
 
 ## Development, security, license
