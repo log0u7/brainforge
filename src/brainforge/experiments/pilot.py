@@ -65,19 +65,24 @@ def clean_facts(llm_text: str, allowed: set[str] | None = None) -> list[str]:
     fences. With an ``allowed`` whitelist, unknown predicates are dropped
     (the decision engine rejects unknown facts; the LLM drifts). Facts
     whose value sits outside the predicate's domain are dropped too: the
-    suggest merge rejects the whole batch otherwise."""
+    suggest merge rejects the whole batch otherwise. Values are
+    re-quoted: the fact grammar wants quoted string atoms (an unquoted
+    true is a rejected term, not a boolean)."""
     facts = []
     for line in llm_text.splitlines():
         line = line.strip()
         match = PREDICATE_RE.match(line)
         if not match:
             continue
-        if allowed and match.group(1) not in allowed:
+        name, value = match.group(1), match.group(2)
+        if allowed and name not in allowed:
             continue
-        domain = VALUE_DOMAINS.get(match.group(1))
-        if domain and match.group(2).strip('"') not in domain:
+        domain = VALUE_DOMAINS.get(name)
+        bare = value.strip('"')
+        if domain and bare not in domain:
             continue
-        facts.append(line)
+        quoted = value if value.startswith('"') else f'"{bare}"'
+        facts.append(f"{name}({quoted}).")
     return facts
 
 
