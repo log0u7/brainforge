@@ -71,3 +71,63 @@ def test_enrich_rejects_conflicting_existing_flag():
     cases = [make_case("ctf-lictor-fmtstr-001", "FLAG{the_format_is_the_weapon}")]
     with pytest.raises(BrainforgeError):
         enrich_flags([record], cases)
+
+
+def test_ingest_trajectories_builds_grpo_rows_and_flags():
+    """The pilot's execution-verified trajectories become the GRPO
+    dataset: the rows keep id + messages (the trainer renders the
+    prompt by popping the trailing assistant verdict), and the flags
+    sidecar carries the flag the SERVICE read - the execution is the
+    ground truth, never the model's guess."""
+    from brainforge.dataset.flag_ground_truth import ingest_trajectories
+
+    record = {
+        "id": "ctf-lictor-orw-001",
+        "messages": [
+            {"role": "user", "content": "Solve this CTF challenge."},
+            {"role": "assistant", "content": '{"thought": "facts"}'},
+            {"role": "tool", "content": "facts"},
+            {
+                "role": "assistant",
+                "content": '{"verdict": "solved", "flag": "FLAG{orw_reads_the_flag}"}',
+            },
+        ],
+        "metadata": {"pilot": {"model": "m"}},
+    }
+    handoff = {
+        "id": "ctf-lictor-uaf_heap-001",
+        "messages": [
+            {"role": "user", "content": "Solve."},
+            {"role": "assistant", "content": '{"verdict": "handoff"}'},
+        ],
+        "metadata": {},
+    }
+    cases = [
+        {"id": "ctf-lictor-orw-001", "metadata": {"expected_flag": "FLAG{orw_reads_the_flag}"}},
+        {"id": "ctf-lictor-uaf_heap-001", "metadata": {}},
+    ]
+    rows, flags = ingest_trajectories([record, handoff], cases)
+    assert [r["id"] for r in rows] == ["ctf-lictor-orw-001", "ctf-lictor-uaf_heap-001"]
+    assert rows[0]["messages"][-1]["role"] == "assistant"
+    # only targets whose execution read a flag enter the sidecar
+    assert flags == [{"id": "ctf-lictor-orw-001", "expected_flag": "FLAG{orw_reads_the_flag}"}]
+
+
+def test_ingest_trajectories_merges_by_id_replacing_stale_rows():
+    """Re-ingesting a challenge replaces its stale row (a new pilot run's
+    trajectory is the fresh one) - the merge stays id-keyed, the
+    sidecar follows."""
+    from brainforge.dataset.flag_ground_truth import ingest_trajectories
+
+    old = {"id": "ctf-1", "messages": [{"role": "user", "content": "old"}], "metadata": {}}
+    new = {"id": "ctf-1", "messages": [{"role": "user", "content": "new"}], "metadata": {}}
+    _rows, _flags = ingest_trajectories(
+        [old], [{"id": "ctf-1", "metadata": {"expected_flag": "FLAG{a}"}}]
+    )
+    merged, flags2 = ingest_trajectories(
+        [new], [{"id": "ctf-1", "metadata": {"expected_flag": "FLAG{b}"}}]
+    )
+    # the caller merges: the function returns the fresh batch, the CLI
+    # merges by id - here: two calls, the second's row wins on id
+    assert merged[0]["messages"][0]["content"] == "new"
+    assert flags2 == [{"id": "ctf-1", "expected_flag": "FLAG{b}"}]

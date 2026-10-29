@@ -57,3 +57,50 @@ def test_enrich_flags_cli_missing_dataset(tmp_path: Any) -> None:
     result = runner.invoke(app, ["dataset", "enrich-flags", str(tmp_path / "missing.jsonl")])
     assert result.exit_code == 1
     assert "file not found" in result.output
+
+
+def test_ingest_trajectories_cli_merges_into_dataset_dir(tmp_path: Any) -> None:
+    """The pilot's trajectories become the GRPO dataset: train.jsonl
+    merged by id (a re-ingested challenge replaces its stale row),
+    grpo_flags.jsonl carrying the flags the service read."""
+
+    trajectories = tmp_path / "t.jsonl"
+    _write(
+        trajectories,
+        [
+            {
+                "id": "ctf-lictor-orw-001",
+                "messages": [
+                    {"role": "user", "content": "Solve."},
+                    {"role": "assistant", "content": '{"verdict": "solved"}'},
+                ],
+                "metadata": {"pilot": {"model": "m"}},
+            }
+        ],
+    )
+    _write(tmp_path / "cases" / "orw.json", [
+        {"id": "ctf-lictor-orw-001", "metadata": {"expected_flag": "FLAG{orw_reads_the_flag}"}}
+    ])
+    dataset_dir = tmp_path / "ds"
+    dataset_dir.mkdir()
+    stale = {"id": "ctf-lictor-orw-001", "messages": [{"role": "user", "content": "stale"}]}
+    _write(dataset_dir / "train.jsonl", [stale])
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "dataset",
+            "ingest-trajectories",
+            str(trajectories),
+            str(dataset_dir),
+            "--cases-dir",
+            str(tmp_path / "cases"),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    rows = [json.loads(line) for line in (dataset_dir / "train.jsonl").open()]
+    assert len(rows) == 1
+    assert rows[0]["messages"][0]["content"] == "Solve."
+    flags = [json.loads(line) for line in (dataset_dir / "grpo_flags.jsonl").open()]
+    assert flags == [{"id": "ctf-lictor-orw-001", "expected_flag": "FLAG{orw_reads_the_flag}"}]
