@@ -270,7 +270,7 @@ def run_pilot(
             "--executor",
             "ronin",
             "--max-attempts",
-            "2",
+            "4",
             "-s",
             "7",
             "--flag-regex",
