@@ -277,13 +277,15 @@ def test_run_flag_regex_is_the_target_expected_flag(tmp_path: Any):
         return {"status": "done"}
 
     pilot.run_pilot(
-        targets=[(
-            "ctf-lictor-ret2plt-001",
-            "127.0.0.1:9998",
-            "ret2plt",
-            "material",
-            "FLAG{the_data_decides_ret2plt}",
-        )],
+        targets=[
+            (
+                "ctf-lictor-ret2plt-001",
+                "127.0.0.1:9998",
+                "ret2plt",
+                "material",
+                "FLAG{the_data_decides_ret2plt}",
+            )
+        ],
         workdir=tmp_path,
         provider=FakeProvider(),
         model="m",
