@@ -122,3 +122,54 @@ def test_committed_manifest_matches_committed_cases():
     legacy = {"ctf-crypto-xor-001", "ctf-pwn-gets-001", "ctf-web-sqli-001"}
     assert manifest == disk - legacy, sorted(manifest ^ (disk - legacy))
     assert not (manifest - disk), sorted(manifest - disk)
+
+
+def test_archive_case_includes_recon_for_elf_binaries(corpus, tmp_path):
+    """A tier-B archive case whose attachment is an ELF binary must carry the
+    recon output (file type, protections, disasm head) instead of only the
+    'not excerpted' placeholder: the KD-GLM run trained on disasm-style
+    prompts (lictor/rop cases use run_recon) and the holdout prompts were
+    recon-style too, so the model learned to answer that distribution and
+    fell back to markdown on prompt shapes it never saw."""
+    from unittest import mock
+
+    event = corpus / "ctf-archives" / "2026-Test-Event"
+    attachments = event / "attachments"
+    challenge = attachments / "elf_bin_0123456789abcdef0123456789abcdef"
+    challenge.mkdir(parents=True)
+    (challenge / "chall.bin").write_bytes(b"\x7fELF" + b"\x00" * 8)
+    (event / "README.md").write_text("### Elf Bin\n\n> A statement.\n", encoding="utf-8")
+    fake_recon = (
+        "$ file -b chall.bin\nELF 64-bit LSB executable\n$ objdump -d (head)\n  400566: cmp"
+    )
+    events = {"2026-Test-Event": ("test", "2026-10-01")}
+    with mock.patch.object(ingest, "run_recon", return_value=fake_recon):
+        cases = ingest.ctf_archives_cases(corpus, events=events)
+    case = next(
+        c for c in cases if c[0]["id"].startswith("ctf-test-elf_bin_0123456789abcdef0123456789")
+    )
+    code = case[0]["input"]["code"]
+    assert "$ file -b" in code
+    assert "objdump -d" in code
+    assert "not excerpted" not in code or code.count("not excerpted") < code.count("$ file -b") + 2
+
+
+def test_archive_case_keeps_placeholder_for_non_elf_files(corpus, tmp_path):
+    """Non-ELF attachments (raw dumps, images) keep the placeholder: recon
+    tools cannot make sense of them."""
+    from unittest import mock
+
+    event = corpus / "ctf-archives" / "2026-Test-Event"
+    attachments = event / "attachments"
+    challenge = attachments / "raw_dump_0123456789abcdef0123456789abcdef"
+    challenge.mkdir(parents=True)
+    (challenge / "dump.raw").write_bytes(b"\x00\x01\x02\x03")
+    (event / "README.md").write_text("### Raw Dump\n\n> A statement.\n", encoding="utf-8")
+    events = {"2026-Test-Event": ("test", "2026-10-01")}
+    with mock.patch.object(ingest, "run_recon") as recon:
+        cases = ingest.ctf_archives_cases(corpus, events=events)
+    case = next(
+        c for c in cases if c[0]["id"].startswith("ctf-test-raw_dump_0123456789abcdef0123456789")
+    )
+    assert "not excerpted" in case[0]["input"]["code"]
+    recon.assert_not_called()

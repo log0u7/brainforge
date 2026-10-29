@@ -261,7 +261,7 @@ def ctf_archives_cases(
             slug = re.sub(r"[^a-z0-9_-]", "", canonical.lower().replace(".", "-"))[:40]
             case_id = f"ctf-{prefix}-{slug}-001"
             statement = _statement_for(readme, canonical)
-            excerpts = _attachment_excerpts(root)
+            excerpts = _archive_material(root)
             case = {
                 "id": case_id,
                 "source": {
@@ -348,6 +348,37 @@ def _attachment_excerpts(challenge: Path) -> str:
             continue
         rel = path.relative_to(challenge)
         if path.suffix.lower() in TEXT_SUFFIXES:
+            parts.append(f"--- {rel} ---\n{read_text(path)}")
+        else:
+            parts.append(f"--- {rel} (binary/image, not excerpted) ---")
+    return "\n".join(parts)[:8000]
+
+
+def _is_elf(path: Path) -> bool:
+    try:
+        return path.read_bytes()[:4] == b"\x7fELF"
+    except OSError:
+        return False
+
+
+def _archive_material(challenge: Path) -> str:
+    """Text excerpts plus recon output for ELF binaries.
+
+    Binary attachments get the same bounded static recon the tier-A
+    lictor/rop cases carry: file type, ELF header, protections, symbol
+    hits and a disasm head. Without it a pwn challenge is unanswerable
+    ('binary/image, not excerpted' tells the model nothing), and the
+    prompt distribution diverges from the recon-style prompts the model
+    is trained on.
+    """
+    parts = []
+    for path in sorted(challenge.rglob("*")):
+        if path.is_dir():
+            continue
+        rel = path.relative_to(challenge)
+        if _is_elf(path):
+            parts.append(f"--- {rel} (recon) ---\n{run_recon(path)}")
+        elif path.suffix.lower() in TEXT_SUFFIXES:
             parts.append(f"--- {rel} ---\n{read_text(path)}")
         else:
             parts.append(f"--- {rel} (binary/image, not excerpted) ---")
