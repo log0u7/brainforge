@@ -159,18 +159,26 @@ logprobs).
 Held-out split: 26 records (`test_postcutoff`), the same split for
 every row. Base model Qwen3-1.7B, QLoRA 4-bit, bf16.
 
-| Model | Train records | eval_loss | perplexity | vs baseline | Train time |
-|---|---|---|---|---|---|
-| base Qwen3-1.7B | — | 2.534 | 12.61 | — | — |
-| SFT (smoke pass) | 3 | 2.242 | 9.42 | −25.3% | 2.5 min |
-| SFT | 31 (37-case slice) | 2.090 | 8.09 | −35.9% | ~5 min |
-| SFT (arbitrated 40-case set) | 31 (40-case slice) | 2.072 | 7.94 | −37.0% | ~5 min |
-| SFT (17 GLM-solved records) | 17 | 2.084 | 8.04 | −36.2% | ~30 min |
-| KD (qwen3.5-9b teacher) | 3 | 2.345 | 10.43 | −17.3% | 12 steps |
-| KD (qwen, hard 17-case subset) | 3 | 2.350 | 10.49 | −17.0% | 12 steps |
-| KD (glm-5.3-prime, mid-run snapshot) | 14 | 2.471 | 11.84 | −6.1% | 24 steps |
-| KD (glm-5.3-prime, full 17-record set) | 17 | 2.999 | 20.07 | +59.2% | 36 steps |
-| KD (qwen3.5-35b-a3b teacher, full pass) | 1 | 2.361 | 10.60 | −16.0% | 12 steps |
+| Model | Train records | eval_loss | perplexity | vs baseline | Steps | Wall time (min) |
+|---|---|---|---|---|---|---|
+| base Qwen3-1.7B | — | 2.534 | 12.61 | — | — | — |
+| SFT (smoke pass) | 3 | 2.242 | 9.42 | −25.3% | 12 | 1.0 |
+| SFT | 31 (37-case slice) | 2.090 | 8.09 | −35.9% | 48 | 3.9 |
+| SFT (arbitrated 40-case set) | 31 (40-case slice) | 2.072 | 7.94 | −37.0% | 48 | 5.5 |
+| SFT (17 GLM-solved records) | 17 | 2.084 | 8.04 | −36.2% | 36 | 5.6 |
+| KD (qwen3.5-9b teacher) | 3 | 2.345 | 10.43 | −17.3% | 12 | 168.1 |
+| KD (qwen, hard 17-case subset) | 3 | 2.350 | 10.49 | −17.0% | 12 | 1.0 |
+| KD (glm-5.3-prime, mid-run snapshot) | 14 | 2.471 | 11.84 | −6.1% | 24 | 37.3 |
+| KD (glm-5.3-prime, full 17-record set) | 17 | 2.999 | 20.07 | +59.2% | 36 | n/a |
+| KD (qwen3.5-35b-a3b teacher, full pass) | 1 | 2.361 | 10.60 | −16.0% | 12 | n/a |
+
+Wall times are the trainer's measured `train_runtime` (the training
+loop only, on the RTX 3080 host). The first KD run's wall time includes
+the teacher server's cold start; the later 12-step KD runs reused the
+warm server. Two logs (KD glm-5.3-prime full, KD qwen3.5-35b) were lost
+before wall-time capture, so their cells stay `n/a` - steps are the
+comparable unit, and a KD step costs a teacher forward pass that an SFT
+step does not.
 
 SFT scales monotonically with usable records: the 17 GLM-solved
 records alone nearly match the 40-case arbitrated result (8.04 vs
@@ -181,7 +189,8 @@ records alone nearly match the 40-case arbitrated result (8.04 vs
 
 The KD loss is vectorized since issue #57 (PR #63): the 14-record
 GLM-teacher snapshot that used to stall 28+ minutes on its first step
-now trains 24 steps in ~30 minutes (~16x on this workload). Vectorized
+now trains 24 steps in 37 minutes measured (~16x on this workload).
+Vectorized
 KD at the 17-record scale produced the most instructive negative
 result of the run: **more distillation data from the glm-5.3-prime
 teacher made the student worse than the untrained baseline**
@@ -292,6 +301,40 @@ arbitration, training and evaluation run end-to-end on a consumer
 Windows GPU host, with every step state-traced - and that the
 distillation term needs a target-representation fix before it can
 compete with direct SFT.
+
+## The GRPO stage (2026-10-29)
+
+The execution loop closes the reward: the pilot's trajectories carry
+the flag read from the running service, `dataset ingest-trajectories`
+turns them into the GRPO dataset (6 rows + the `grpo_flags.jsonl`
+sidecar), and the trainer scores each generated verdict against the
+flag the service actually read - the execution is the ground truth,
+never the model. Config: base = the merged SFT student
+(`run-1.7b-sft-17b-merged`), reward `ctf_flag`, 6 prompts, 3 epochs,
+9 optimizer steps, 376 s (~6 min) on the RTX 3080.
+
+| Step | Reward |
+|---|---|
+| 1 | 1.000 |
+| 2 | 0.417 |
+| 3 | 1.000 |
+| 4 | 1.000 |
+| 5 | 0.500 |
+| 6 | 0.917 |
+| 7 | 0.500 |
+| 8 | 0.917 |
+| 9 | 1.000 |
+
+Mean reward 0.81 over the run. The curve opens at 1.0 because the flag
+the verdict must report already sits in the prompt's tool observation;
+it breathes between 0.42 and 1.0 where a generation misses the flag
+format, and closes at 1.0. Honest framing: this stage trains faithful
+reporting of the oracle's truth, not exploration - the RL stage where
+the model's actions change the environment (emit the facts, decide,
+execute, get paid on the result) is the next one. The reward itself is
+now real: it comes from an execution, it replays, and every failed
+build the pilot records is a zero-reward rollout. Run:
+`experiments/run-grpo-1`.
 
 ## First run results (2026-10-26) - task-eval attempt
 
