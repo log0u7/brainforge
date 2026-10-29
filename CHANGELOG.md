@@ -5,10 +5,25 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2026-10-29
 
 ### Added
 
+- `brainforge experiments pilot`: the closed execution loop. The LLM reads
+  the challenge material and emits source-derived facts, augure decides the
+  technique from the merged facts and proves it, lictor builds the payload
+  and runs it against the local lab target, and the flag read from the
+  running service is the ground truth and the GRPO reward. The build walks
+  the plan's full ranking (the first buildable technique runs, failed
+  builds stay in the outcome as zero-reward rollouts), and the decided
+  technique is pinned onto both the build and the run. Measured on the six
+  lab targets: five land their own flags end-to-end, the sixth is the
+  designed handoff (2026-10-29 run r10).
+- `brainforge dataset ingest-trajectories <trajectories.jsonl> <dir>`: the
+  pilot's execution-verified trajectories become the GRPO dataset,
+  `train.jsonl` merged by id plus the `grpo_flags.jsonl` sidecar carrying
+  the flag the service read; the execution is the ground truth, never the
+  model's guess.
 - `brainforge dataset enrich-flags <file.jsonl>`: stamp verified-tier
   `expected_flag` strings (the real flag the gate checks against) into
   record answers and tag `flag_verified` in metadata. The pipeline
