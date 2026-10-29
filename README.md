@@ -191,14 +191,14 @@ context go to configured providers.
 
 | Area | Status |
 |---|---|
-| Maturity and evidence | 1.0-rc. The end-to-end pipeline works and the training gains are measured: SFT cuts student perplexity 12.61 -> 7.94 (-37%) on a held-out post-cutoff split, with SFT scaling monotonic across 3/17/31-record sets. The KD wave is documented including its negative result (cross-tokenizer teacher: 20.07, worse than baseline; bimodal loss; tokenizer guard added; teacher capability AND the verified-flag gate both bound KD data volume). Next: the task-eval capability benchmark (flag accuracy) on the trained student. Numbers and reading: [benchmark](docs/explanation/benchmark.md). Pin a commit and measure your own holdout. |
-| Mock mode | Deterministic schema filler for plumbing, tests, and demos. It is not evidence of label or model quality. |
-| Training | QLoRA, full FT, KD, and task evaluation need the training extra. Chat needs the extra and enough memory. The CPU smoke test is one tiny LoRA step. CPU, ROCm, XPU, and MPS training paths are implemented and unit-tested but not hardware-validated; run `brainforge train check` on your machine first. Full FT needs more VRAM than QLoRA. The full cycle was exercised end to end on a consumer Windows GPU host (RTX 3080). |
-| Judge separation and agreement | Enforced with providers and declared families only. The same upstream weights behind two providers, a mislabeled family, `warn`, or `off` defeat it. Agreement is reported only for schemas with boolean verdict signals, so ticket datasets may show none. |
-| Contamination | Requires source dates and every teacher and critic cutoff. Missing dates or cutoffs fail safe to `recitation_risk`. The post-cutoff split can be empty or under 20 cases; it is a split, not a benchmark. |
-| Deduplication and RAG | Duplicate detection is inspection-only, with exact and near matching; it does not remove records. RAG is brute-force NumPy over SQLite, without an ANN index. |
-| Experimental features | KD depends on judge logprobs and provider support, and works best when teacher and student share a vocabulary. Abliteration is a single-direction heuristic, not a guarantee. Neither is benchmarked. |
-| Provider and export edges | Only `chat_completions` is implemented for Zen; `responses` and `anthropic` fail at build. GGUF export needs a local `llama.cpp` checkout, found via `--llama-cpp-path`, `LLAMA_CPP_DIR`, or `PATH`. The generic domain fallback has no domain-specific quality rules. |
+| Maturity and evidence | 1.0-rc: the end-to-end pipeline works and the training gains are measured (SFT -37% perplexity on a post-cutoff holdout). Numbers and the honest reading: [benchmark](docs/explanation/benchmark.md). Pin a commit and measure your own holdout. |
+| Mock mode | Deterministic schema filler for plumbing, tests, and demos - not evidence of label or model quality. |
+| Training | QLoRA, full FT, KD and task evaluation need the training extra. CPU, ROCm, XPU and MPS paths are unit-tested but not hardware-validated; run `brainforge train check` first. Exercised end to end on a consumer Windows GPU host (RTX 3080). |
+| Judge separation | Enforced with providers and declared families only; `warn` or `off` defeat it. |
+| Contamination | Requires source dates and every teacher and critic cutoff; missing dates fail safe to `recitation_risk`. The post-cutoff split is a split, not a benchmark. |
+| Dedup and RAG | Inspection-only duplicate detection; brute-force NumPy RAG without an ANN index. |
+| Experimental | KD (judge logprobs, shared vocabulary best) and abliteration (single-direction heuristic) are not benchmarked. |
+| Provider and export edges | Only `chat_completions` for Zen. GGUF export needs a local `llama.cpp` checkout (`LLAMA_CPP_DIR` or `--llama-cpp-path`). |
 
 ## Providers
 
