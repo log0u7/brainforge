@@ -344,6 +344,12 @@ def run_pilot(
         ]
         if (tgt / "payload.bin").is_file():
             run_args += ["--payload", "payload.bin"]
+        # the run's own bandit draw could pick a technique whose exploit
+        # recipe differs from the payload the build just produced
+        # (measured: the shellcode run drew ret2libc, no exploit exists
+        # for it -> handoff x4) - the run executes the built technique
+        if built_technique:
+            run_args += ["--technique", built_technique]
         outcome: dict[str, Any] = runner(tgt, run_args)
         outcome["built_technique"] = built_technique
         if build_failures:

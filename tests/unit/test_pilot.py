@@ -437,3 +437,45 @@ def test_payload_less_run_survives_a_fully_failed_ranking(tmp_path: Any):
     assert verdict["flag"] == "FLAG{payload_less}"
     observation = json.loads(records[0]["messages"][-2]["content"])
     assert [f["technique"] for f in observation["build_failures"]] == ["ret2libc", "shellcode"]
+
+
+def test_run_executes_the_built_technique(tmp_path: Any):
+    """The run's own bandit draw could pick a technique whose exploit
+    recipe differs from the payload the build just produced (measured:
+    the shellcode run drew ret2libc, no exploit exists for it ->
+    handoff x4) - the run receives --technique with the built one."""
+    import brainforge.experiments.pilot as pilot
+    from brainforge.providers.base import ChatResponse
+
+    class FakeProvider:
+        def complete(self, request, model):
+            return ChatResponse(content='vuln("sof").', provider="fake", model=model)
+
+    seen: list[list[str]] = []
+
+    def fake_lictor(workdir: Path, args: list[str]) -> dict:
+        seen.append(args)
+        if args[0] == "plan":
+            return {
+                "status": "done",
+                "stdout": "selected:   shellcode\nranking:    shellcode > ret2libc",
+            }
+        if args[0] == "build":
+            (workdir / "payload.bin").write_bytes(b"\xeb\x16")
+            return {"status": "done"}
+        if args[0] == "run":
+            return {"status": "flagged", "flag": "FLAG{run_pinned}"}
+        return {"status": "done"}
+
+    records = pilot.run_pilot(
+        targets=[("ctf-lictor-shellcode-001", "127.0.0.1:9997", "shellcode", "material")],
+        workdir=tmp_path,
+        provider=FakeProvider(),
+        model="m",
+        lictor_runner=fake_lictor,
+        output=tmp_path / "t.jsonl",
+    )
+    run_args = next(a for a in seen if a[0] == "run")
+    assert run_args[run_args.index("--technique") + 1] == "shellcode"
+    verdict = json.loads(records[0]["messages"][-1]["content"])
+    assert verdict["flag"] == "FLAG{run_pinned}"
