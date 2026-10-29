@@ -96,3 +96,51 @@ def test_run_pilot_records_trajectory(tmp_path: Any, monkeypatch: Any):
     record = json.loads(lines[0])
     assert record["id"] == "ctf-lictor-fmtstr-001"
     assert record["messages"][-1]["role"] == "assistant"
+
+
+def test_clean_facts_enforces_value_domains():
+    """The LLM invents out-of-domain values (fmtstr_read takes true/false
+    only): lictor suggest rejects the whole merge, so the filter drops
+    them instead of passing them through."""
+    from brainforge.experiments.pilot import clean_facts
+
+    llm_text = 'vuln("fmtstr").\nfmtstr_read("printf_input_allows_arbitrary_read").\nseccomp("true").'
+    facts = clean_facts(llm_text)
+    assert facts == ['vuln("fmtstr").', 'seccomp("true").']
+
+
+def test_suggest_failure_does_not_abort_the_run():
+    """A rejected suggest merge must not erase the outcome: the profiler
+    facts alone still decide, lictor still runs."""
+    import brainforge.experiments.pilot as pilot
+    from brainforge.providers.base import ChatResponse
+
+    class FakeProvider:
+        def complete(self, request, model):
+            return ChatResponse(
+                content='vuln("fmtstr").\nfmtstr_read("bogus").', provider="fake", model=model
+            )
+
+    seen = []
+
+    def fake_lictor(workdir: Path, args: list[str]) -> dict:
+        seen.append(args[0])
+        if args[0] == "suggest":
+            return {"status": "error", "stderr": "outside the value domain"}
+        if args[0] == "plan":
+            return {"technique": "ret2func"}
+        return {"status": "flagged", "flag": "FLAG{the_data_decides_ret2plt}"}
+
+    out = tmp_file = Path("/tmp/pilot-test-does-not-abort.jsonl")
+    results = pilot.run_pilot(
+        targets=[("ctf-lictor-ret2plt-001", "127.0.0.1:9998", "ret2plt", "material")],
+        workdir=Path("/tmp/pilot-test-does-not-abort"),
+        provider=FakeProvider(),
+        model="m",
+        lictor_runner=fake_lictor,
+        output=out,
+    )
+    verdict = json.loads(results[0]["messages"][-1]["content"])
+    assert verdict["flag"] == "FLAG{the_data_decides_ret2plt}"
+    assert "run" in seen
+    out.unlink(missing_ok=True)

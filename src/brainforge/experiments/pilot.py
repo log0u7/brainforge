@@ -16,6 +16,17 @@ from typing import Any
 
 PREDICATE_RE = re.compile(r"^([a-z_][a-z0-9_]*)\((.*)\)\.$")
 
+# Value domains the decision engine enforces: a fact outside its domain
+# makes the whole suggest merge fail, so the filter drops the line.
+VALUE_DOMAINS: dict[str, set[str]] = {
+    "fmtstr_read": {"true", "false"},
+    "seccomp": {"true", "false"},
+    "function_pointer_on_heap": {"true", "false"},
+    "nx": {"true", "false"},
+    "pie": {"true", "false"},
+    "canary": {"true", "false"},
+}
+
 FACT_PROMPT = """You are feeding an auditable exploitation decision engine.
 Read the CTF challenge material below and emit ONLY the fact predicates
 you can justify from the source code, one per line, Prolog style:
@@ -24,6 +35,9 @@ Allowed predicates (the profiler already emits the binary facts: nx,
 pie, canary, relro, plt, gadget, vuln_hint, target_function - do not
 repeat them): vuln, fmtstr_read, seccomp, allocator, glibc_minor,
 function_pointer_on_heap, leaked_address, win_function.
+Value domains are strict: fmtstr_read, seccomp and
+function_pointer_on_heap take ONLY true or false. vuln takes a
+technique keyword (fmtstr, uaf, orw, ret2func, ret2plt, shellcode).
 Emit nothing else: no prose, no markdown, no code fences.
 Only emit facts the source actually shows.
 
@@ -34,7 +48,9 @@ Challenge material:
 def clean_facts(llm_text: str, allowed: set[str] | None = None) -> list[str]:
     """Extract predicate lines from the LLM output, dropping prose and
     fences. With an ``allowed`` whitelist, unknown predicates are dropped
-    (the decision engine rejects unknown facts; the LLM drifts)."""
+    (the decision engine rejects unknown facts; the LLM drifts). Facts
+    whose value sits outside the predicate's domain are dropped too: the
+    suggest merge rejects the whole batch otherwise."""
     facts = []
     for line in llm_text.splitlines():
         line = line.strip()
@@ -42,6 +58,9 @@ def clean_facts(llm_text: str, allowed: set[str] | None = None) -> list[str]:
         if not match:
             continue
         if allowed and match.group(1) not in allowed:
+            continue
+        domain = VALUE_DOMAINS.get(match.group(1))
+        if domain and match.group(2).strip('"') not in domain:
             continue
         facts.append(line)
     return facts
@@ -202,7 +221,7 @@ def run_pilot(
             ],
         )
         if merged.get("status") == "error":
-            outcome = merged
+            outcome["suggest_error"] = merged.get("stderr")
         record = build_trajectory(
             challenge_id=challenge_id,
             student_input=f"Solve this CTF challenge against the local lab target {binary}.",
