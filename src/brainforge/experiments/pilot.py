@@ -237,12 +237,19 @@ def run_pilot(
     for entry in targets:
         challenge_id, target, binary, material = entry[:4]
         expected_flag = entry[4] if len(entry) > 4 else None
-        runner(workdir, ["acquire", target, "--from", f"http://127.0.0.1:8000/{binary}"])
+        # a workdir per target: the run's manifest (run.json), the trail
+        # and the facts are the per-target debugging record - a shared
+        # workdir overwrote them target after target and the failed
+        # attempts were unreadable
+        tgt = workdir / binary
+        tgt.mkdir(parents=True, exist_ok=True)
+        (tgt / "lictor.yml").write_text(f"trail: trail-{binary}.jsonl\n", encoding="utf-8")
+        runner(tgt, ["acquire", target, "--from", f"http://127.0.0.1:8000/{binary}"])
         # shellcode and orw classes need the MEASURED leak before build:
         # the service banner carries the buffer's address, harvest lifts
         # it into the facts (the demo harvests; the pilot skipped it and
         # the orw build failed on "no leaked_address(input) fact")
-        runner(workdir, ["harvest", target, "--facts", "target.facts"])
+        runner(tgt, ["harvest", target, "--facts", "target.facts"])
         facts = ask_facts(provider, model, material)
         if facts:
             merged = runner(
@@ -251,7 +258,7 @@ def run_pilot(
         else:
             merged = {"status": "no_llm_facts"}
         seed = "7"
-        decision = runner(workdir, ["plan", "target.facts", "-s", seed])
+        decision = runner(tgt, ["plan", "target.facts", "-s", seed])
         # the build failure is not fatal: fmtstr-class exploits need no
         # measured offset (the write goes through %n, not a return
         # address) - the run goes out without a payload instead. The
@@ -259,14 +266,14 @@ def run_pilot(
         # workdir run fed the ret2func payload to the fmtstr exploit
         # (measured: executed/failed x2 on every target after the first
         # successful build).
-        (workdir / "payload.bin").unlink(missing_ok=True)
+        (tgt / "payload.bin").unlink(missing_ok=True)
         # the per-target flag file: the stubs must read THEIR flag, not
         # the shared flag.txt (the ret2func's)
         build_args = ["build", binary, "--facts", "target.facts", "-o", "payload.bin", "-s", seed]
         build_args += (
             ["--shellcode-path", f"/opt/target/{binary}.flag"] if binary != "shellcode" else []
         )
-        built = runner(workdir, build_args)
+        built = runner(tgt, build_args)
         run_args = [
             "run",
             target,
@@ -281,16 +288,16 @@ def run_pilot(
             "--flag-regex",
             re.escape(expected_flag) if expected_flag else "FLAG\\{[^}]+\\}",
         ]
-        if (workdir / "payload.bin").is_file():
+        if (tgt / "payload.bin").is_file():
             run_args += ["--payload", "payload.bin"]
-        outcome = runner(workdir, run_args)
+        outcome = runner(tgt, run_args)
         # a handoff stops the run (the recipe is identical, nothing was
         # attempted): the seeded bandit explored a technique without an
         # exploit - the next seed draws the next rank
         while outcome.get("status") == "handoff" and int(seed) < 11:
             seed = str(int(seed) + 1)
             run_args[run_args.index("-s") + 1] = seed
-            outcome = runner(workdir, run_args)
+            outcome = runner(tgt, run_args)
         if merged.get("status") == "error":
             outcome["suggest_error"] = merged.get("stderr")
         if built.get("status") == "error":
