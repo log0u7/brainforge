@@ -215,7 +215,7 @@ def run_lictor(workdir: Path, args: list[str], lictor_bin: str = "lictor") -> di
 
 
 def run_pilot(
-    targets: list[tuple[str, str, str, str]],
+    targets: list[tuple],
     workdir: Path,
     provider: Any,
     model: str,
@@ -225,13 +225,18 @@ def run_pilot(
 ) -> list[dict]:
     """One trajectory per target: LLM facts, augure decide, lictor run.
 
-    ``targets`` entries: (challenge_id, host:port, binary, material).
+    ``targets`` entries: (challenge_id, host:port, binary, material) or
+    (challenge_id, host:port, binary, material, expected_flag) - with an
+    expected flag the run's oracle matches THAT flag, not the first
+    FLAG{...} in the output (the lab's cat prints six).
     ``lictor_runner`` overrides the subprocess runner (tests).
     """
     workdir.mkdir(parents=True, exist_ok=True)
     runner = lictor_runner or (lambda wd, args: run_lictor(wd, args, lictor_bin))
     records: list[dict] = []
-    for challenge_id, target, binary, material in targets:
+    for entry in targets:
+        challenge_id, target, binary, material = entry[:4]
+        expected_flag = entry[4] if len(entry) > 4 else None
         runner(workdir, ["acquire", target, "--from", f"http://127.0.0.1:8000/{binary}"])
         # shellcode and orw classes need the MEASURED leak before build:
         # the service banner carries the buffer's address, harvest lifts
@@ -264,7 +269,7 @@ def run_pilot(
             "-s",
             "7",
             "--flag-regex",
-            "FLAG\\{[^}]+\\}",
+            re.escape(expected_flag) if expected_flag else "FLAG\\{[^}]+\\}",
         ]
         if (workdir / "payload.bin").is_file():
             run_args += ["--payload", "payload.bin"]
