@@ -18,7 +18,8 @@ decision record that implements the idea.
 | [arXiv:1503.02531](https://arxiv.org/abs/1503.02531) Distilling the Knowledge in a Neural Network (Hinton et al., 2015) | The original soft-target distillation formulation the KD temperature/alpha knobs implement |
 | [arXiv:2309.07597](https://arxiv.org/abs/2309.07597) C-Pack: Packed Resources for General Chinese Embeddings / BGE (Xiao et al., SIGIR 2024) | The `BAAI/bge-small-en-v1.5` embedding model behind local RAG. See [ADR-0005](../adr/0005-rag-fastembed-numpy-sqlite.md) |
 | [arXiv:2306.13649](https://arxiv.org/abs/2306.13649) On-Policy Distillation of Language Models: Learning from Self-Generated Mistakes (Agarwal et al., 2023) | Generalized Knowledge Distillation: the student trains on its own sequences against the teacher's full next-token distribution. The principled replacement candidate for the top-k sidecar, deferred. See [ADR-0018](../adr/0018-post-training-expansion-deferred.md) |
-| [arXiv:2402.03300](https://arxiv.org/abs/2402.03300) DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models (Shao et al., 2024) | Group Relative Policy Optimization: the group of samples as its own baseline, no value model. The verifiable-reward stage deferred behind the benchmark. See [ADR-0018](../adr/0018-post-training-expansion-deferred.md) |
+| [arXiv:2402.03300](https://arxiv.org/abs/2402.03300) DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models (Shao et al., 2024) | Group Relative Policy Optimization: the group of samples as its own baseline, no value model. Shipped as `strategy: grpo` with the verifiable-reward registry (pulled forward by the 2026-10-28 amendment). See [ADR-0018](../adr/0018-post-training-expansion-deferred.md) |
+| [arXiv:2604.27401](https://arxiv.org/abs/2604.27401) Perturbation Probing: A Two-Pass-per-Prompt Diagnostic for FFN Behavioral Circuits in Aligned LLMs (Liu et al., 2026) | Roadmap for abliteration upgrades: circuit-targeted, neuron-level ablation instead of the single-direction heuristic; not yet implemented. See [ADR-0014](../adr/0014-abliteration-single-direction.md) |
 
 ## Guides and blog posts
 
@@ -28,6 +29,7 @@ stage it informs.
 
 | Source | Informs |
 |---|---|
+| [A curriculum for post-training agents](https://huggingface.co/blog/huggingface/train-agents) (Hugging Face, 2026) | The written five-stage map: SFT on agent traces, distillation, RL, RL environments, harnesses and scale, each with its TRL trainer. See [ADR-0018](../adr/0018-post-training-expansion-deferred.md) |
 | [Train the agent](https://huggingface.co/spaces/sergiopaniego/train-the-agent-slides) deck (S. Paniego, PyTorch Conf NA 2026) | The stage map itself: SFT on agent traces, distillation, GRPO, RL in environments, RL through the harness, and the "which one to reach for" decision table. See [ADR-0018](../adr/0018-post-training-expansion-deferred.md) |
 | [Distillation in 2026](https://huggingface.co/blog/sergiopaniego/distillation-2026) | The distillation stage: on-policy GKD in TRL, teacher and student sharing a tokenizer |
 | [Agentic RL in 2026](https://huggingface.co/blog/sergiopaniego/agentic-rl-2026) | The GRPO stage: a plain Python reward function over sampled completions |
