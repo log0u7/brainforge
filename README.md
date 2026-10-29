@@ -4,6 +4,7 @@
 
 [![CI](https://github.com/log0u7/brainforge/actions/workflows/ci.yml/badge.svg)](https://github.com/log0u7/brainforge/actions/workflows/ci.yml)
 [![python](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org)
+[![Hugging Face](https://img.shields.io/badge/Hugging%20Face-FFD21E)](https://huggingface.co) [![OpenAI](https://img.shields.io/badge/OpenAI-412991)](https://platform.openai.com)
 [![license](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
 
 **Status:** 1.0-rc. Configuration and CLI are stabilizing. Training numbers are in: SFT on gate-checked arbitrated CTF cases cuts student perplexity from 12.61 to 7.94 (-37%) on a held-out post-cutoff split, and the 17 hardest records alone reach 8.04 (-36%). The distillation wave produced a documented negative result (a cross-tokenizer teacher drove the student to 20.07, worse than the untrained baseline; both locks - tokenizer alignment and the verified-flag gate - now measured and guarded in the repo). The task-eval capability benchmark (flag accuracy) is the remaining gate to 1.0. Numbers and reading: [benchmark](docs/explanation/benchmark.md).
