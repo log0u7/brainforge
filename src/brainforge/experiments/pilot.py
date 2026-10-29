@@ -250,12 +250,18 @@ def run_pilot(
             )
         else:
             merged = {"status": "no_llm_facts"}
-        decision = runner(workdir, ["plan", "target.facts", "-s", "7"])
+        seed = "7"
+        decision = runner(workdir, ["plan", "target.facts", "-s", seed])
         # the build failure is not fatal: fmtstr-class exploits need no
         # measured offset (the write goes through %n, not a return
-        # address) - the run goes out without a payload instead
+        # address) - the run goes out without a payload instead. The
+        # stale payload of the PREVIOUS target must go too: a shared
+        # workdir run fed the ret2func payload to the fmtstr exploit
+        # (measured: executed/failed x2 on every target after the first
+        # successful build).
+        (workdir / "payload.bin").unlink(missing_ok=True)
         built = runner(
-            workdir, ["build", binary, "--facts", "target.facts", "-o", "payload.bin", "-s", "7"]
+            workdir, ["build", binary, "--facts", "target.facts", "-o", "payload.bin", "-s", seed]
         )
         run_args = [
             "run",
@@ -265,15 +271,22 @@ def run_pilot(
             "--executor",
             "ronin",
             "--max-attempts",
-            "2",
+            "4",
             "-s",
-            "7",
+            seed,
             "--flag-regex",
             re.escape(expected_flag) if expected_flag else "FLAG\\{[^}]+\\}",
         ]
         if (workdir / "payload.bin").is_file():
             run_args += ["--payload", "payload.bin"]
         outcome = runner(workdir, run_args)
+        # a handoff stops the run (the recipe is identical, nothing was
+        # attempted): the seeded bandit explored a technique without an
+        # exploit - the next seed draws the next rank
+        while outcome.get("status") == "handoff" and int(seed) < 11:
+            seed = str(int(seed) + 1)
+            run_args[run_args.index("-s") + 1] = seed
+            outcome = runner(workdir, run_args)
         if merged.get("status") == "error":
             outcome["suggest_error"] = merged.get("stderr")
         if built.get("status") == "error":
