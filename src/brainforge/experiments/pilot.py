@@ -322,35 +322,39 @@ def run_pilot(
                 {"technique": technique, "error": str(built.get("stderr", ""))[-200:]}
             )
         if built.get("status") == "error":
-            # no ranked technique built: the run would burn its attempts
-            # payload-less - the honest verdict is the build's
-            outcome: dict[str, Any] = {"status": "unbuildable", "build_failures": build_failures}
-        else:
-            run_args = [
-                "run",
-                target,
-                "--facts",
-                "target.facts",
-                "--executor",
-                "ronin",
-                "--max-attempts",
-                "4",
-                "-s",
-                seed,
-                "--flag-regex",
-                re.escape(expected_flag) if expected_flag else "FLAG\\{[^}]+\\}",
-            ]
-            if (tgt / "payload.bin").is_file():
-                run_args += ["--payload", "payload.bin"]
+            # no ranked technique built: fmtstr-class and heap exploits
+            # need no payload (the write goes through %n, the heap goes
+            # through the allocator) - the run still goes out, its own
+            # recipe decides; a ROP-class target ends budget-exhausted
+            # honestly instead of silently
+            pass
+        run_args = [
+            "run",
+            target,
+            "--facts",
+            "target.facts",
+            "--executor",
+            "ronin",
+            "--max-attempts",
+            "4",
+            "-s",
+            seed,
+            "--flag-regex",
+            re.escape(expected_flag) if expected_flag else "FLAG\\{[^}]+\\}",
+        ]
+        if (tgt / "payload.bin").is_file():
+            run_args += ["--payload", "payload.bin"]
+        outcome: dict[str, Any] = runner(tgt, run_args)
+        outcome["built_technique"] = built_technique
+        if build_failures:
+            outcome["build_failures"] = build_failures
+        # a handoff stops the run (the recipe is identical, nothing was
+        # attempted): the seeded bandit explored a technique without an
+        # exploit - the next seed draws the next rank
+        while outcome.get("status") == "handoff" and int(seed) < 11:
+            seed = str(int(seed) + 1)
+            run_args[run_args.index("-s") + 1] = seed
             outcome = runner(tgt, run_args)
-            outcome["built_technique"] = built_technique
-            # a handoff stops the run (the recipe is identical, nothing
-            # was attempted): the seeded bandit explored a technique
-            # without an exploit - the next seed draws the next rank
-            while outcome.get("status") == "handoff" and int(seed) < 11:
-                seed = str(int(seed) + 1)
-                run_args[run_args.index("-s") + 1] = seed
-                outcome = runner(tgt, run_args)
         if merged.get("status") == "error":
             outcome["suggest_error"] = merged.get("stderr")
         if built.get("status") == "error":

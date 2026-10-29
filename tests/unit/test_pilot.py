@@ -395,10 +395,12 @@ def test_build_walks_the_ranking_when_the_draw_is_unbuildable(tmp_path: Any):
 fake_lictor_calls: list[list[str]] = []
 
 
-def test_all_ranked_builds_failing_never_burns_the_run(tmp_path: Any):
-    """No ranked technique builds: the run would spend its attempts
-    payload-less - the honest verdict is unbuildable, the failures stay
-    in the outcome (zero-reward rollouts for the trainer)."""
+def test_payload_less_run_survives_a_fully_failed_ranking(tmp_path: Any):
+    """No ranked technique builds: fmtstr-class and heap exploits need
+    no payload (the write goes through %n, the heap through the
+    allocator) - the run still goes out and its own recipe decides; the
+    failed builds stay in the outcome (zero-reward rollouts for the
+    trainer)."""
     import brainforge.experiments.pilot as pilot
     from brainforge.providers.base import ChatResponse
 
@@ -417,16 +419,21 @@ def test_all_ranked_builds_failing_never_burns_the_run(tmp_path: Any):
             }
         if args[0] == "build":
             return {"status": "error", "stderr": "lictor: no gadget in the facts"}
+        if args[0] == "run":
+            return {"status": "flagged", "flag": "FLAG{payload_less}"}
         return {"status": "done"}
 
     records = pilot.run_pilot(
-        targets=[("ctf-lictor-shellcode-001", "127.0.0.1:9997", "shellcode", "material")],
+        targets=[("ctf-lictor-fmtstr-001", "127.0.0.1:9996", "fmtstr", "material")],
         workdir=tmp_path,
         provider=FakeProvider(),
         model="m",
         lictor_runner=fake_lictor,
         output=tmp_path / "t.jsonl",
     )
-    assert not [a for a in fake_lictor_calls if a[0] == "run"]
-    verdict = records[0]["messages"][-1]["content"]
-    assert "unbuildable" in verdict
+    run_args = next(a for a in fake_lictor_calls if a[0] == "run")
+    assert "--payload" not in run_args
+    verdict = json.loads(records[0]["messages"][-1]["content"])
+    assert verdict["flag"] == "FLAG{payload_less}"
+    observation = json.loads(records[0]["messages"][-2]["content"])
+    assert [f["technique"] for f in observation["build_failures"]] == ["ret2libc", "shellcode"]
