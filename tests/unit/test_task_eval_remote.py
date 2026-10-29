@@ -162,3 +162,54 @@ def test_generation_template_kwargs():
     assert _generation_template_kwargs(False) == {"enable_thinking": False}
     assert _generation_template_kwargs(True) == {"enable_thinking": True}
     assert _generation_template_kwargs(None) == {}
+
+
+def test_cli_default_thinking_is_false_matching_training(tmp_path: Any, monkeypatch: Any):
+    """The task-eval thinking default is --no-thinking (False): the training
+    render carries the empty think block into the prompt (chat_template_kwargs
+    enable_thinking=False per row), so the inference prompt must match
+    byte-for-byte. The v0.8 default of --thinking also mismatches a model
+    trained with the kwarg."""
+    import json as _json
+    from pathlib import Path as _Path
+
+    from typer.testing import CliRunner
+
+    import brainforge.cli.train_cmd as tc
+    import brainforge.training.task_eval as te_module
+    from brainforge.cli import app
+
+    captured: dict = {}
+
+    def fake_eval(
+        model_path, dataset, quantization, max_new_tokens, batch_size=None, enable_thinking=None
+    ):
+        captured["enable_thinking"] = enable_thinking
+        return {"n_records": 1, "accuracy": 1.0}
+
+    monkeypatch.setattr(te_module, "evaluate_model_on_records", fake_eval)
+    monkeypatch.setattr(tc, "latest_run_dir", lambda: _Path(tmp_path))
+    monkeypatch.setattr(
+        "brainforge.config.load_config",
+        lambda *a, **k: type("C", (), {"training": type("T", (), {"generate_batch_size": 4})()})(),
+    )
+    dataset = tmp_path / "ds.jsonl"
+
+    def fake_record() -> dict:
+        return {
+            "id": "rec-001",
+            "domain": "security",
+            "messages": [
+                {"role": "user", "content": "case prompt"},
+                {
+                    "role": "assistant",
+                    "content": _json.dumps({"verdict": "confirmed", "cwe": "CWE-78"}),
+                },
+            ],
+        }
+
+    dataset.write_text(_json.dumps(fake_record()) + "\n", encoding="utf-8")
+    runner = CliRunner()
+    result = runner.invoke(app, ["train", "task-eval", "-d", str(dataset)])
+    assert result.exit_code == 0, result.output
+    assert captured["enable_thinking"] is False

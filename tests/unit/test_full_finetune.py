@@ -69,6 +69,17 @@ def fake_training_modules(monkeypatch):
     datasets_mod.Dataset = _FakeDataset
     transformers_mod = types.ModuleType("transformers")
     transformers_mod.BitsAndBytesConfig = lambda **kwargs: {"quant": kwargs}
+    transformers_mod.AutoTokenizer = type(
+        "AutoTokenizer",
+        (),
+        {
+            "from_pretrained": staticmethod(
+                lambda *a, **k: types.SimpleNamespace(
+                    apply_chat_template=lambda messages, **kw: {"input_ids": [0] * 8}
+                )
+            )
+        },
+    )
     peft_mod = types.ModuleType("peft")
     peft_mod.LoraConfig = lambda **kwargs: {"lora": kwargs}
     for name, module in (

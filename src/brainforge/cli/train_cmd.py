@@ -410,7 +410,7 @@ def task_eval(
     quantization: Literal["auto", "4bit", "8bit", "none"] = typer.Option(
         "auto", "--quantization", help="4bit, 8bit, none or auto (device default)"
     ),
-    max_new_tokens: int = typer.Option(512, "--max-new-tokens"),
+    max_new_tokens: int = typer.Option(2048, "--max-new-tokens"),
     endpoint: str = typer.Option(
         None,
         "--endpoint",
@@ -429,8 +429,10 @@ def task_eval(
         "--thinking/--no-thinking",
         help=(
             "Qwen3 thinking mode at generation (chat template kwargs locally,"
-            " chat_template_kwargs on the endpoint); thinking traces can"
-            " consume the token budget and empty the scored answer"
+            " chat_template_kwargs on the endpoint). Default --no-thinking"
+            " matches the training render (the prompt carries the empty think"
+            " block, the model answers with JSON directly); --thinking is for"
+            " models whose own think traces eat the token budget"
         ),
     ),
     model_name: str = typer.Option(

@@ -238,3 +238,49 @@ def test_evaluate_base_token_weighted_loss(fake_inference_modules, tmp_path):
     assert len(model.calls) == 2
     assert model.calls[0]["labels"].rows[0] == [5, 6, 7, 8, -100, -100]
     assert model.calls[1]["labels"].rows[0] == list(range(1, 9))
+
+
+class _FakeFitTokenizer:
+    """One token per whitespace word; enough to test the max_length guard."""
+
+    def apply_chat_template(self, messages, tokenize=True, **kwargs):
+        text = "".join(m.get("content", "") for m in messages)
+        return {"input_ids": list(range(len(text.split())))}
+
+
+def _fit_records(short_completion: bool = False) -> list[dict]:
+    completion = (
+        '{"verdict": "partial", "technique": "x"}'
+        if short_completion
+        else " ".join(['{"verdict":'] * 500)
+    )
+    body = " ".join(["token"] * 1000)
+    return [
+        {
+            "id": "rec-001",
+            "messages": [
+                {"role": "user", "content": body},
+                {"role": "assistant", "content": completion},
+            ],
+        }
+    ]
+
+
+def test_max_length_fit_accepts_short_completions():
+    """A record whose full sequence fits max_length passes the guard."""
+    from brainforge.training.qlora import _check_max_length_fit
+
+    _check_max_length_fit(_fit_records(short_completion=True), 1024, _FakeFitTokenizer())
+
+
+def test_max_length_fit_rejects_truncated_completions():
+    """The default max_length=1024 truncated the KD-GLM completions (1145+
+    tokens) so the model never saw the answer terminator and never learned
+    the JSON format: the guard must fail fast instead of truncating."""
+    from brainforge.errors import BrainforgeError
+    from brainforge.training.qlora import _check_max_length_fit
+
+    with pytest.raises(BrainforgeError) as excinfo:
+        _check_max_length_fit(_fit_records(short_completion=False), 1024, _FakeFitTokenizer())
+    assert "max_length" in str(excinfo.value)
+    assert "rec-001" in str(excinfo.value)

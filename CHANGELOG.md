@@ -20,6 +20,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   produced a mask); the agentic multi-turn warning is reworded for
   prompt-completion semantics.
 
+### Fixed
+
+- SFT training fails fast when `max_length` would truncate a completion
+  (TRL cuts the sequence tail, so the model never sees the answer
+  terminator and never learns the answer format; the default 1024 cut
+  every 1145-2168 token KD-GLM completion).
+- `train task-eval` thinking mode is now a tri-state flag defaulting to
+  None: the generation prompt renders exactly like TRL prompt-completion
+  training (the model emits the think block itself). `--no-thinking` stays
+  for served GGUF models whose thinking traces eat the token budget.
+- `train task-eval` warns when the token budget cannot fit the longest
+  ground-truth completion instead of scoring answers that are cut mid-JSON
+  by construction, and `--max-new-tokens` defaults to 2048 (was 512).
+
 ## [0.8.0] - 2026-10-28
 
 ### Added
