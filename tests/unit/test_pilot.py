@@ -212,3 +212,46 @@ def test_run_lictor_parses_the_flag_from_the_runner_stdout(tmp_path: Any, monkey
     )
     assert outcome["status"] == "success"
     assert outcome["flag"] == "FLAG{augure_decides_lictor_executes}"
+
+
+def test_clean_facts_integer_predicates_stay_bare():
+    """glibc_minor takes a bare integer: a quoted "36" is rejected by the
+    fact grammar (measured on the uaf_heap run - the whole suggest merge
+    failed on it), so the filter unquotes integer-domain values."""
+    from brainforge.experiments.pilot import clean_facts
+
+    llm_text = 'vuln("uaf").\nallocator("tcache").\nglibc_minor("36").'
+    facts = clean_facts(llm_text)
+    assert facts == ['vuln("uaf").', 'allocator("tcache").', "glibc_minor(36)."]
+
+
+def test_pilot_harvests_the_service_leak(tmp_path: Any):
+    """shellcode and orw need the MEASURED leak (leaked_address("input"))
+    before build; the demo harvests the service, the pilot must too."""
+    import brainforge.experiments.pilot as pilot
+    from brainforge.providers.base import ChatResponse
+
+    class FakeProvider:
+        def complete(self, request, model):
+            return ChatResponse(content='seccomp("true").', provider="fake", model=model)
+
+    seen = []
+
+    def fake_lictor(workdir: Path, args: list[str]) -> dict:
+        seen.append(args[0])
+        if args[0] == "plan":
+            return {"technique": "orw"}
+        if args[0] == "run":
+            return {"status": "flagged", "flag": "FLAG{orw_reads_the_flag}"}
+        return {"status": "done"}
+
+    pilot.run_pilot(
+        targets=[("ctf-lictor-orw-001", "127.0.0.1:9994", "orw", "material")],
+        workdir=tmp_path,
+        provider=FakeProvider(),
+        model="m",
+        lictor_runner=fake_lictor,
+        output=tmp_path / "t.jsonl",
+    )
+    assert "harvest" in seen
+    assert seen.index("harvest") < seen.index("build")
