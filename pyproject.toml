@@ -1,6 +1,6 @@
 [project]
 name = "brainforge"
-version = "0.8.0"
+version = "0.9.0"
 description = "Verified multi-teacher LLM distillation into training datasets, then local fine-tuning (QLoRA/full/KD) with GGUF/Ollama export."
 readme = "README.md"
 license = "Apache-2.0"

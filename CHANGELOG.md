@@ -26,13 +26,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (TRL cuts the sequence tail, so the model never sees the answer
   terminator and never learns the answer format; the default 1024 cut
   every 1145-2168 token KD-GLM completion).
-- `train task-eval` thinking mode is now a tri-state flag defaulting to
-  None: the generation prompt renders exactly like TRL prompt-completion
-  training (the model emits the think block itself). `--no-thinking` stays
-  for served GGUF models whose thinking traces eat the token budget.
+- `train task-eval` thinking default is now `--no-thinking`: the training
+  render carries the empty think block into the prompt (per-row
+  `chat_template_kwargs: {enable_thinking: false}`), so the inference
+  prompt matches it byte-for-byte; `--thinking` stays for models whose
+  own think traces eat the token budget.
 - `train task-eval` warns when the token budget cannot fit the longest
   ground-truth completion instead of scoring answers that are cut mid-JSON
   by construction, and `--max-new-tokens` defaults to 2048 (was 512).
+- CTF archive cases run the same bounded static recon (file type, ELF
+  header, protections, symbol hits, disasm head) on ELF attachments as
+  the lictor/rop tier-A cases: the archive corpus used to emit only
+  `binary/image, not excerpted` placeholders, a prompt distribution the
+  trained student never saw at eval time.
+- Benchmark doc: third run results - the union SFT run (16 records,
+  holdout ids excluded) scores the first non-zero task-eval accuracy
+  (0.1923, FPR 0.7308) while perplexity regresses (19.77 vs baseline
+  12.61); the table now carries both metrics side by side with the
+  explanation (likelihood punishes the verbose style the task scorer
+  rewards).
 
 ## [0.8.0] - 2026-10-28
 
