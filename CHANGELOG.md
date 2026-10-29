@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- README badges: added Hugging Face and OpenAI, the two missing teacher/export surfaces.
 - SFT training now uses TRL's conversational prompt-completion format with
   `completion_only_loss=True`: the loss lands on the final assistant message
   only. The previous messages format with `assistant_only_loss=False` scored
