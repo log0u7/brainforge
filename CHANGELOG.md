@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `brainforge dataset enrich-flags <file.jsonl>`: stamp verified-tier
+  `expected_flag` strings (the real flag the gate checks against) into
+  record answers and tag `flag_verified` in metadata. The pipeline
+  verified flags but stored `flag: null`, so flag_accuracy was
+  uncomputable on every dataset (2026-10-29 measurement); with the
+  strings in place the holdout ground truth and the training targets
+  both carry the flag.
+
 ### Changed
 
 - SFT training now uses TRL's conversational prompt-completion format with
