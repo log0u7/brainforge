@@ -239,3 +239,42 @@ def split(
                     handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
                     kept += 1
         console.print(f"  sidecar: {kept}/{len(entries)} -> {sidecar_path}")
+
+
+@app.command("enrich-flags")
+def enrich_flags_cmd(
+    dataset: Path = typer.Argument(..., help="Path to dataset.jsonl (rewritten in place)"),
+    cases_dir: Path = typer.Option(
+        Path("examples/cases"), "--cases-dir", help="Directory of case JSON files"
+    ),
+) -> None:
+    """Stamp verified-tier ground-truth flags into a dataset's answers.
+
+    Verified-tier cases carry ``metadata.expected_flag`` (the real flag
+    string the gate checks against); the pipeline verifies it but stores
+    ``flag: null`` in the record's assistant JSON. This copies the string
+    into the record and tags ``flag_verified``, which makes flag_accuracy
+    computable at task-eval time.
+    """
+    from brainforge.dataset.flag_ground_truth import enrich_flags
+
+    if not dataset.is_file():
+        err_console.print(f"[red]file not found:[/red] {dataset}")
+        raise typer.Exit(code=1)
+    cases: list[dict] = []
+    for path in sorted(cases_dir.glob("*.json")):
+        try:
+            case = json.loads(path.read_text(encoding="utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            err_console.print(f"[red]invalid case file {path}:[/red] {exc}")
+            raise BrainforgeError(str(exc)) from exc
+        if isinstance(case, dict):
+            cases.append(case)
+    records = _read_jsonl_generic(dataset)
+    enriched = enrich_flags(records, cases)
+    stamped = sum(1 for r, e in zip(records, enriched, strict=True) if r is not e)
+    text = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in enriched)
+    temp = dataset.with_suffix(dataset.suffix + ".tmp")
+    temp.write_text(text, encoding="utf-8")
+    temp.replace(dataset)
+    console.print(f"[green]flags stamped[/green]: {stamped}/{len(records)} records")

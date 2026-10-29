@@ -111,6 +111,7 @@ long runs stay observable while they happen: top-level `status`
 | `brainforge dataset inspect <file.jsonl>` | contamination stats, agreement rates, duplicates |
 | `brainforge dataset split <file.jsonl>` | source-grouped splits + post-cutoff holdout (`--train-ratio`, `--val-ratio`, `--seed`) |
 | `brainforge dataset filter --sidecar <kd.jsonl>` | keep records whose id appears in the sidecar; `--out` writes a filtered JSONL, `--out-dir` writes a training-ready `train.jsonl` + `kd.jsonl` directory |
+| `brainforge dataset enrich-flags <file.jsonl>` | stamp verified-tier `expected_flag` strings into record answers (`--cases-dir`, default `examples/cases`); makes flag_accuracy computable |
 
 ## train
 
