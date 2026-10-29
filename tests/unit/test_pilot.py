@@ -295,3 +295,45 @@ def test_run_flag_regex_is_the_target_expected_flag(tmp_path: Any):
     run_args = next(a for a in seen if a[0] == "run")
     regex_index = run_args.index("--flag-regex")
     assert run_args[regex_index + 1] == "FLAG\\{the_data_decides_ret2plt\\}"
+
+
+def test_build_receives_the_decided_technique(tmp_path: Any):
+    """The build re-plans with its own bandit draw: without --technique
+    the same seed could build the wrong technique's layout (measured:
+    the shellcode build drew ret2libc at seeds 7-9, whose layout
+    demands a pop_rdi the binary's facts lack). The plan's decided
+    technique must ride --technique onto the build."""
+    import brainforge.experiments.pilot as pilot
+    from brainforge.providers.base import ChatResponse
+
+    class FakeProvider:
+        def complete(self, request, model):
+            return ChatResponse(content='vuln("sof").', provider="fake", model=model)
+
+    seen = []
+
+    def fake_lictor(workdir: Path, args: list[str]) -> dict:
+        seen.append(args)
+        if args[0] == "plan":
+            return {
+                "status": "done",
+                "stdout": "selected:   shellcode\nranking:    shellcode > ret2libc",
+            }
+        if args[0] == "build":
+            (workdir / "payload.bin").write_bytes(b"\xeb\x16")
+            return {"status": "done"}
+        if args[0] == "run":
+            return {"status": "flagged", "flag": "FLAG{nx_off_says_shellcode}"}
+        return {"status": "done"}
+
+    pilot.run_pilot(
+        targets=[("ctf-lictor-shellcode-001", "127.0.0.1:9997", "shellcode", "material")],
+        workdir=tmp_path,
+        provider=FakeProvider(),
+        model="m",
+        lictor_runner=fake_lictor,
+        output=tmp_path / "t.jsonl",
+    )
+    build_args = next(a for a in seen if a[0] == "build")
+    assert "--technique" in build_args
+    assert build_args[build_args.index("--technique") + 1] == "shellcode"

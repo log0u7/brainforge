@@ -283,6 +283,12 @@ def run_pilot(
         build_args += (
             ["--shellcode-path", f"/opt/target/{binary}.flag"] if binary != "shellcode" else []
         )
+        # the build re-plans with its own bandit draw: --technique pins
+        # the technique the plan just decided, so the built layout is
+        # the decided one
+        drawn = re.search(r"selected:\s+(\S+)", str(decision.get("stdout", "")))
+        if drawn:
+            build_args += ["--technique", drawn.group(1)]
         built = runner(tgt, build_args)
         run_args = [
             "run",
