@@ -27,14 +27,27 @@ VALUE_DOMAINS: dict[str, set[str]] = {
     "canary": {"true", "false"},
 }
 
+# The predicates the LLM may emit: source-knowledge facts only.
+# leaked_address is a measured fact (lictor harvest), not source
+# knowledge; the profiler emits the binary facts on its own.
+LLM_ALLOWED = {
+    "vuln",
+    "fmtstr_read",
+    "seccomp",
+    "allocator",
+    "glibc_minor",
+    "function_pointer_on_heap",
+    "win_function",
+}
+
 FACT_PROMPT = """You are feeding an auditable exploitation decision engine.
 Read the CTF challenge material below and emit ONLY the fact predicates
 you can justify from the source code, one per line, Prolog style:
 predicate("value").
-Allowed predicates (the profiler already emits the binary facts: nx,
-pie, canary, relro, plt, gadget, vuln_hint, target_function - do not
-repeat them): vuln, fmtstr_read, seccomp, allocator, glibc_minor,
-function_pointer_on_heap, leaked_address, win_function.
+Allowed predicates (nothing else: the profiler already emits the
+binary facts and the leak addresses are measured separately):
+vuln, fmtstr_read, seccomp, allocator, glibc_minor,
+function_pointer_on_heap, win_function.
 Value domains are strict: fmtstr_read, seccomp and
 function_pointer_on_heap take ONLY true or false. vuln takes a
 technique keyword (fmtstr, uaf, orw, ret2func, ret2plt, shellcode).
@@ -146,7 +159,7 @@ def ask_facts(provider: Any, model: str, material: str) -> list[str]:
         ),
         model,
     )
-    return clean_facts(response.content or "")
+    return clean_facts(response.content or "", allowed=LLM_ALLOWED)
 
 
 def run_lictor(workdir: Path, args: list[str], lictor_bin: str = "lictor") -> dict:
