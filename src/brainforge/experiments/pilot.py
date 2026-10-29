@@ -260,9 +260,13 @@ def run_pilot(
         # (measured: executed/failed x2 on every target after the first
         # successful build).
         (workdir / "payload.bin").unlink(missing_ok=True)
-        built = runner(
-            workdir, ["build", binary, "--facts", "target.facts", "-o", "payload.bin", "-s", seed]
+        # the per-target flag file: the stubs must read THEIR flag, not
+        # the shared flag.txt (the ret2func's)
+        build_args = ["build", binary, "--facts", "target.facts", "-o", "payload.bin", "-s", seed]
+        build_args += (
+            ["--shellcode-path", f"/opt/target/{binary}.flag"] if binary != "shellcode" else []
         )
+        built = runner(workdir, build_args)
         run_args = [
             "run",
             target,
