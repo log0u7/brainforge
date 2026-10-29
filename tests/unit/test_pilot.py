@@ -133,7 +133,7 @@ def test_suggest_failure_does_not_abort_the_run():
             return {"technique": "ret2func"}
         return {"status": "flagged", "flag": "FLAG{the_data_decides_ret2plt}"}
 
-    out = tmp_file = Path("/tmp/pilot-test-does-not-abort.jsonl")
+    out = Path("/tmp/pilot-test-does-not-abort.jsonl")
     results = pilot.run_pilot(
         targets=[("ctf-lictor-ret2plt-001", "127.0.0.1:9998", "ret2plt", "material")],
         workdir=Path("/tmp/pilot-test-does-not-abort"),
