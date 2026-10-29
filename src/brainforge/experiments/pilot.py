@@ -182,6 +182,9 @@ def ask_facts(provider: Any, model: str, material: str) -> list[str]:
     return clean_facts(response.content or "", allowed=LLM_ALLOWED)
 
 
+PACKS_DIR = "/home/logout/projets/github/logout/augure/packs"
+
+
 def run_lictor(workdir: Path, args: list[str], lictor_bin: str = "lictor") -> dict:
     """Run one lictor subcommand in the workdir, parse its JSON output when
     the subcommand emits some. For ``run``, the stdout carries the truth
@@ -243,7 +246,9 @@ def run_pilot(
         # attempts were unreadable
         tgt = workdir / binary
         tgt.mkdir(parents=True, exist_ok=True)
-        (tgt / "lictor.yml").write_text(f"trail: trail-{binary}.jsonl\n", encoding="utf-8")
+        (tgt / "lictor.yml").write_text(
+            f"trail: trail-{binary}.jsonl\npacks: {PACKS_DIR}\n", encoding="utf-8"
+        )
         runner(tgt, ["acquire", target, "--from", f"http://127.0.0.1:8000/{binary}"])
         # shellcode and orw classes need the MEASURED leak before build:
         # the service banner carries the buffer's address, harvest lifts
