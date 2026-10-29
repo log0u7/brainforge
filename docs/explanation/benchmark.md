@@ -178,7 +178,11 @@ the teacher server's cold start; the later 12-step KD runs reused the
 warm server. Two logs (KD glm-5.3-prime full, KD qwen3.5-35b) were lost
 before wall-time capture, so their cells stay `n/a` - steps are the
 comparable unit, and a KD step costs a teacher forward pass that an SFT
-step does not.
+step does not. Caution for anyone reading the run dirs directly: the
+glm-5.3-prime full run's `train_summary.json` shows a 0.008 s
+`train_runtime`, an artifact of a later failed resume that overwrote
+the summary tail; its `checkpoint-36/trainer_state.json` carries the
+real 36-step loss history.
 
 SFT scales monotonically with usable records: the 17 GLM-solved
 records alone nearly match the 40-case arbitrated result (8.04 vs
@@ -208,10 +212,18 @@ separate them:
    top-k logprobs*, which are re-tokenized onto the student vocabulary;
    that approximation costs accuracy even when teacher and student
    share a tokenizer family.
-2. **Cross-tokenizer teachers amplify the noise.** The GLM teacher's
-   text tokens fragment differently over the Qwen student vocabulary;
-   with 4.7x more records the accumulated noise dominates the signal
-   and the held-out perplexity collapses.
+2. **Cross-tokenizer teachers turn "learning the teacher" into the
+   failure mode.** The GLM teacher's text tokens fragment differently
+   over the Qwen student vocabulary. The two run sizes' loss curves
+   differ qualitatively, not just in noise volume: the 14-record run
+   contains no trainable batch group (its minimum loss stays near 42,
+   both groups drift down slowly), so the student never absorbs the
+   teacher's distribution and its held-out perplexity stays near
+   baseline (11.84); the 17-record run contains a group whose loss
+   collapses 78 -> 16 -> 11 within the run, and driving that loss down
+   means absorbing the misaligned teacher signal - which is exactly
+   what wrecks the held-out perplexity (20.07). Fitting the teacher is
+   the poisoning.
 3. **Two locks bound KD data volume: tokenizer alignment AND the
    verification gate.** A record enters the KD dataset only when the
    teacher's predicted flag matches the corpus ground truth
