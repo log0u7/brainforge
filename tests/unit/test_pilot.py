@@ -104,7 +104,9 @@ def test_clean_facts_enforces_value_domains():
     them instead of passing them through."""
     from brainforge.experiments.pilot import clean_facts
 
-    llm_text = 'vuln("fmtstr").\nfmtstr_read("printf_input_allows_arbitrary_read").\nseccomp("true").'
+    llm_text = (
+        'vuln("fmtstr").\nfmtstr_read("printf_input_allows_arbitrary_read").\nseccomp("true").'
+    )
     facts = clean_facts(llm_text)
     assert facts == ['vuln("fmtstr").', 'seccomp("true").']
 
@@ -181,3 +183,32 @@ def test_run_omits_payload_when_build_found_no_offset(tmp_path: Any):
     assert "--payload" not in run_args
     verdict = json.loads(results[0]["messages"][-1]["content"])
     assert verdict["flag"] == "FLAG{the_format_is_the_weapon}"
+
+
+def test_run_lictor_parses_the_flag_from_the_runner_stdout(tmp_path: Any, monkeypatch: Any):
+    """The closed loop prints the truth to stdout (status line + the flag
+    the runner's output carries): the parser must lift both into the
+    outcome so the trajectory verdict carries the real flag."""
+    import sys
+    import types
+
+    import brainforge.experiments.pilot as pilot
+
+    fake_subprocess = types.SimpleNamespace(
+        run=lambda argv, cwd, capture_output, text, timeout, check: types.SimpleNamespace(
+            returncode=0,
+            stdout=(
+                "run:     1cfb69f6  (interrupted? resume: x)\n"
+                "status:  success\n"
+                "  ret2func [executed/success]\n"
+                "flag:    FLAG{augure_decides_lictor_executes}\n"
+            ),
+            stderr="",
+        )
+    )
+    monkeypatch.setitem(sys.modules, "subprocess", fake_subprocess)
+    outcome = pilot.run_lictor(
+        tmp_path, ["run", "127.0.0.1:9999", "--facts", "target.facts"], lictor_bin="lictor"
+    )
+    assert outcome["status"] == "success"
+    assert outcome["flag"] == "FLAG{augure_decides_lictor_executes}"

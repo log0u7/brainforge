@@ -171,7 +171,9 @@ def ask_facts(provider: Any, model: str, material: str) -> list[str]:
 
 def run_lictor(workdir: Path, args: list[str], lictor_bin: str = "lictor") -> dict:
     """Run one lictor subcommand in the workdir, parse its JSON output when
-    the subcommand emits some, else return the trailing status."""
+    the subcommand emits some. For ``run``, the stdout carries the truth
+    (``status:`` line and the flag line matched by the flag regex) - the
+    JSON paths never carry the flag, the runner's output does."""
     import subprocess
 
     result = subprocess.run(
@@ -188,7 +190,15 @@ def run_lictor(workdir: Path, args: list[str], lictor_bin: str = "lictor") -> di
                 continue
             if isinstance(parsed, dict):
                 return parsed
-    return {"status": "done", "stdout": (result.stdout or "")[-400:]}
+    text = result.stdout or ""
+    outcome: dict[str, Any] = {"status": "done", "stdout": text[-400:]}
+    status_match = re.search(r"^status:\s+(\S+)", text, re.MULTILINE)
+    if status_match:
+        outcome["status"] = status_match.group(1)
+    flag_match = re.search(r"FLAG\{[^}]+\}", text)
+    if flag_match:
+        outcome["flag"] = flag_match.group(0)
+    return outcome
 
 
 def run_pilot(
