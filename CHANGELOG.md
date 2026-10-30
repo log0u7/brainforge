@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `lab_loop` GRPO reward: the completion is POSTed to the lictor reward
+  server with its dataset columns (port, flag, facts); the server runs
+  the closed loop twice (raw facts, then suggest-enriched) and returns
+  the counterfactual reward. Missing columns or an unreachable server
+  score zero - the loop never guesses. `_prompt_column` passes the
+  port/flag/facts columns through to TRL's reward kwargs.
+
 ## [1.0.0] - 2026-10-29
 
 ### Added

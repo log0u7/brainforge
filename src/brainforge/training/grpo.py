@@ -33,7 +33,11 @@ def _load_flags(dataset_dir: Path) -> dict[str, str]:
 
 
 def _prompt_column(records: list[dict]) -> list[dict]:
-    """GRPOTrainer expects a 'prompt' column (chat format accepted)."""
+    """GRPOTrainer expects a 'prompt' column (chat format accepted).
+
+    The reward-server columns (port, flag, facts) ride the row: TRL
+    passes every extra dataset column to the reward function as kwargs.
+    """
     rows: list[dict] = []
     for record in records:
         messages = record.get("messages") or []
@@ -44,7 +48,11 @@ def _prompt_column(records: list[dict]) -> list[dict]:
             prompt.pop()
         if not prompt:
             continue
-        rows.append({"id": record.get("id", ""), "prompt": prompt})
+        row = {"id": record.get("id", ""), "prompt": prompt}
+        for column in ("port", "flag", "facts"):
+            if column in record:
+                row[column] = record[column]
+        rows.append(row)
     return rows
 
 
