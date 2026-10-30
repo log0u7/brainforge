@@ -3,9 +3,11 @@
 ![brainforge - robot smiths forging glowing brains on an anvil while teacher models stream on screens](docs/art/brainforge-v1.png)
 
 [![CI](https://github.com/log0u7/brainforge/actions/workflows/ci.yml/badge.svg)](https://github.com/log0u7/brainforge/actions/workflows/ci.yml)
-[![python](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org)
-[![Hugging Face](https://img.shields.io/badge/Hugging%20Face-FFD21E)](https://huggingface.co) [![OpenAI](https://img.shields.io/badge/OpenAI-412991)](https://platform.openai.com) [![Ollama](https://img.shields.io/badge/Ollama-000000?logo=ollama&logoColor=white)](docs/how-to/ship-to-ollama.md)
-[![license](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)](https://www.python.org)
+[![Hugging Face](https://img.shields.io/badge/Hugging_Face-FFD21E?logo=huggingface&logoColor=black)](https://huggingface.co)
+[![OpenAI](https://img.shields.io/badge/OpenAI-412991?logo=openai&logoColor=white)](https://platform.openai.com)
+[![Ollama](https://img.shields.io/badge/Ollama-000000?logo=ollama&logoColor=white)](docs/how-to/ship-to-ollama.md)
 
 **Status:** [1.0.0](https://github.com/log0u7/brainforge/releases/tag/v1.0.0) released. Numbers and the honest reading: [benchmark](docs/explanation/benchmark.md).
 
