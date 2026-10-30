@@ -348,6 +348,52 @@ now real: it comes from an execution, it replays, and every failed
 build the pilot records is a zero-reward rollout. Run:
 `experiments/run-grpo-1`.
 
+## The lab loop (2026-10-30) - the actions change the environment
+
+The next stage ran for real: the model's completion IS the suggest
+step of a closed loop against the lab. `lab_loop` (PR 107) POSTs the
+completion to the lictor reward server (the ssh -R tunnel lands on
+the operator's box, the lab container serves the targets); the server
+runs the SAME pipeline twice - plan, build walk, run - once on the
+raw profiler facts (the baseline) and once on the suggest-enriched
+facts, and pays the counterfactual: 1.0 when the suggestion was the
+difference, 0.5 when the pipeline lands either way, 0.0 when nothing
+lands, -0.25 when the schema refuses the completion. The dataset:
+7 records (one per runnable target), the prompt carries the
+profiler's facts and asks for the source knowledge no ELF can show;
+ret2csu is the only decisive record (its facts lack the vuln class,
+the suggestion has to supply it). Config: same base, reward
+`lab_loop`, 7 prompts, 12 epochs, 9 optimizer steps, ~27 min on the
+RTX 3080 plus the local executions.
+
+| Step | Reward mean | Reward std |
+|---|---|---|
+| 1 | 0.250 | 0.261 |
+| 2 | 0.125 | 0.292 |
+| 3 | 0.229 | 0.291 |
+| 4 | 0.250 | 0.261 |
+| 5 | -0.021 | 0.072 |
+| 6 | 0.500 | 0.000 |
+| 7 | 0.250 | 0.261 |
+| 8 | 0.229 | 0.291 |
+| 9 | 0.188 | 0.285 |
+
+Reading: the group variance is real (std 0.26-0.29 on most steps:
+1.0, 0.5, 0.0 and -0.25 completions inside the same group - the
+counterfactual separates the decisive suggestions from the redundant
+and the refused ones). Step 5 shows the schema penalty firing
+(mean -0.02: a completion paid -0.25). Step 6 is a uniform group
+(all completions redundant, std 0) - zero gradient, `frac_reward_zero_std`
+1.0, and the loss is exactly 0.0 there, the expected inertness. The
+mean does not climb at this scale (9 optimizer steps, 7 prompts): the
+run is the loop's proof of life, not a training result. Two defects
+it surfaced and fixed: the measurement sweeps run the target until it
+segfaults, so without a core limit every crash wrote a coredump and
+apport drowned the box (load 120 on 8 cores, fixed server-side with
+RLIMIT_CORE 0 and container-side with the compose ulimit); the run's
+status line, not the exit code, is the oracle (a budget-exhausted run
+exits 0). Run: `experiments/run-20261030-041919-129979` (gpu3080).
+
 ## First run results (2026-10-26) - task-eval attempt
 
 The honest reading of the first end-to-end run on real data:
