@@ -22,6 +22,7 @@ extra.
 
 from __future__ import annotations
 
+import gc
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -40,6 +41,24 @@ ARMS: dict[str, dict[str, Any]] = {
     "gkd": {"updates": {"strategy": "gkd"}, "requires_teacher": True},
     "lora64": {"updates": {"strategy": "qlora", "lora_rank": 64}},
 }
+
+
+def _release_gpu_memory() -> None:
+    """Release cached VRAM between benchmark arms.
+
+    The PyTorch caching allocator holds freed blocks: without an
+    explicit release the next arm sees 0 free memory and its preflight
+    check fails (found on the gpu3080 run: the gkd teacher stayed
+    resident and the lora64 arm reported 'cuda budget is 0.0 GB').
+    gc + empty_cache hands the memory back to the driver.
+    """
+    gc.collect()
+    try:
+        import torch
+    except ImportError:  # pragma: no cover - training extra not installed
+        return
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
 
 def run_arm(
@@ -124,6 +143,7 @@ def run_three_arm_benchmark(
             gate_fn=gate_fn,
             max_new_tokens=max_new_tokens,
         )
+        _release_gpu_memory()
     return results
 
 

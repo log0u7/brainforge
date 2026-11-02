@@ -66,6 +66,33 @@ def test_arms_registry_covers_three_plus_lora() -> None:
     assert set(ARMS) == {"no-kd", "sidecar", "gkd", "lora64"}
 
 
+def test_run_three_arm_benchmark_releases_vram_between_arms(
+    dataset_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The PyTorch caching allocator holds freed blocks: without an
+    explicit release between arms the next arm sees 0 free VRAM and its
+    preflight check fails (found on the gpu3080 run: the gkd teacher
+    stayed resident and the lora64 arm reported 'cuda budget is 0.0 GB')."""
+    import brainforge.training.benchmark as bench_module
+
+    gate = tmp_path / "gate.jsonl"
+    _write_jsonl(gate, [_record("g1")])
+    # the sidecar arm needs the sidecar present for a clean run
+    _write_jsonl(dataset_dir / "kd.jsonl", [{"id": "a", "positions": [[0, 0.9]]}])
+    released: list[int] = []
+    monkeypatch.setattr(bench_module, "_release_gpu_memory", lambda: released.append(1))
+
+    run_three_arm_benchmark(
+        config=TrainingConfig(gkd_teacher="Qwen/Qwen3-4B"),
+        dataset_dir=dataset_dir,
+        gate_dataset=gate,
+        output_dir=tmp_path / "bench",
+        train_fn=_FakeTrainer(),
+        gate_fn=lambda model, dataset, **kw: {"accuracy": 0.5},
+    )
+    assert len(released) == len(ARMS)
+
+
 def test_run_arm_trains_and_evaluates(dataset_dir: Path, tmp_path: Path) -> None:
     gate = tmp_path / "gate.jsonl"
     _write_jsonl(gate, [_record("g1")])
