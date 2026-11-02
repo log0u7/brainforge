@@ -334,7 +334,7 @@ requires-dist = [
     { name = "rich", specifier = ">=13.8" },
     { name = "torch", marker = "extra == 'training'", specifier = ">=2.4" },
     { name = "transformers", marker = "extra == 'training'", specifier = ">=4.45" },
-    { name = "trl", marker = "extra == 'training'", specifier = ">=0.11" },
+    { name = "trl", marker = "extra == 'training'", specifier = ">=1.12" },
     { name = "typer", specifier = ">=0.12" },
     { name = "unsloth", marker = "extra == 'unsloth'", specifier = ">=2026.1" },
 ]

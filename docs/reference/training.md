@@ -44,8 +44,9 @@ Options: `--train-ratio`, `--val-ratio`, `--seed`, `--output/-o`.
 | `qlora` (default) | LoRA adapters | `auto`: 4-bit nf4 on CUDA/ROCm, none elsewhere | ~10GB on CUDA | first pass, fast iteration |
 | `full` | every weight | none (bf16/fp16 per device) | model-size dependent | decision model after the dataset is proven |
 | `grpo` | RL on sampled completions, scored by verifiable rewards | per backend | model-size dependent | domains with a verifiable signal (CTF flags, refusal compliance) |
+| `gkd` | on-policy distillation: student rollouts against a local teacher's full next-token distribution (generalized JSD) | per backend | student + teacher resident | distillation without the retokenization noise of the API top-k sidecar ([ADR-0020](../adr/0020-gkd-consolidation-cycle.md)) |
 
-Selected with `training.strategy` or `train run --strategy {qlora,full,grpo}`.
+Selected with `training.strategy` or `train run --strategy {qlora,full,grpo,gkd}`.
 The LoRA rank/alpha/dropout come from config for `qlora`; `full` ignores
 them. `qlora` with quantization `none` (the auto default off CUDA/ROCm)
 trains plain LoRA.
@@ -92,6 +93,26 @@ in its pack; `CtfPack` declares `ctf_flag`. Phase-3 RL
 ([ADR-0018](../adr/0018-post-training-expansion-deferred.md)) is
 therefore generic rather than CTF-specific.
 
+## On-policy distillation (GKD)
+
+`strategy: "gkd"` trains with TRL's `experimental.gkd.GKDTrainer`
+([ADR-0020](../adr/0020-gkd-consolidation-cycle.md)): the student samples
+its own completions (`lmbda=1.0`, fully on-policy) and matches a local
+teacher's full next-token distribution with the generalized Jensen-Shannon
+divergence. The teacher must share the student's vocabulary; TRL rejects a
+vocab-size mismatch up front.
+
+```bash
+brainforge train run --dataset-dir datasets/prepared --strategy gkd \
+  --gkd-teacher Qwen/Qwen3-4B
+```
+
+The sidecar path (`pipeline run --kd` + `train run --kd`) stays
+experimental; the three-arm benchmark (no KD vs top-k sidecar vs GKD)
+decides its promotion or deprecation. See
+[knowledge distillation](../explanation/knowledge-distillation.md) for the
+sidecar details.
+
 ## Multi-turn data and assistant-only loss
 
 The `agentic` pack emits records that interleave assistant tool calls with
@@ -126,7 +147,9 @@ per run with `--base-model`.
 | Field | Default | Meaning |
 |---|---|---|
 | `base_model` | `Qwen/Qwen3-8B` | HF model id or local dir |
-| `strategy` | `qlora` | `qlora`, `full` or `grpo` |
+| `strategy` | `qlora` | `qlora`, `full`, `grpo` or `gkd` |
+| `gkd_teacher` | `""` | local teacher model for `strategy: gkd` (must share the student's tokenizer; TRL rejects a vocab-size mismatch) |
+| `gkd_lmbda` / `gkd_beta` / `gkd_seq_kd` | 1.0 / 1.0 / off | GKD knobs: on-policy fraction, generalized-JSD interpolation, sequence-level KD ([ADR-0020](../adr/0020-gkd-consolidation-cycle.md)) |
 | `backend` | `auto` | `auto` (trl), `trl` or `unsloth` |
 | `device` | `auto` | `auto`, `cuda`, `xpu`, `mps` or `cpu` |
 | `quantization` | `auto` | `auto`, `4bit`, `8bit`, `none` (unsloth: 4bit or none; CUDA/ROCm only) |
