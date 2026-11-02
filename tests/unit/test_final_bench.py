@@ -1,0 +1,181 @@
+"""Unit tests for the MR5 final benchmark runner (ADR-0021).
+
+The runner assembles the real benchmark inputs from repo artifacts:
+the oracle-verified challenge cases (manifest + case files) mapped onto
+the live lictor lab targets, and the training challenge IDs that feed
+the contamination audit. The provider split routes each model to its
+own llama-server (llama.cpp serves one model per instance).
+"""
+
+import json
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from brainforge.experiments.final_bench import (
+    LICTOR_LAB_PORTS,
+    SplitProvider,
+    load_training_ids,
+    load_verified_challenges,
+)
+
+
+def _write_manifest(path: Path, rows: list[dict[str, Any]]) -> None:
+    path.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+
+
+def _write_case(cases_dir: Path, case_id: str, expected_flag: str) -> None:
+    case = {
+        "id": case_id,
+        "source": {"type": "lictor-lab", "path": f"lab/targets/{case_id.split('-')[-2]}"},
+        "input": {"code": f"source code of {case_id}"},
+        "metadata": {"tier": "verified", "expected_flag": expected_flag},
+    }
+    (cases_dir / f"{case_id}.json").write_text(json.dumps(case), encoding="utf-8")
+
+
+def _manifest_row(case_id: str, source: str) -> dict[str, Any]:
+    return {
+        "id": case_id,
+        "source": source,
+        "tier": "verified",
+        "expected_flag": True,
+    }
+
+
+class TestLoadVerifiedChallenges:
+    def test_maps_live_lab_targets_to_tuples(self, tmp_path: Path) -> None:
+        manifest = tmp_path / "manifest.jsonl"
+        _write_manifest(
+            manifest,
+            [
+                _manifest_row("ctf-lictor-fmtstr-001", "lictor-lab"),
+                _manifest_row("ctf-rop-ret2win-001", "rop-emporium"),
+            ],
+        )
+        cases = tmp_path / "cases"
+        cases.mkdir()
+        _write_case(cases, "ctf-lictor-fmtstr-001", "FLAG{fmt}")
+
+        challenges, skipped = load_verified_challenges(manifest, cases)
+
+        assert challenges == [
+            (
+                "ctf-lictor-fmtstr-001",
+                f"127.0.0.1:{LICTOR_LAB_PORTS['fmtstr']}",
+                "fmtstr",
+                "source code of ctf-lictor-fmtstr-001",
+                "FLAG{fmt}",
+            )
+        ]
+        assert skipped == ["ctf-rop-ret2win-001"]
+
+    def test_skips_unverified_tier(self, tmp_path: Path) -> None:
+        manifest = tmp_path / "manifest.jsonl"
+        _write_manifest(
+            manifest,
+            [
+                _manifest_row("ctf-lictor-fmtstr-001", "lictor-lab"),
+                {
+                    "id": "ctf-ccb-somecase-001",
+                    "source": "ctf-archives",
+                    "tier": "tier-b",
+                    "expected_flag": False,
+                },
+            ],
+        )
+        cases = tmp_path / "cases"
+        cases.mkdir()
+        _write_case(cases, "ctf-lictor-fmtstr-001", "FLAG{fmt}")
+
+        challenges, skipped = load_verified_challenges(manifest, cases)
+
+        assert len(challenges) == 1
+        assert skipped == ["ctf-ccb-somecase-001"]
+
+    def test_missing_case_file_is_skipped_not_fatal(self, tmp_path: Path) -> None:
+        manifest = tmp_path / "manifest.jsonl"
+        _write_manifest(
+            manifest,
+            [
+                _manifest_row("ctf-lictor-fmtstr-001", "lictor-lab"),
+                _manifest_row("ctf-lictor-orw-001", "lictor-lab"),
+            ],
+        )
+        cases = tmp_path / "cases"
+        cases.mkdir()
+        _write_case(cases, "ctf-lictor-fmtstr-001", "FLAG{fmt}")
+
+        challenges, skipped = load_verified_challenges(manifest, cases)
+
+        assert len(challenges) == 1
+        assert skipped == ["ctf-lictor-orw-001"]
+
+    def test_no_live_target_for_binary_is_skipped(self, tmp_path: Path) -> None:
+        manifest = tmp_path / "manifest.jsonl"
+        _write_manifest(
+            manifest,
+            [_manifest_row("ctf-lictor-unknownbin-001", "lictor-lab")],
+        )
+        cases = tmp_path / "cases"
+        cases.mkdir()
+        # the case file names a binary that the live lab does not serve
+        case = {
+            "id": "ctf-lictor-unknownbin-001",
+            "source": {"type": "lictor-lab", "path": "lab/targets/unknownbin"},
+            "input": {"code": "material"},
+            "metadata": {"tier": "verified", "expected_flag": "FLAG{x}"},
+        }
+        (cases / "ctf-lictor-unknownbin-001.json").write_text(json.dumps(case), encoding="utf-8")
+
+        challenges, skipped = load_verified_challenges(manifest, cases)
+
+        assert challenges == []
+        assert skipped == ["ctf-lictor-unknownbin-001"]
+
+
+class TestLoadTrainingIds:
+    def test_collects_ids_from_jsonl_files(self, tmp_path: Path) -> None:
+        a = tmp_path / "a.jsonl"
+        b = tmp_path / "b.jsonl"
+        a.write_text('{"id": "x"}\n{"id": "y"}\n', encoding="utf-8")
+        b.write_text('{"id": "y"}\n{"id": "z"}\n', encoding="utf-8")
+
+        assert load_training_ids(a, b) == {"x", "y", "z"}
+
+    def test_empty_file_yields_no_ids(self, tmp_path: Path) -> None:
+        a = tmp_path / "empty.jsonl"
+        a.write_text("", encoding="utf-8")
+
+        assert load_training_ids(a) == set()
+
+
+class TestSplitProvider:
+    def test_routes_by_model_name(self) -> None:
+        class _FakeProvider:
+            def __init__(self, tag: str) -> None:
+                self.tag = tag
+                self.calls: list[str] = []
+
+            def complete(self, request: Any, model: str) -> str:
+                self.calls.append(model)
+                return self.tag
+
+        base = _FakeProvider("base")
+        trained = _FakeProvider("trained")
+        provider = SplitProvider(providers={"base-snapshot": base, "trained-snapshot": trained})
+
+        assert provider.complete(object(), "base-snapshot") == "base"
+        assert provider.complete(object(), "trained-snapshot") == "trained"
+        assert base.calls == ["base-snapshot"]
+        assert trained.calls == ["trained-snapshot"]
+
+    def test_unknown_model_fails_loudly(self) -> None:
+        class _FakeProvider:
+            def complete(self, request: Any, model: str) -> str:
+                return "ok"
+
+        provider = SplitProvider(providers={"base": _FakeProvider()})
+        with pytest.raises(KeyError):
+            provider.complete(object(), "not-a-known-model")
