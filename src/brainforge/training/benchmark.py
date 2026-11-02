@@ -50,11 +50,15 @@ def run_arm(
     gate_dataset: Path,
     train_fn: Callable[..., dict[str, Any]] | None = None,
     gate_fn: Callable[[Path, Path], dict[str, Any]] | None = None,
+    max_new_tokens: int = 2048,
 ) -> dict[str, Any]:
     """Train one benchmark arm and evaluate it on the shared holdout.
 
     Fail fast before any heavy import: the sidecar arm refuses to run
     without ``kd.jsonl``, the gkd arm without ``gkd_teacher``.
+    ``max_new_tokens`` rides the gate evaluation: 512 (the task_eval
+    default) cut ground-truth completions short and scored them
+    unparseable, so the benchmark defaults to the task-eval CLI value.
     """
     if arm not in ARMS:
         raise BrainforgeError(f"unknown benchmark arm: {arm} (known: {', '.join(ARMS)})")
@@ -88,7 +92,7 @@ def run_arm(
         from brainforge.training.task_eval import evaluate_model_on_records
 
         gate = evaluate_model_on_records
-    metrics = gate(out_dir, gate_dataset)
+    metrics = gate(out_dir, gate_dataset, max_new_tokens=max_new_tokens)
 
     return {"arm": arm, "metrics": metrics, "output_dir": str(out_dir), "train_summary": summary}
 
@@ -100,8 +104,14 @@ def run_three_arm_benchmark(
     output_dir: Path,
     train_fn: Callable[..., dict[str, Any]] | None = None,
     gate_fn: Callable[[Path, Path], dict[str, Any]] | None = None,
+    max_new_tokens: int = 2048,
 ) -> dict[str, dict[str, Any]]:
-    """Run every arm on the same splits; returns results keyed by arm name."""
+    """Run every arm on the same splits; returns results keyed by arm name.
+
+    ``max_new_tokens`` rides every arm's gate evaluation (default 2048,
+    matching the task-eval CLI): the 512 task_eval default truncates
+    ground-truth completions and scores them unparseable.
+    """
     results: dict[str, dict[str, Any]] = {}
     for arm in ARMS:
         results[arm] = run_arm(
@@ -112,6 +122,7 @@ def run_three_arm_benchmark(
             gate_dataset=gate_dataset,
             train_fn=train_fn,
             gate_fn=gate_fn,
+            max_new_tokens=max_new_tokens,
         )
     return results
 

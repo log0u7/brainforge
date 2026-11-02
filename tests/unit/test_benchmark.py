@@ -71,7 +71,7 @@ def test_run_arm_trains_and_evaluates(dataset_dir: Path, tmp_path: Path) -> None
     _write_jsonl(gate, [_record("g1")])
     trainer = _FakeTrainer()
 
-    def fake_gate(model: Path, dataset: Path) -> dict[str, Any]:
+    def fake_gate(model: Path, dataset: Path, **kw: Any) -> dict[str, Any]:
         return {"accuracy": 0.5, "flag_accuracy": 0.5, "n_records": 1}
 
     result = run_arm(
@@ -99,7 +99,7 @@ def test_run_arm_sidecar_requires_kd_sidecar(dataset_dir: Path, tmp_path: Path) 
             output_dir=tmp_path / "bench",
             gate_dataset=gate,
             train_fn=_FakeTrainer(),
-            gate_fn=lambda model, dataset: {},
+            gate_fn=lambda model, dataset, **kw: {},
         )
 
 
@@ -119,7 +119,7 @@ def test_run_arm_lora64_overrides_rank(dataset_dir: Path, tmp_path: Path) -> Non
         output_dir=tmp_path / "bench",
         gate_dataset=gate,
         train_fn=fake_train,
-        gate_fn=lambda model, dataset: {"accuracy": 0.5},
+        gate_fn=lambda model, dataset, **kw: {"accuracy": 0.5},
     )
     assert seen[0].lora_rank == 64
 
@@ -135,8 +135,54 @@ def test_run_arm_gkd_requires_teacher(dataset_dir: Path, tmp_path: Path) -> None
             output_dir=tmp_path / "bench",
             gate_dataset=gate,
             train_fn=_FakeTrainer(),
-            gate_fn=lambda model, dataset: {},
+            gate_fn=lambda model, dataset, **kw: {},
         )
+
+
+def test_run_arm_passes_max_new_tokens_to_gate(dataset_dir: Path, tmp_path: Path) -> None:
+    """Regression: the bench gate got max_new_tokens=512 (task_eval default)
+    while the ground-truth completions need up to ~1550 tokens - answers were
+    cut and scored unparseable, invalidating every benchmark number."""
+    gate = tmp_path / "gate.jsonl"
+    _write_jsonl(gate, [_record("g1")])
+    seen: list[dict[str, Any]] = []
+
+    def fake_gate(model: Path, dataset: Path, **kw: Any) -> dict[str, Any]:
+        seen.append(kw)
+        return {"accuracy": 0.5, "flag_accuracy": 0.5, "n_records": 1}
+
+    run_arm(
+        config=TrainingConfig(),
+        arm="no-kd",
+        dataset_dir=dataset_dir,
+        output_dir=tmp_path / "bench",
+        gate_dataset=gate,
+        train_fn=_FakeTrainer(),
+        gate_fn=fake_gate,
+    )
+    assert seen[0].get("max_new_tokens") == 2048
+
+
+def test_run_arm_accepts_explicit_max_new_tokens(dataset_dir: Path, tmp_path: Path) -> None:
+    gate = tmp_path / "gate.jsonl"
+    _write_jsonl(gate, [_record("g1")])
+    seen: list[dict[str, Any]] = []
+
+    def fake_gate(model: Path, dataset: Path, **kw: Any) -> dict[str, Any]:
+        seen.append(kw)
+        return {"accuracy": 0.5, "flag_accuracy": 0.5, "n_records": 1}
+
+    run_arm(
+        config=TrainingConfig(),
+        arm="no-kd",
+        dataset_dir=dataset_dir,
+        output_dir=tmp_path / "bench",
+        gate_dataset=gate,
+        train_fn=_FakeTrainer(),
+        gate_fn=fake_gate,
+        max_new_tokens=4096,
+    )
+    assert seen[0].get("max_new_tokens") == 4096
 
 
 def test_run_three_arm_benchmark_runs_all_arms(dataset_dir: Path, tmp_path: Path) -> None:
@@ -146,7 +192,7 @@ def test_run_three_arm_benchmark_runs_all_arms(dataset_dir: Path, tmp_path: Path
     _write_jsonl(dataset_dir / "kd.jsonl", [{"id": "a", "positions": [[0, 0.9]]}])
     trainer = _FakeTrainer()
 
-    def fake_gate(model: Path, dataset: Path) -> dict[str, Any]:
+    def fake_gate(model: Path, dataset: Path, **kw: Any) -> dict[str, Any]:
         return {"accuracy": 0.5, "flag_accuracy": 0.5, "n_records": 1}
 
     results = run_three_arm_benchmark(

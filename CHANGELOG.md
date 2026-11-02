@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `results.json`, n_records on every row. The arms registry and the
   markdown renderer live in `brainforge.training.benchmark` (ADR-0020
   MR4); the GPU run on the RTX 3080 host is the next step.
+- `brainforge train bench --max-new-tokens`: the gate-scoring generation
+  budget (default 2048, matching the task-eval CLI). The 512 default of
+  the underlying evaluator truncates long CTF ground-truth completions
+  and scores them unparseable; the benchmark needs the full budget to
+  measure real solve rates.
 - `brainforge train consolidate`: the CLI command for one consolidation
   round (ADR-0020 MR3 shipped the module without the command). Options:
   trajectories positional, `--dataset-dir`, `--output`,

@@ -572,6 +572,11 @@ def bench(
         "-o",
         help="Benchmark output dir (one subdir per arm + results.md)",
     ),
+    max_new_tokens: int = typer.Option(
+        2048,
+        "--max-new-tokens",
+        help="Generation budget for gate scoring (512 truncates CTF completions)",
+    ),
     config: str = typer.Option(None, "--config", "-c"),
 ) -> None:
     """Three-arm benchmark: no-KD vs sidecar vs GKD (+ LoRA rank 64).
@@ -588,6 +593,7 @@ def bench(
         dataset_dir=dataset_dir,
         gate_dataset=gate_dataset,
         output_dir=output,
+        max_new_tokens=max_new_tokens,
     )
     table = render_markdown_table(results)
     console.print(table)
