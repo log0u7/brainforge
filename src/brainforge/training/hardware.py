@@ -18,7 +18,7 @@ DeviceKind = Literal["cuda", "rocm", "xpu", "mps", "cpu", "tpu", "npu"]
 Dtype = Literal["bfloat16", "float16", "float32"]
 Quantization = Literal["4bit", "8bit", "none"]
 Backend = Literal["trl", "unsloth", "kd"]
-Strategy = Literal["qlora", "full"]
+Strategy = Literal["qlora", "full", "grpo", "gkd"]
 EffectiveStrategy = Literal["qlora", "lora", "full"]
 
 

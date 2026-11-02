@@ -102,8 +102,12 @@ class TrainingConfig(BaseModel):
     gradient_accumulation: int = Field(default=16, ge=1)
     device: Literal["auto", "cuda", "xpu", "mps", "cpu"] = "auto"
     quantization: Literal["auto", "4bit", "8bit", "none"] = "auto"
-    strategy: Literal["qlora", "full", "grpo"] = "qlora"
+    strategy: Literal["qlora", "full", "grpo", "gkd"] = "qlora"
     grpo_reward: str = ""
+    gkd_teacher: str = ""
+    gkd_lmbda: float = Field(default=1.0, ge=0, le=1)
+    gkd_beta: float = Field(default=1.0, ge=0, le=1)
+    gkd_seq_kd: bool = False
     backend: Literal["auto", "trl", "unsloth"] = "auto"
     save_steps: int = Field(default=100, ge=1)
     seed: int = Field(default=42, ge=0)

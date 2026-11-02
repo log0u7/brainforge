@@ -91,7 +91,7 @@ judge role shares a provider or a declared `family` with any other role. Rationa
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `base_model` | string | `Qwen/Qwen3-8B` | student base model |
-| `strategy` | `qlora` \| `full` \| `grpo` | `qlora` | LoRA adapters, every weight, or GRPO reinforcement learning |
+| `strategy` | `qlora` \| `full` \| `grpo` \| `gkd` | `qlora` | LoRA adapters, every weight, GRPO reinforcement learning, or GKD on-policy distillation |
 | `backend` | `auto` \| `trl` \| `unsloth` | `auto` | training backend (`auto` resolves to `trl`; unsloth needs the extra) |
 | `device` | `auto` \| `cuda` \| `xpu` \| `mps` \| `cpu` | `auto` | training device (`auto`: CUDA/ROCm, XPU, MPS, then CPU) |
 | `lora_rank` | int | `16` | LoRA rank |
@@ -118,6 +118,10 @@ judge role shares a provider or a declared `family` with any other role. Rationa
 | `kd_temperature` | float | `2.0` | KD temperature (> 0) |
 | `kd_topk` | int | `8` | teacher alternatives per token (1-20) |
 | `grpo_reward` | string | `""` | reward spec for `strategy: "grpo"` (`name` or weighted list, e.g. `ctf_flag,compliance*0.5`); empty delegates to the domain pack's `grpo_reward()` hook |
+| `gkd_teacher` | string | `""` | local teacher model id or path for `strategy: "gkd"`; must share the student's tokenizer (TRL rejects a vocab-size mismatch) |
+| `gkd_lmbda` | float | `1.0` | GKD on-policy fraction: 1.0 trains fully on student rollouts, 0.0 reduces to supervised JSD on teacher tokens ([ADR-0020](../adr/0020-gkd-consolidation-cycle.md)) |
+| `gkd_beta` | float | `1.0` | generalized-JSD interpolation: 0.0 approximates forward KL, 1.0 approximates reverse KL |
+| `gkd_seq_kd` | bool | `false` | sequence-level KD: train on teacher-generated completions instead of student rollouts (requires `gkd_lmbda` = 0.0) |
 
 See [ADR-0010](../adr/0010-qlora-training-single-rtx-3080.md) and the
 [training reference](training.md).

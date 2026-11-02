@@ -120,7 +120,7 @@ long runs stay observable while they happen: top-level `status`
 |---|---|
 | `brainforge train prepare <file.jsonl> [-o dir]` | validate, split, export for TRL (+ `stats.json`) |
 | `brainforge train check` | preflight: hardware, model compatibility and memory estimate before training |
-| `brainforge train run` | train the student (QLoRA, full fine-tuning, GRPO or KD distillation); requires the training extra |
+| `brainforge train run` | train the student (QLoRA, full fine-tuning, GRPO, GKD or KD distillation); requires the training extra |
 | `brainforge train evaluate` | student evaluation: loss + perplexity on a split (training extra); `--base` evaluates the untouched base model instead of an adapter (full precision, no quantization: the reference point) |
 | `brainforge train runs [--experiments-dir D]` | summary table over every `experiments/<run>`: backend, train rows, epochs, steps, KD alpha/temperature, eval loss and perplexity when an `eval.json` exists |
 | `brainforge train chat` | interactive chat with a trained student (training extra) |
@@ -132,7 +132,7 @@ long runs stay observable while they happen: top-level `status`
 | Option | Default | Description |
 |---|---|---|
 | `--model/-m` | config base model | Hugging Face id or local model directory |
-| `--strategy` | config | `qlora` or `full` |
+| `--strategy` | config | `qlora`, `full`, `grpo` or `gkd` |
 | `--quantization` | config | `auto`, `4bit`, `8bit` or `none` |
 | `--backend` | config | `auto`, `trl` or `unsloth` |
 | `--device` | config | `auto`, `cuda`, `xpu`, `mps` or `cpu` |
@@ -156,7 +156,7 @@ before a GPU job.
 | `--dataset-dir/-d` | `datasets/prepared` | directory with `train.jsonl` (+ optional `validation.jsonl`) |
 | `--epochs/-e` | config | override config epochs |
 | `--base-model/-b` | config | override config base model |
-| `--strategy` | config | `qlora` (4-bit + LoRA), `full` (all weights) or `grpo` (verifiable-reward RL) |
+| `--strategy` | config | `qlora` (4-bit + LoRA), `full` (all weights), `grpo` (verifiable-reward RL) or `gkd` (on-policy distillation) |
 | `--backend` | config | `auto` (trl), `trl` or `unsloth` (needs the `unsloth` extra) |
 | `--device` | config | `auto`, `cuda`, `xpu`, `mps` or `cpu` |
 | `--quantization` | config | `auto`, `4bit`, `8bit` or `none` |
@@ -196,7 +196,7 @@ brainforge quickstart run --domain ticket_triage --input data/raw --provider moc
 | `--provider` | none | provider override (e.g. `mock`) |
 | `--base-model/-b` | config | override config base model |
 | `--epochs/-e` | 1 | training epochs |
-| `--strategy` | `qlora` | `qlora`, `full` or `grpo` |
+| `--strategy` | `qlora` | `qlora`, `full`, `grpo` or `gkd` |
 | `--backend` | `auto` | `auto` (trl), `trl` or `unsloth` |
 | `--device` | `auto` | `auto`, `cuda`, `xpu`, `mps` or `cpu` |
 | `--quantization` | `auto` | `auto`, `4bit`, `8bit` or `none` |

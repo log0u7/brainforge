@@ -21,6 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   challenges, success rates over repetitions, contamination audit) is also
   recorded on the roadmap.
 
+- GKD training backend: the `train` strategy `gkd` wraps TRL
+  `experimental.gkd.GKDTrainer` (student rollouts against a local
+  shared-tokenizer teacher, generalized-JSD loss). Heavy imports stay lazy,
+  the `TrainingConfig` gains `gkd_teacher`, `gkd_lmbda`, `gkd_beta` and
+  `gkd_seq_kd`, the strategy registers in the CLI (`train run --strategy
+  gkd`) and the JSON Schema regenerates. The unit tests stub `trl` and
+  `datasets` so the suite runs without the training extra.
+
 - `lab_loop` GRPO reward: the completion is POSTed to the lictor reward
   server with its dataset columns (port, flag, facts); the server runs
   the closed loop twice (raw facts, then suggest-enriched) and returns

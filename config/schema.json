@@ -390,7 +390,8 @@
           "enum": [
             "qlora",
             "full",
-            "grpo"
+            "grpo",
+            "gkd"
           ],
           "title": "Strategy",
           "type": "string"
@@ -399,6 +400,30 @@
           "default": "",
           "title": "Grpo Reward",
           "type": "string"
+        },
+        "gkd_teacher": {
+          "default": "",
+          "title": "Gkd Teacher",
+          "type": "string"
+        },
+        "gkd_lmbda": {
+          "default": 1.0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Gkd Lmbda",
+          "type": "number"
+        },
+        "gkd_beta": {
+          "default": 1.0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Gkd Beta",
+          "type": "number"
+        },
+        "gkd_seq_kd": {
+          "default": false,
+          "title": "Gkd Seq Kd",
+          "type": "boolean"
         },
         "backend": {
           "default": "auto",
@@ -561,6 +586,10 @@
         "quantization": "auto",
         "strategy": "qlora",
         "grpo_reward": "",
+        "gkd_teacher": "",
+        "gkd_lmbda": 1.0,
+        "gkd_beta": 1.0,
+        "gkd_seq_kd": false,
         "backend": "auto",
         "save_steps": 100,
         "seed": 42,

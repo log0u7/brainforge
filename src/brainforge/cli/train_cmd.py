@@ -112,6 +112,8 @@ def train_student(
         from brainforge.training.kd import train_kd as train_fn
     elif getattr(training, "strategy", "") == "grpo":
         from brainforge.training.grpo import train_grpo as train_fn
+    elif getattr(training, "strategy", "") == "gkd":
+        from brainforge.training.gkd import train_gkd as train_fn
     elif training.backend == "unsloth":
         from brainforge.training.unsloth_backend import train_unsloth as train_fn
     else:
@@ -267,8 +269,8 @@ def run(
         0, "--epochs", "-e", help="Override config epochs (0 = keep config)"
     ),
     base_model: str = typer.Option("", "--base-model", "-b", help="Override config base model"),
-    strategy: Literal["qlora", "full"] | None = typer.Option(
-        None, "--strategy", help="Override config training strategy (qlora or full)"
+    strategy: Literal["qlora", "full", "grpo", "gkd"] | None = typer.Option(
+        None, "--strategy", help="Override config training strategy (qlora, full, grpo or gkd)"
     ),
     backend: Literal["auto", "trl", "unsloth"] | None = typer.Option(
         None, "--backend", help="Override config training backend"
