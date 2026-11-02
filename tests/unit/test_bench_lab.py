@@ -20,15 +20,9 @@ def _target(challenge_id: str, binary: str, expected_flag: str) -> tuple:
 
 
 def _record(challenge_id: str, model: str, flag: str | None, status: str = "done") -> dict:
-    outcome: dict = {"status": status}
-    if flag is not None:
-        outcome["flag"] = flag
-    return {
-        "id": challenge_id,
-        "challenge_id": challenge_id,
-        "model": model,
-        "outcome": outcome,
-    }
+    """Alias on the real build_trajectory record shape: one contract
+    between the tests and the pilot, no synthetic ``outcome`` dict."""
+    return _pilot_record(challenge_id, model, flag, status)
 
 
 def _fake_pilot(records_per_call: list[list[dict]]):
@@ -46,6 +40,33 @@ def _fake_pilot(records_per_call: list[list[dict]]):
         return records_per_call[len(calls) - 1]
 
     return fake_run_pilot, calls
+
+
+def _pilot_record(challenge_id: str, model: str, flag: str | None, status: str = "done") -> dict:
+    """The real build_trajectory record shape (pilot.py): the challenge id
+    lives in ``id`` (there is no ``challenge_id`` key) and the flag lives
+    in the final assistant verdict message, not in an ``outcome`` dict."""
+    verdict: dict = {
+        "verdict": "solved" if flag else status,
+        "technique": "ret2plt",
+        "flag": flag,
+        "source": "lictor_run",
+    }
+    messages = [
+        {"role": "user", "content": "Solve this CTF challenge against the local lab target."},
+        {"role": "assistant", "content": json.dumps(verdict, ensure_ascii=False)},
+    ]
+    return {
+        "id": challenge_id,
+        "domain": "agentic",
+        "messages": messages,
+        "metadata": {
+            "pipeline": "pilot",
+            "domain": "agentic",
+            "pilot": {"model": model, "decision": {"technique": "ret2plt"}},
+            "flag_verified": bool(flag),
+        },
+    }
 
 
 def _challenges() -> list[tuple]:
@@ -333,3 +354,61 @@ class TestOutputs:
         )
         assert result["base"]["attempts"] == 2
         assert not (tmp_path / "results.json").exists()
+
+
+class TestRealPilotRecordShape:
+    """Regression: the harness must read the real build_trajectory record
+    shape - the challenge id in ``id`` and the flag in the final assistant
+    verdict message - not the synthetic shape of the old doubles."""
+
+    def test_real_records_key_per_challenge_and_count_successes(self, tmp_path: Path) -> None:
+        pilot, _ = _fake_pilot(
+            [
+                [_pilot_record("chal-unseen-1", "base", None)],
+                [_pilot_record("chal-unseen-2", "base", None)],
+                [_pilot_record("chal-unseen-1", "trained", "FLAG{secreta}")],
+                [_pilot_record("chal-unseen-2", "trained", None)],
+            ]
+        )
+        result = run_bench_lab(
+            challenges=_challenges(),
+            workdir=tmp_path,
+            provider=None,
+            base_model="base",
+            trained_model="trained",
+            repetitions=1,
+            training_ids=set(),
+            pilot_fn=pilot,
+        )
+        # the per-challenge slots must carry the real challenge ids, not null
+        per_challenge = result["trained"]["per_challenge"]
+        assert set(per_challenge) == {"chal-unseen-1", "chal-unseen-2"}
+        assert per_challenge["chal-unseen-1"]["successes"] == 1
+        assert per_challenge["chal-unseen-2"]["successes"] == 0
+        assert result["trained"]["successes"] == 1
+        assert result["trained"]["success_rate"] == pytest.approx(1 / 2)
+
+    def test_real_records_wrong_flag_on_challenge_is_not_a_success(self, tmp_path: Path) -> None:
+        # the verdict flag must match the per-target oracle flag: a recited
+        # training flag on the wrong challenge is contamination, not a win
+        pilot, _ = _fake_pilot(
+            [
+                [_pilot_record("chal-unseen-1", "trained", "FLAG{from-training}")],
+                [_pilot_record("chal-unseen-2", "trained", None)],
+                [_pilot_record("chal-unseen-1", "base", None)],
+                [_pilot_record("chal-unseen-2", "base", None)],
+            ]
+        )
+        result = run_bench_lab(
+            challenges=_challenges(),
+            workdir=tmp_path,
+            provider=None,
+            base_model="base",
+            trained_model="trained",
+            repetitions=1,
+            training_ids=set(),
+            pilot_fn=pilot,
+        )
+        assert result["trained"]["successes"] == 0
+        assert result["trained"]["per_challenge"]["chal-unseen-1"]["successes"] == 0
+        assert result["trained"]["per_challenge"]["chal-unseen-1"]["attempts"] == 1

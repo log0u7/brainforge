@@ -67,6 +67,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   score zero - the loop never guesses. `_prompt_column` passes the
   port/flag/facts columns through to TRL's reward kwargs.
 
+### Fixed
+
+- `bench_lab`: the harness read the pilot record through keys the real
+  `run_pilot` never produces (`challenge_id`, `outcome`), so every run
+  was bucketed under a null challenge and scored 0 even when the lictor
+  oracle verified the flag. The harness now reads the challenge id from
+  `record["id"]` (falling back to the launched entry) and extracts the
+  flag from the final assistant verdict message - the real
+  `build_trajectory` shape. Regression tests use the real record shape
+  end to end.
+
 ## [1.0.0] - 2026-10-29
 
 ### Added

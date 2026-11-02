@@ -14,6 +14,20 @@ from brainforge.errors import BrainforgeError
 from brainforge.experiments.pilot import run_pilot
 
 
+def _record_flag(record: dict) -> str | None:
+    """The flag lives in the final assistant verdict message of the pilot
+    record - the record never carries an ``outcome`` dict."""
+    for message in reversed(record.get("messages") or []):
+        if message.get("role") == "assistant":
+            try:
+                verdict = json.loads(message.get("content") or "")
+            except json.JSONDecodeError:
+                continue
+            if isinstance(verdict, dict):
+                return verdict.get("flag")
+    return None
+
+
 def _run_over_targets(
     targets: list[tuple],
     workdir: Path,
@@ -24,7 +38,7 @@ def _run_over_targets(
     expected_flags: dict[str, str],
 ) -> dict:
     """Run one model over the challenge list ``repetitions`` times and
-    tally the success rate: a success is a run whose record flag matches
+    tally the success rate: a success is a run whose verdict flag matches
     the challenge's expected flag (a recited training flag on the wrong
     challenge is not a success, it is contamination)."""
     stats = {"attempts": 0, "successes": 0, "per_challenge": {}}  # type: dict
@@ -32,9 +46,10 @@ def _run_over_targets(
         for entry in targets:
             records = pilot_fn([entry], workdir, provider, model)
             for record in records:
-                challenge_id = record.get("challenge_id")
-                outcome = record.get("outcome") or {}
-                flag = outcome.get("flag")
+                # the record's id is the launched challenge; fall back to the
+                # entry the harness itself launched if the pilot dropped it
+                challenge_id = record.get("id") or entry[0]
+                flag = _record_flag(record)
                 is_success = bool(
                     challenge_id in expected_flags and flag == expected_flags[challenge_id]
                 )
