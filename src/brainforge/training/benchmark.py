@@ -49,7 +49,7 @@ def run_arm(
     output_dir: Path,
     gate_dataset: Path,
     train_fn: Callable[..., dict[str, Any]] | None = None,
-    gate_fn: Callable[[Path, Path], dict[str, Any]] | None = None,
+    gate_fn: Callable[..., dict[str, Any]] | None = None,
     max_new_tokens: int = 2048,
 ) -> dict[str, Any]:
     """Train one benchmark arm and evaluate it on the shared holdout.
