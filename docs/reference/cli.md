@@ -197,6 +197,7 @@ before a GPU job.
 | `--dataset-dir/-d` | `datasets/prepared` | directory with train/validation splits (identical for every arm) |
 | `--gate-dataset` | `datasets/prepared/test_postcutoff.jsonl` | frozen post-cutoff holdout, shared by every arm |
 | `--output/-o` | `experiments/bench` | benchmark output dir (one subdir per arm + `results.md`) |
+| `--max-new-tokens` | `2048` | gate-scoring generation budget (512 truncates CTF completions) |
 | `--config/-c` | `config/config.json` | configuration file |
 
 ## ops
