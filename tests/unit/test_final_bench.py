@@ -112,6 +112,32 @@ class TestLoadVerifiedChallenges:
         assert len(challenges) == 1
         assert skipped == ["ctf-lictor-orw-001"]
 
+    def test_ret2csu_maps_to_lab_port_9992(self, tmp_path: Path) -> None:
+        manifest = tmp_path / "manifest.jsonl"
+        _write_manifest(manifest, [_manifest_row("ctf-lictor-ret2csu-001", "lictor-lab")])
+        cases = tmp_path / "cases"
+        cases.mkdir()
+        case = {
+            "id": "ctf-lictor-ret2csu-001",
+            "source": {"type": "lictor-lab", "path": "lab/targets/ret2csu"},
+            "input": {"code": "recon material"},
+            "metadata": {"tier": "verified", "expected_flag": "ROPE{x}"},
+        }
+        (cases / "ctf-lictor-ret2csu-001.json").write_text(json.dumps(case), encoding="utf-8")
+
+        challenges, skipped = load_verified_challenges(manifest, cases)
+
+        assert challenges == [
+            (
+                "ctf-lictor-ret2csu-001",
+                "127.0.0.1:9992",
+                "ret2csu",
+                "recon material",
+                "ROPE{x}",
+            )
+        ]
+        assert skipped == []
+
     def test_no_live_target_for_binary_is_skipped(self, tmp_path: Path) -> None:
         manifest = tmp_path / "manifest.jsonl"
         _write_manifest(
@@ -133,6 +159,42 @@ class TestLoadVerifiedChallenges:
 
         assert challenges == []
         assert skipped == ["ctf-lictor-unknownbin-001"]
+
+
+class TestCommittedWiring:
+    def test_committed_ret2csu_challenge_is_runnable(self) -> None:
+        """The 7th lictor lab target is wired: the committed manifest line
+        plus case file map onto the live ret2csu listener (9992) instead
+        of landing in the skipped list."""
+        repo = Path(__file__).resolve().parents[2]
+        challenges, skipped = load_verified_challenges(
+            repo / "experiments" / "ctf_ingest" / "manifest.jsonl",
+            repo / "examples" / "cases",
+        )
+        by_id = {c[0]: c for c in challenges}
+        assert "ctf-lictor-ret2csu-001" in by_id
+        entry = by_id["ctf-lictor-ret2csu-001"]
+        assert entry[1] == "127.0.0.1:9992"
+        assert entry[2] == "ret2csu"
+        assert entry[4]
+        assert "ctf-lictor-ret2csu-001" not in skipped
+
+    def test_committed_eval_set_has_seven_live_targets(self) -> None:
+        repo = Path(__file__).resolve().parents[2]
+        challenges, _skipped = load_verified_challenges(
+            repo / "experiments" / "ctf_ingest" / "manifest.jsonl",
+            repo / "examples" / "cases",
+        )
+        lictor_ids = {c[0] for c in challenges if c[0].startswith("ctf-lictor-")}
+        assert lictor_ids == {
+            "ctf-lictor-fmtstr-001",
+            "ctf-lictor-orw-001",
+            "ctf-lictor-ret2csu-001",
+            "ctf-lictor-ret2func-001",
+            "ctf-lictor-ret2plt-001",
+            "ctf-lictor-shellcode-001",
+            "ctf-lictor-uaf_heap-001",
+        }
 
 
 class TestLoadTrainingIds:
