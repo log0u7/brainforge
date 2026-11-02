@@ -125,6 +125,8 @@ long runs stay observable while they happen: top-level `status`
 | `brainforge train runs [--experiments-dir D]` | summary table over every `experiments/<run>`: backend, train rows, epochs, steps, KD alpha/temperature, eval loss and perplexity when an `eval.json` exists |
 | `brainforge train chat` | interactive chat with a trained student (training extra) |
 | `brainforge train task-eval` | task-level evaluation (verdict/CWE accuracy for the security domain; verdict/flag accuracy for the CTF domain); `--endpoint URL --model-name M` scores a model served behind an OpenAI-compatible endpoint (e.g. llama-server) instead of loading weights locally |
+| `brainforge train consolidate <trajectories.jsonl>` | run one consolidation round (ADR-0020): ingest trajectories, stratified replay mix, one training pass, per-round gate on the frozen post-cutoff holdout; a failed gate keeps the previous checkpoint |
+| `brainforge train bench` | three-arm benchmark: no-KD vs sidecar vs GKD (+ LoRA rank 64); one subdir per arm, results in `results.md` + `results.json` |
 | `brainforge train export` | export a trained student: merged HF weights or quantized GGUF |
 
 `train check` options:
@@ -175,6 +177,27 @@ before a GPU job.
 | `--quant` | `Q4_K_M` | GGUF quantization type (`--format gguf`) |
 | `--ollama <name>` | none | register the GGUF with Ollama (`--format gguf`) |
 | `--llama-cpp-path` | auto | path to a llama.cpp checkout (`--format gguf`) |
+
+`train consolidate` options:
+
+| Option | Default | Description |
+|---|---|---|
+| `trajectories` | required | path to the pilot's `trajectories.jsonl` (positional argument) |
+| `--dataset-dir/-d` | `datasets/grpo` | cumulative GRPO dataset dir (`train.jsonl` + `grpo_flags.jsonl`) |
+| `--output/-o` | `experiments/consolidation` | rounds output dir (`round-N.json` journals + `current.json`) |
+| `--replay-ratio` | `0.3` | share of the training mix that comes from replayed prior data |
+| `--gate-dataset` | `datasets/prepared/test_postcutoff.jsonl` | frozen post-cutoff holdout for the per-round gate |
+| `--seed` | `42` | replay sampling seed |
+| `--config/-c` | `config/config.json` | configuration file |
+
+`train bench` options:
+
+| Option | Default | Description |
+|---|---|---|
+| `--dataset-dir/-d` | `datasets/prepared` | directory with train/validation splits (identical for every arm) |
+| `--gate-dataset` | `datasets/prepared/test_postcutoff.jsonl` | frozen post-cutoff holdout, shared by every arm |
+| `--output/-o` | `experiments/bench` | benchmark output dir (one subdir per arm + `results.md`) |
+| `--config/-c` | `config/config.json` | configuration file |
 
 ## ops
 
