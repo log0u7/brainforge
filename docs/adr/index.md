@@ -48,3 +48,4 @@ one file per decision, in [MADR 3.0](https://adr.github.io/madr/) format.
 | [0018](0018-post-training-expansion-deferred.md) | Post-training expansion (TRL v1, on-policy distillation, GRPO, OpenEnv) deferred | accepted |
 | [0019](0019-on-policy-self-training-opst.md) | On-policy self-training (OPST) adopted as an experimental training backend | accepted |
 | [0020](0020-gkd-consolidation-cycle.md) | On-policy distillation (GKD) and the periodic consolidation cycle | proposed |
+| [0021](0021-final-benchmark-contract.md) | Final benchmark contract: unseen challenges, oracle-verified runs, contamination audit | proposed |
