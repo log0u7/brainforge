@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Three-arm benchmark: `brainforge train bench` runs no-KD (plain SFT),
+  sidecar (`train run --kd`), GKD (`strategy: gkd`) and an opportunistic
+  LoRA-rank-64 arm on identical splits and the same frozen post-cutoff
+  holdout; one output directory per arm, results in `results.md` +
+  `results.json`, n_records on every row. The arms registry and the
+  markdown renderer live in `brainforge.training.benchmark` (ADR-0020
+  MR4); the GPU run on the RTX 3080 host is the next step.
+- `brainforge train consolidate`: the CLI command for one consolidation
+  round (ADR-0020 MR3 shipped the module without the command). Options:
+  trajectories positional, `--dataset-dir`, `--output`,
+  `--replay-ratio`, `--gate-dataset`, `--seed`; a failed gate keeps the
+  previous checkpoint and the journal records the outcome.
+
 - ADR-0020: on-policy distillation (GKD) adopted as the `train` strategy
   `gkd` (TRL `experimental.gkd.GKDTrainer`, generalized-JSD loss against a
   local shared-tokenizer teacher) plus a periodic consolidation cycle with

@@ -495,6 +495,108 @@ def task_eval(
         console.print(f"  {key}: {value:.4f}" if isinstance(value, float) else f"  {key}: {value}")
 
 
+@app.command("consolidate")
+@clamp_errors("training")
+def consolidate(
+    trajectories: Path = typer.Argument(..., help="Path to the pilot's trajectories.jsonl"),
+    dataset_dir: Path = typer.Option(
+        Path("datasets/grpo"),
+        "--dataset-dir",
+        "-d",
+        help="Cumulative GRPO dataset dir (train.jsonl + grpo_flags.jsonl)",
+    ),
+    output: Path = typer.Option(
+        Path("experiments/consolidation"),
+        "--output",
+        "-o",
+        help="Consolidation rounds output dir (round-N.json journals + current.json)",
+    ),
+    replay_ratio: float = typer.Option(
+        0.3,
+        "--replay-ratio",
+        help="Share of the training mix that comes from replayed prior data",
+    ),
+    gate_dataset: Path = typer.Option(
+        Path("datasets/prepared/test_postcutoff.jsonl"),
+        "--gate-dataset",
+        help="Frozen post-cutoff holdout for the per-round gate",
+    ),
+    seed: int = typer.Option(42, "--seed", help="Replay sampling seed"),
+    config: str = typer.Option(None, "--config", "-c"),
+) -> None:
+    """Run one consolidation round: ingest, replay mix, train, gate, journal.
+
+    A failed gate keeps the previous round's checkpoint (ADR-0020); the
+    current.json pointer is only updated when the gate passes.
+    """
+    from brainforge.config import load_config
+    from brainforge.training.consolidation import consolidate as run_round
+
+    cfg = load_config(config)
+    journal = run_round(
+        config=cfg.training,
+        trajectories=trajectories,
+        dataset_dir=dataset_dir,
+        output_dir=output,
+        replay_ratio=replay_ratio,
+        gate_dataset=gate_dataset,
+        seed=seed,
+    )
+    status = (
+        "[green]accepted[/green]"
+        if journal["accepted"]
+        else "[red]gate failed - previous checkpoint kept[/red]"
+    )
+    console.print(f"[green]round {journal['round']} done[/green]: {status}")
+    for key in ("ingested", "fresh_replacements", "replayed", "mix_size", "excluded_ids"):
+        console.print(f"  {key}: {journal[key]}")
+
+
+@app.command("bench")
+@clamp_errors("training")
+def bench(
+    dataset_dir: Path = typer.Option(
+        Path("datasets/prepared"),
+        "--dataset-dir",
+        "-d",
+        help="Directory with train/validation splits (identical for every arm)",
+    ),
+    gate_dataset: Path = typer.Option(
+        Path("datasets/prepared/test_postcutoff.jsonl"),
+        "--gate-dataset",
+        help="Frozen post-cutoff holdout, shared by every arm",
+    ),
+    output: Path = typer.Option(
+        Path("experiments/bench"),
+        "--output",
+        "-o",
+        help="Benchmark output dir (one subdir per arm + results.md)",
+    ),
+    config: str = typer.Option(None, "--config", "-c"),
+) -> None:
+    """Three-arm benchmark: no-KD vs sidecar vs GKD (+ LoRA rank 64).
+
+    Each arm trains into its own directory and evaluates on the same
+    frozen holdout; results land in results.md + results.json.
+    """
+    from brainforge.config import load_config
+    from brainforge.training.benchmark import render_markdown_table, run_three_arm_benchmark
+
+    cfg = load_config(config)
+    results = run_three_arm_benchmark(
+        config=cfg.training,
+        dataset_dir=dataset_dir,
+        gate_dataset=gate_dataset,
+        output_dir=output,
+    )
+    table = render_markdown_table(results)
+    console.print(table)
+    output.mkdir(parents=True, exist_ok=True)
+    (output / "results.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
+    (output / "results.md").write_text(table + "\n", encoding="utf-8")
+    console.print(f"[green]benchmark done[/green] -> {output / 'results.md'}")
+
+
 @app.command("export")
 @clamp_errors("export")
 def export(

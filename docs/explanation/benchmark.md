@@ -429,3 +429,36 @@ What the run did demonstrate:
 * `warmup_steps` (5) larger than the total step count (3) silently
   zeroed the learning rate: the first training was mathematically inert.
   Watch for a guard; the rerun used warmup 0.
+
+## The three-arm benchmark (pending GPU run)
+
+The first benchmark left a question open: plain SFT beat every
+distillation variant tried, but the sidecar path carried known
+structural defects (retokenized teacher targets, off-policy sequences)
+and the on-policy backend did not exist yet. With `strategy: gkd`
+shipped ([ADR-0020](../adr/0020-gkd-consolidation-cycle.md)), the
+comparison can now run properly.
+
+`brainforge train bench` runs every arm on identical splits and the
+same frozen post-cutoff holdout, one output directory per arm, and
+writes `results.md` + `results.json`:
+
+| Arm | trains with | requirement |
+|---|---|---|
+| `no-kd` | plain QLoRA SFT | nothing (baseline) |
+| `sidecar` | `train run --kd` (ADR-0015 top-k sidecar) | `kd.jsonl` in the dataset dir |
+| `gkd` | `strategy: gkd` (ADR-0020 on-policy, generalized JSD) | `training.gkd_teacher` set |
+| `lora64` | plain SFT at LoRA rank 64 | nothing (capacity probe) |
+
+The `lora64` arm is opportunistic: the task-eval lesson (train loss
+fell under teacher forcing while autoregressive behavior stayed
+base-like) left two hypotheses - insufficient LoRA capacity versus
+noisy training signal. Rank 16 vs 64 on identical data separates them
+cheaply: if rank 64 unlocks accuracy, the student was capacity-bound;
+if not, the signal was the problem and on-policy distillation is the
+lever.
+
+Honesty rules carry over from the first benchmark: `n_records` on every
+row, one seed, results are an observation on one holdout. The GPU run
+on the RTX 3080 host is the next step; until it lands, this table is a
+contract, not a result.
