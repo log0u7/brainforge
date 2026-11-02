@@ -64,7 +64,7 @@ def run_arm(
 
     if spec.get("requires_sidecar") and not (dataset_dir / "kd.jsonl").is_file():
         raise BrainforgeError(
-            f"sidecar arm requires kd.jsonl in {dataset_dir}; run 'brainforge pipeline kd-pass' first"
+            f"Sidecar arm requires kd.jsonl in {dataset_dir}. Run 'brainforge pipeline kd-pass'."
         )
     updates: dict[str, Any] = spec.get("updates", {})
     arm_config = config.model_copy(update=updates) if updates else config

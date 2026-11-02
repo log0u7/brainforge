@@ -91,7 +91,7 @@ def test_run_arm_trains_and_evaluates(dataset_dir: Path, tmp_path: Path) -> None
 def test_run_arm_sidecar_requires_kd_sidecar(dataset_dir: Path, tmp_path: Path) -> None:
     gate = tmp_path / "gate.jsonl"
     _write_jsonl(gate, [_record("g1")])
-    with pytest.raises(BrainforgeError, match="kd.jsonl"):
+    with pytest.raises(BrainforgeError, match=r"kd\.jsonl"):
         run_arm(
             config=TrainingConfig(),
             arm="sidecar",
