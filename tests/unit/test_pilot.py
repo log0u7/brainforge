@@ -33,6 +33,34 @@ def test_clean_facts_rejects_malformed_lines():
     assert facts == ['vuln("fmtstr").']
 
 
+def test_clean_facts_normalizes_predicate_prefixed_lines():
+    """The GRPO lab-loop student (run-20261030) emits every fact in the
+    shape predicate("name", "value"). - the semantics all correct (found
+    on the final benchmark run: vuln=fmtstr, allocator=tcache, the whole
+    set) but the parser dropped every line, so the run scored 0 before
+    any exploit attempt. The shape is a wrap of the fact grammar, not a
+    different grammar: normalize it instead of losing the run."""
+    from brainforge.experiments.pilot import LLM_ALLOWED, clean_facts
+
+    llm_text = (
+        'predicate("vuln", "fmtstr").\n'
+        'predicate("function_pointer_on_heap", "true").\n'
+        'predicate("allocator", "tcache").\n'
+        'predicate("glibc_minor", "15").\n'
+        'predicate("fmtstr_read", "false").\n'
+        'predicate("seccomp", "false").\n'
+    )
+    facts = clean_facts(llm_text, allowed=LLM_ALLOWED)
+    assert facts == [
+        'vuln("fmtstr").',
+        'function_pointer_on_heap("true").',
+        'allocator("tcache").',
+        "glibc_minor(15).",
+        'fmtstr_read("false").',
+        'seccomp("false").',
+    ]
+
+
 def test_build_trajectory_is_agentic_shape():
     from brainforge.experiments.pilot import build_trajectory
 

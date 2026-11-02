@@ -16,6 +16,29 @@ from typing import Any
 
 PREDICATE_RE = re.compile(r"^([a-z_][a-z0-9_]*)\((.*)\)\.$")
 
+# The wrap shape the GRPO lab-loop student actually emits (run-20261030,
+# final benchmark run): every fact arrives as predicate("name", "value").
+# The semantics are correct, the shape is a wrapper of the fact grammar,
+# not a different grammar - unwrap it instead of dropping the run.
+_PREDICATE_PREFIX_RE = re.compile(r'^predicate\("([a-z_][a-z0-9_]*)"(?:\s*,\s*"?([^)"]*)"?)?\)\.?$')
+
+
+def _unwrap_predicate_prefix(line: str) -> str:
+    """Rewrite ``predicate("name", "value").`` into ``name("value").``.
+
+    Lines in the plain fact grammar pass through untouched; a wrapped
+    line without a value unwraps to ``name().`` and the usual domain
+    checks still decide its fate.
+    """
+    match = _PREDICATE_PREFIX_RE.match(line)
+    if not match:
+        return line
+    name, value = match.group(1), match.group(2)
+    if value is None:
+        return f"{name}()."
+    return f'{name}("{value}").'
+
+
 # Value domains the decision engine enforces: a fact outside its domain
 # makes the whole suggest merge fail, so the filter drops the line.
 VALUE_DOMAINS: dict[str, set[str]] = {
@@ -75,7 +98,7 @@ def clean_facts(llm_text: str, allowed: set[str] | None = None) -> list[str]:
     true is a rejected term, not a boolean)."""
     facts = []
     for line in llm_text.splitlines():
-        line = line.strip()
+        line = _unwrap_predicate_prefix(line.strip())
         match = PREDICATE_RE.match(line)
         if not match:
             continue
