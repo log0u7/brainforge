@@ -14,7 +14,9 @@ Prerequisites:
   (`brainforge train export --format gguf`).
 - The base model GGUF (Qwen3-1.7B base, e.g. `Qwen3-1.7B-Q8_0.gguf`).
 - The dataset that trained the student (its challenge IDs feed the
-  contamination audit).
+  contamination audit). Build it from the raw corpus with
+  [How-to: generate a dataset](generate-dataset.md), then prepare it
+  with [How-to: manage datasets](manage-datasets.md).
 
 ## 1. Start the lictor lab
 
