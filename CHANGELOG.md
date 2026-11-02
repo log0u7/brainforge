@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- ADR-0020: on-policy distillation (GKD) adopted as the `train` strategy
+  `gkd` (TRL `experimental.gkd.GKDTrainer`, generalized-JSD loss against a
+  local shared-tokenizer teacher) plus a periodic consolidation cycle with
+  stratified replay and a per-round post-cutoff holdout gate. The cycle's
+  wake/sleep shape and low-rank consolidation credit the Sleep framework
+  (arXiv:2606.03979); its MoE/Hope capacity expansion is deferred to a new
+  generic-backbones roadmap phase. The ADR-0015 sidecar path stays until the
+  three-arm benchmark (no KD vs top-k sidecar vs GKD) decides its fate. The
+  pending final end-to-end benchmark contract (base vs trained on unseen
+  challenges, success rates over repetitions, contamination audit) is also
+  recorded on the roadmap.
+
 - `lab_loop` GRPO reward: the completion is POSTed to the lictor reward
   server with its dataset columns (port, flag, facts); the server runs
   the closed loop twice (raw facts, then suggest-enriched) and returns

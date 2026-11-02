@@ -57,14 +57,43 @@ Phases are cumulative. The MVP (phase 1) is implemented in this repository.
       to the version carrying the on-policy trainers and validate SFT/KD
       against it; prerequisite for the distillation and RL items below
       (ADR-0018)
-- [ ] On-policy distillation backend (TRL `DistillationTrainer`, GKD) and a
-      three-arm benchmark: no KD vs top-k sidecar (ADR-0015) vs on-policy
+- [x] On-policy distillation backend: the `gkd` strategy (TRL
+      `experimental.gkd.GKDTrainer`, generalized-JSD loss against a local
+      shared-tokenizer teacher) plus the periodic consolidation cycle with
+      replay and a per-round holdout gate; accepted in [ADR-0020](docs/adr/0020-gkd-consolidation-cycle.md)
+      with the three-arm benchmark (no KD vs top-k sidecar vs GKD) as the
+      sidecar path's promotion/deprecation gate
 - [ ] GRPO experiment on the CTF pack with a verifier reward (found flag as
       binary reward); candidate environment: the lictor lab targets
 - [ ] OpenEnv environment wrapping the CTF sandbox (Docker target plus
       verifier reward), depends on the GRPO experiment
 - [ ] Multi-harness RL through a capture proxy; requires vLLM/SGLang token
       ids and logprobs (llama.cpp is not supported there)
+
+## Phase 4 - Generic backbones and capacity expansion
+
+Deferred ambitions from the Sleep framework ([ADR-0020](docs/adr/0020-gkd-consolidation-cycle.md),
+arXiv:2606.03979): BrainForge stays generic, so the backbone capabilities the
+framework assumes must land as optional supports, not core assumptions.
+
+- [ ] Mixture-of-Experts student support: a MoE base model behind the existing
+      `student_base` config (PEFT expert-layer targeting, router-aware
+      training pass); prerequisite for any Sleep-style capacity expansion
+- [ ] Sleep-style capacity expansion: at each consolidation round, train a new
+      low-rank adapter batch (frozen adapter pool) instead of overwriting the
+      previous round; requires the consolidation cycle (phase 3) and an
+      adapter merge/selection policy, on the 10GB VRAM budget
+- [ ] Adapter pruning/merging at consolidation time (the synthetic-synaptic
+      pruning analogue): rank trimming and adapter merging driven by the
+      per-round holdout gate
+- [ ] Hope/linear-attention backbone support: follow the Transformers
+      implementations of the Titans/MIRAS lineage; no custom transformer code
+      in BrainForge, so this is a watcher item until upstream lands
+- [ ] Final end-to-end benchmark: untrained base vs consolidated student on
+      unseen lictor lab challenges, real success rates over repetitions
+      (pass@1/pass@k with variance), executed-loop oracle only, published
+      with a contamination audit (n-gram overlap, holdout-id exclusion,
+      provenance tags); single-seed honesty per the multi-harness RL guide
 
 ## Non-goals (standing)
 
