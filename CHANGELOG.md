@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- ADR-0021 (proposed): final benchmark contract, unseen challenges,
+  oracle-verified runs and a contamination audit. The evaluation path is the
+  pilot lictor lab loop (verification reads live service output through the
+  per-target oracle regex), success rate is measured over repetitions, and a
+  contamination audit compares training IDs with eval IDs.
 - Three-arm benchmark: `brainforge train bench` runs no-KD (plain SFT),
   sidecar (`train run --kd`), GKD (`strategy: gkd`) and an opportunistic
   LoRA-rank-64 arm on identical splits and the same frozen post-cutoff
