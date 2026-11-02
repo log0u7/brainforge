@@ -462,3 +462,13 @@ Honesty rules carry over from the first benchmark: `n_records` on every
 row, one seed, results are an observation on one holdout. The GPU run
 on the RTX 3080 host is the next step; until it lands, this table is a
 contract, not a result.
+
+## Reproducing the final benchmark
+
+The three-arm table above compares distillation arms on the shared
+holdout. The final capability measurement - base vs trained student on
+unseen, oracle-verified challenges through the lictor lab loop - runs
+through the MR5 contract
+([ADR-0021](../adr/0021-final-benchmark-contract.md)). The full setup
+(lab, models, runner command, contamination audit) is in
+[How-to: run the final benchmark](../how-to/run-final-benchmark.md).

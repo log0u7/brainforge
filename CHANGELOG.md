@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Final benchmark runner: `python -m brainforge.experiments.final_bench`
+  assembles the real benchmark inputs from repo artifacts (oracle-verified
+  manifest cases mapped onto the live lictor lab targets, training challenge
+  IDs for the contamination audit) and drives `run_bench_lab` with a
+  provider split that routes each model to its own llama-server. Skipped
+  cases are reported explicitly. A how-to
+  (`docs/how-to/run-final-benchmark.md`) documents the full lab + benchmark
+  reproduction.
 - ADR-0021 (proposed): final benchmark contract, unseen challenges,
   oracle-verified runs and a contamination audit. The evaluation path is the
   pilot lictor lab loop (verification reads live service output through the

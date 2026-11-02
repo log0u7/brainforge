@@ -24,6 +24,7 @@ before planning a deployment.
 | validate, inspect or split a dataset | [How-to: manage datasets](how-to/manage-datasets.md) |
 | add a new domain (tickets, CTF, review...) | [How-to: add a domain pack](how-to/add-domain-pack.md) |
 | ship a trained model to Ollama | [How-to: ship to Ollama](how-to/ship-to-ollama.md) |
+| reproduce the final benchmark | [How-to: run the final benchmark](how-to/run-final-benchmark.md) |
 | look up a CLI command or flag | [CLI reference](reference/cli.md) |
 | look up a config option | [Configuration reference](reference/configuration.md) |
 | look up the record format | [Dataset format](reference/dataset-format.md) |
