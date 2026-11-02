@@ -26,6 +26,7 @@ LICTOR_LAB_PORTS: dict[str, int] = {
     "ret2plt": 9998,
     "ret2func": 9999,
     "orw": 9994,
+    "ret2csu": 9992,
 }
 
 

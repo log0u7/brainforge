@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Seventh lictor lab challenge in the final benchmark: `ctf-lictor-ret2csu-001`
+  (ROP Emporium ret2csu binary served through the lictor lab) maps onto the
+  live listener on 127.0.0.1:9992. The case material is the bounded static
+  recon of the binary (ELF headers, protections, `ret2win` symbol hit, disasm
+  head) plus the companion-lib layout note (`pwnme`'s read() overflow in the
+  binary, the arg-checked `ret2win` in `libret2csu.so`); the per-target oracle
+  is the exact flag the service prints on a solved run, matching the other
+  six wired targets. The eval set grows from six to seven challenges per run.
+
 - Final benchmark runner: `python -m brainforge.experiments.final_bench`
   assembles the real benchmark inputs from repo artifacts (oracle-verified
   manifest cases mapped onto the live lictor lab targets, training challenge
