@@ -32,7 +32,16 @@ from pathlib import Path
 # lab loop trained on (translated to lab-<name>-001 IDs). Everything
 # else in a run dir is either a clean-protocol eval challenge or an
 # unclassified target - neither may become a training record.
-TRAINING_ELIGIBLE = {"fmtstr", "orw", "ret2csu", "ret2func", "ret2plt", "shellcode"}
+TRAINING_ELIGIBLE = {
+    "fmtstr",
+    "orw",
+    "ret2func",
+    "ret2plt",
+    "shellcode",
+    # ``ret2csu`` excluded: Emporium multi-file target, the
+    # single-binary acquire 404s on it, zero records in every
+    # measured run.
+}
 
 # The 11 clean-protocol eval challenges, as run-dir directory names.
 EVAL_DIR_NAMES = {

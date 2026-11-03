@@ -57,6 +57,12 @@ EVAL_ID_MARKERS = (
     "uaf_heap",
 )
 
+# The Emporium multi-file target: the pilot's single-binary acquire
+# 404s on it, so every record it ever produced is an acquire-failure
+# artifact (zero records in every measured run). Its rollout noise
+# never crosses into a training file.
+EXCLUDED_TARGETS = ("ret2csu",)
+
 
 def _load(path: Path) -> list[dict]:
     return [
@@ -78,6 +84,8 @@ def assemble(
             rid = str(record.get("id", ""))
             if any(marker in rid for marker in EVAL_ID_MARKERS):
                 contaminating += 1
+                continue
+            if any(marker in rid for marker in EXCLUDED_TARGETS):
                 continue
             records.append(record)
 
