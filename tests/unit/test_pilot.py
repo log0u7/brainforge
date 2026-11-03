@@ -85,6 +85,91 @@ def test_build_trajectory_is_agentic_shape():
     assert record["metadata"]["flag_verified"] is True
 
 
+def test_run_lictor_timeout_returns_a_failed_record(tmp_path: Any):
+    """A hung lictor subcommand (dead service, drip-feed stdout) must not
+    kill the whole run: run_lictor turns subprocess.TimeoutExpired into
+    a failed record - the caller's timeout path, not an exception that
+    destroys a full 11-target run (measured)."""
+    import brainforge.experiments.pilot as pilot
+
+    result = pilot.run_lictor(tmp_path, ["5"], lictor_bin="sleep", timeout=1)
+    assert result["status"] == "error"
+    assert result["timed_out"] is True
+    assert "timed out" in result["stderr"]
+
+
+def test_run_pilot_one_blocked_target_does_not_destroy_the_run(tmp_path: Any):
+    """One blocked target (hung runner raising TimeoutExpired) produces a
+    failed record; the remaining targets still run and land their flags."""
+    import subprocess
+
+    import brainforge.experiments.pilot as pilot
+    from brainforge.providers.base import ChatResponse
+
+    class FakeProvider:
+        def complete(self, request, model):
+            return ChatResponse(content='vuln("sof").', provider="fake", model=model)
+
+    call_count = []
+
+    def fake_lictor(workdir: Path, args: list[str]) -> dict:
+        call_count.append(args[0])
+        if len(call_count) == 1:
+            raise subprocess.TimeoutExpired("lictor", 600)
+        if args[0] == "plan":
+            return {"technique": "ret2func"}
+        return {"status": "flagged", "flag": "FLAG{the_data_decides_ret2func}"}
+
+    out = tmp_path / "traj.jsonl"
+    results = pilot.run_pilot(
+        targets=[
+            ("ctf-lictor-blocked-001", "127.0.0.1:9991", "blocked-target", "mat"),
+            ("ctf-lictor-ret2func-001", "127.0.0.1:9999", "ret2func", "mat"),
+        ],
+        workdir=tmp_path / "lictor",
+        provider=FakeProvider(),
+        model="m",
+        lictor_runner=fake_lictor,
+        output=out,
+    )
+    assert len(results) == 2
+    first_verdict = json.loads(results[0]["messages"][-1]["content"])
+    assert first_verdict["verdict"] == "timeout"
+    second_verdict = json.loads(results[1]["messages"][-1]["content"])
+    assert second_verdict["flag"] == "FLAG{the_data_decides_ret2func}"
+
+
+def test_suggest_error_prints_readable_stderr(tmp_path: Any, capsys: Any):
+    """The '1 facts -> error' path must show WHY the merge failed, not
+    just the word 'error' (measured: the suggest stderr was lost in the
+    pilot log)."""
+    import brainforge.experiments.pilot as pilot
+    from brainforge.providers.base import ChatResponse
+
+    class FakeProvider:
+        def complete(self, request, model):
+            return ChatResponse(content='vuln("sof").', provider="fake", model=model)
+
+    def fake_lictor(workdir: Path, args: list[str]) -> dict:
+        if args[0] == "suggest":
+            return {"status": "error", "stderr": "value outside the domain: fmtstr_read(xyz)"}
+        if args[0] == "plan":
+            return {"technique": "ret2func"}
+        return {"status": "flagged", "flag": "FLAG{ok}"}
+
+    out = tmp_path / "traj.jsonl"
+    pilot.run_pilot(
+        targets=[("ctf-lictor-x-001", "127.0.0.1:9998", "x", "mat")],
+        workdir=tmp_path / "lictor",
+        provider=FakeProvider(),
+        model="m",
+        lictor_runner=fake_lictor,
+        output=out,
+    )
+    captured = capsys.readouterr()
+    assert "value outside the domain" in captured.out
+
+
 def test_run_pilot_records_trajectory(tmp_path: Any, monkeypatch: Any):
     """End-to-end with fakes: a stub LLM provider and a stub lictor runner
     produce one agentic trajectory per target."""
