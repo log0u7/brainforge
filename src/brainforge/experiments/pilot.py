@@ -273,6 +273,7 @@ def _run_one_target(
     provider: Any,
     model: str,
     runner: Any,
+    seed: str = "7",
 ) -> dict:
     """One target: acquire, harvest, suggest, plan, build, run, outcome.
 
@@ -311,7 +312,6 @@ def _run_one_target(
     else:
         merged = {"status": "no_llm_facts"}
         print(f"[pilot] {binary}: the LLM emitted no usable facts")
-    seed = "7"
     decision = runner(tgt, ["plan", "target.facts", "-s", seed])
     (tgt / "payload.bin").unlink(missing_ok=True)
     # the plan's ranking IS the decision: a draw whose layout the
@@ -420,6 +420,7 @@ def run_pilot(
     lictor_bin: str = "lictor",
     lictor_runner: Any = None,
     output: Path | None = None,
+    seed: str = "7",
 ) -> list[dict]:
     """One trajectory per target: LLM facts, augure decide, lictor run.
 
@@ -428,6 +429,9 @@ def run_pilot(
     expected flag the run's oracle matches THAT flag, not the first
     FLAG{...} in the output (the lab's cat prints six).
     ``lictor_runner`` overrides the subprocess runner (tests).
+    ``seed`` drives lictor's bandit draws (plan/build/run): a rollout
+    sweep passes a different seed per repetition, a hardcoded seed
+    would reproduce the same trajectory every time.
     A blocked target (hung runner, dead service) produces a failed
     record with outcome timeout+reason; the remaining targets still
     run (measured: one hung target destroyed a full 11-target run)."""
@@ -436,7 +440,7 @@ def run_pilot(
     records: list[dict] = []
     for entry in targets:
         try:
-            records.append(_run_one_target(entry, workdir, provider, model, runner))
+            records.append(_run_one_target(entry, workdir, provider, model, runner, seed=seed))
         except Exception as exc:
             # one blocked target must not destroy the whole run: the
             # failed record keeps the trajectory and the run goes on

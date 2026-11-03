@@ -170,6 +170,39 @@ def test_suggest_error_prints_readable_stderr(tmp_path: Any, capsys: Any):
     assert "value outside the domain" in captured.out
 
 
+def test_run_pilot_seed_flows_to_lictor_commands(tmp_path: Any):
+    """The seed parameter drives lictor's bandit draws: a rollout sweep
+    needs per-rep seeds, a hardcoded 7 would reproduce the same
+    trajectory every time (MR6 dataset expansion needs variety)."""
+    import brainforge.experiments.pilot as pilot
+    from brainforge.providers.base import ChatResponse
+
+    class FakeProvider:
+        def complete(self, request, model):
+            return ChatResponse(content='vuln("sof").', provider="fake", model=model)
+
+    seen_seeds: list[str] = []
+
+    def fake_lictor(workdir: Path, args: list[str]) -> dict:
+        if "-s" in args:
+            seen_seeds.append(args[args.index("-s") + 1])
+        if args[0] == "plan":
+            return {"technique": "ret2func"}
+        return {"status": "flagged", "flag": "FLAG{seeded}"}
+
+    out = tmp_path / "traj.jsonl"
+    pilot.run_pilot(
+        targets=[("ctf-lictor-seed-001", "127.0.0.1:9992", "seed-target", "mat")],
+        workdir=tmp_path / "lictor",
+        provider=FakeProvider(),
+        model="m",
+        lictor_runner=fake_lictor,
+        output=out,
+        seed="42",
+    )
+    assert seen_seeds and all(s == "42" for s in seen_seeds)
+
+
 def test_run_pilot_records_trajectory(tmp_path: Any, monkeypatch: Any):
     """End-to-end with fakes: a stub LLM provider and a stub lictor runner
     produce one agentic trajectory per target."""
