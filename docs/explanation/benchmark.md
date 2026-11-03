@@ -572,3 +572,31 @@ contamination audit hardened by the namespace fix (PR #124).
 
 Reproduction: `experiments/final-bench-results/run-20261103-17ch/`
 holds this run's `results.json` + `results.md`.
+
+## The clean-protocol final run (2026-11-03): 11 unseen challenges, audit passes
+
+The 17-challenge run's audit honestly refuses to certify an eval where
+6 challenges are the training targets. The final benchmark therefore
+uses the 11 uncontaminated challenges (all the `-002` variants plus
+`uaf_heap-001`), passed to the runner via `--manifest` filtering. The
+audit passes clean and the runner exits 0.
+
+| model | successes/attempts | success_rate |
+|---|---|---|
+| base | 26/33 | 0.79 |
+| trained | 26/33 | 0.79 |
+
+Reading:
+1.  **The exploits+rules work, the training does not.** Unseen
+    challenges went 0/33 (run D, no exploits for the new targets) to
+    26/33 — that is entirely the E1+E2 effect (ronin exploits for the
+    new target families + augure rules routing srop/canary/tcache).
+    The GRPO student shows no measurable capability gain over base.
+2.  **The per-challenge differences wash out.** Trained is better on
+    `ret2libc-001` (3/3 vs 2/3) and `srop-001` (2/3 vs 1/3), worse on
+    `uaf_heap-002` (0/3 vs 2/3); everything else identical.
+3.  **The persistent failure is `uaf_heap-001`** (0/3 both models) —
+    the designed handoff, still unresolved at the pilot level.
+
+Reproduction: `experiments/final-bench-results/run-20261103-11ch-clean/`
+holds this run's `results.json` + `results.md`.
