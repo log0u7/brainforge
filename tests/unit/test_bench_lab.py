@@ -287,6 +287,32 @@ class TestContaminationAudit:
         assert result["contamination"]["clean"] is True
         assert result["contamination"]["training_ids_in_eval"] == []
 
+    def test_lab_namespace_training_ids_fail_the_audit(self, tmp_path: Path) -> None:
+        # GRPO lab-loop training records carry ``lab-<technique>-001`` ids
+        # while the eval manifest names the same lictor lab target
+        # ``ctf-lictor-<technique>-001``: a raw string intersection always
+        # comes back empty, certifying a contaminated eval as clean. The
+        # audit must compare in the eval namespace.
+        challenges = [_target("ctf-lictor-fmtstr-001", "fmtstr", "FLAG{a}")]
+        pilot, _ = _fake_pilot(
+            [
+                [_record("ctf-lictor-fmtstr-001", "base", None)],
+                [_record("ctf-lictor-fmtstr-001", "trained", None)],
+            ]
+        )
+        result = run_bench_lab(
+            challenges=challenges,
+            workdir=tmp_path,
+            provider=None,
+            base_model="base",
+            trained_model="trained",
+            repetitions=1,
+            training_ids={"lab-fmtstr-001"},
+            pilot_fn=pilot,
+        )
+        assert result["contamination"]["clean"] is False
+        assert result["contamination"]["training_ids_in_eval"] == ["ctf-lictor-fmtstr-001"]
+
     def test_missing_training_ids_fails_fast(self, tmp_path: Path) -> None:
         pilot, calls = _fake_pilot([])
         with pytest.raises(BrainforgeError, match="training_ids"):
