@@ -41,6 +41,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -86,6 +87,19 @@ def fresh_baseline(target: str, workdir: Path, runner: Any) -> str:
     return facts_path.read_text(encoding="utf-8") if facts_path.exists() else ""
 
 
+def plan_technique(outcome: Any) -> str | None:
+    """The technique a plan outcome selected, parsed from its stdout.
+
+    ``lictor plan`` emits TEXT (``selected:   fmtstr_leak``), not a
+    JSON dict: a bare dict-get returned None and the verification flow
+    rejected every candidate as a poison (measured: 0/160 kept with
+    correct labels). The pilot parses the same line with a regex; this
+    uses the same parse."""
+    text = str(outcome.get("stdout") or "") if isinstance(outcome, dict) else ""
+    match = re.search(r"selected:\s+(\S+)", text)
+    return match.group(1).strip('"') if match else None
+
+
 def verify_candidates(
     baseline_facts: str,
     correct_technique: str,
@@ -106,7 +120,7 @@ def verify_candidates(
         trial = (merged + "\n" + candidate).strip() + "\n"
         (workdir / "target.facts").write_text(trial, encoding="utf-8")
         plan = runner(workdir, ["plan", "target.facts"])
-        selected = plan.get("technique")
+        selected = plan_technique(plan)
         if selected == correct_technique:
             kept.append(candidate)
             merged = trial
