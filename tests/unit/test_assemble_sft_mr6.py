@@ -29,14 +29,21 @@ def _load_script():
 
 
 def _record(rid: str, content: str = 'vuln("fmtstr").') -> dict:
+    """A successful-rollout-shaped record: the verdict carries a flag,
+    so the failed-drop gate lets it through (the failure-path tests
+    live in test_assemble_provenance.py)."""
+    import json as _json
+
+    verdict = _json.dumps({"verdict": "solved", "flag": "FLAG{ok}"})
     return {
         "id": rid,
         "domain": "agentic",
         "messages": [
             {"role": "user", "content": "challenge"},
             {"role": "assistant", "content": content},
+            {"role": "assistant", "content": verdict},
         ],
-        "metadata": {},
+        "metadata": {"pilot": {"model": "base-qwen3-1.7b"}},
     }
 
 
@@ -75,11 +82,30 @@ def test_assemble_caps_empty_completions(tmp_path: Path) -> None:
     """4/6 empty completions is what killed trained-sft-facts: the
     assembler caps the empty share instead of letting it dominate."""
     module = _load_script()
-    records = [_record(f"r-{i}", content="" if i < 8 else 'vuln("sof").') for i in range(10)]
+
+    # the MR5 shape: the facts record's assistant content IS the empty
+    # completion (no verdict message), so these model the facts-source
+    # records; keep_failed suspends the verdict gate to isolate the cap
+    def _facts_record(rid: str, content: str) -> dict:
+        record = _record(rid, content)
+        record["messages"] = [
+            {"role": "user", "content": "challenge"},
+            {"role": "assistant", "content": content},
+        ]
+        return record
+
+    records = [_facts_record(f"r-{i}", content="" if i < 8 else 'vuln("sof").') for i in range(10)]
     src = _write_jsonl(tmp_path / "src.jsonl", records)
     out = tmp_path / "train.jsonl"
+    # keep_failed: the empty records here carry no verdict (they model
+    # the MR5 facts-completion shape), so the failed-drop gate must be
+    # suspended to exercise the cap in isolation
     summary = module.assemble(
-        sources=[src], out=out, per_target_cap=100, empty_completion_share=0.2
+        sources=[src],
+        out=out,
+        per_target_cap=100,
+        empty_completion_share=0.2,
+        keep_failed=True,
     )
     # 2 non-empty kept in full; the empty share is capped against the
     # kept total, so almost every empty record is dropped

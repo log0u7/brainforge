@@ -55,10 +55,20 @@ def split_with_postcutoff(
     train_ratio: float = 0.8,
     val_ratio: float = 0.1,
     seed: int = 42,
+    train_postcutoff: bool = False,
 ) -> dict[str, list[DatasetRecord]]:
     precutoff = [record for record in records if not is_postcutoff(record)]
     splits = split_dataset(precutoff, train_ratio, val_ratio, seed)
-    splits["test_postcutoff"] = postcutoff_records(records)
+    if train_postcutoff:
+        # recitation-SAFE records are TRAINING material too (a base
+        # model has never seen a synthetic post-cutoff lab target): the
+        # "holdout" split exists to MEASURE recitation of pre-cutoff
+        # sources, not to quarantine the safest data available. Only
+        # asked for explicitly (MR6's lab-measured rollouts).
+        splits = split_dataset(records, train_ratio, val_ratio, seed)
+        splits["test_postcutoff"] = []
+    else:
+        splits["test_postcutoff"] = postcutoff_records(records)
     return splits
 
 
