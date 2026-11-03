@@ -189,12 +189,23 @@ def prepare(
     train_ratio: float = typer.Option(0.8, "--train-ratio"),
     val_ratio: float = typer.Option(0.1, "--val-ratio"),
     seed: int = typer.Option(42, "--seed"),
+    train_postcutoff: bool = typer.Option(
+        False,
+        "--train-postcutoff",
+        help=(
+            "Route recitation-safe (post-cutoff) records into the"
+            " train/validation/test buckets instead of the holdout -"
+            " for lab-measured training data (MR6)"
+        ),
+    ),
 ) -> None:
     """Validate, split and export a dataset for TRL training."""
     from brainforge.training.prepare import prepare
 
     target = output_dir or Path("datasets") / "prepared"
-    stats = prepare(dataset, target, train_ratio, val_ratio, seed)
+    stats = prepare(
+        dataset, target, train_ratio, val_ratio, seed, train_postcutoff=train_postcutoff
+    )
     console.print(f"[green]prepared dataset[/green] -> {target}")
     for name, count in stats.items():
         console.print(f"  {name}: {count}")

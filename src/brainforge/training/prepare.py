@@ -41,6 +41,7 @@ def prepare(
     train_ratio: float = 0.8,
     val_ratio: float = 0.1,
     seed: int = 42,
+    train_postcutoff: bool = False,
 ) -> dict:
     raw_records = read_jsonl(dataset_path)
     if not raw_records:
@@ -53,7 +54,9 @@ def prepare(
             f"first error at index {first['index']} ({first['id']}): {first['errors']}"
         )
     records = [DatasetRecord.model_validate(record) for record in checked["valid"]]
-    splits = split_with_postcutoff(records, train_ratio, val_ratio, seed)
+    splits = split_with_postcutoff(
+        records, train_ratio, val_ratio, seed, train_postcutoff=train_postcutoff
+    )
     output = Path(output_dir)
     output.mkdir(parents=True, exist_ok=True)
     stats: dict[str, int | str] = {}

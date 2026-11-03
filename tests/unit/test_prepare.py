@@ -63,3 +63,22 @@ def test_prepare_flags_postcutoff_warning_for_small_dataset(tmp_path):
     path = write_dataset(tmp_path, records)
     stats = prepare(path, tmp_path / "out")
     assert "warning" in stats
+
+
+def test_prepare_train_postcutoff_routes_safe_records_to_train(tmp_path):
+    """MR6: the lab-measured records are recitation-SAFE (the base model
+    has never seen synthetic 2026 lab targets) and they are TRAINING
+    material, not a holdout. With --train-postcutoff they join the
+    train/validation/test buckets; without it they stay in the holdout
+    (the default behavior is untouched)."""
+    records = [make_record(index) for index in range(6)]
+    path = write_dataset(tmp_path, records)
+
+    default_stats = prepare(path, tmp_path / "default")
+    assert default_stats["test_postcutoff"] == 6
+    assert default_stats["train"] == 0
+
+    routed = prepare(path, tmp_path / "routed", train_postcutoff=True)
+    assert routed["test_postcutoff"] == 0
+    assert routed["train"] + routed["validation"] + routed["test"] == 6
+    assert (tmp_path / "routed" / "train.jsonl").read_text().strip() != ""
