@@ -34,8 +34,11 @@ def _fake_runner_factory(plans: dict[str, str]):
             (workdir / "target.facts").write_text(args[2], encoding="utf-8")
             return {"status": "done"}
         if args[0] == "plan":
+            # the real ``lictor plan`` emits TEXT: ``selected:`` carries
+            # the technique (the JSON-dict shape never existed)
             facts = (workdir / "target.facts").read_text(encoding="utf-8")
-            return {"technique": plans.get(facts, "wrong_technique")}
+            selected = plans.get(facts, "wrong_technique")
+            return {"status": "done", "stdout": f"selected:   {selected}\n"}
         return {"status": "done"}
 
     return fake_runner
