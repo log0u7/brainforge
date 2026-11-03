@@ -50,18 +50,18 @@ Challenge material:
 {material}"""
 
 
-def material_for(target: str) -> str:
+def material_for(target: str, lab_dir: Path = LICTOR_LAB) -> str:
     """The challenge source: service.c for lab originals, the run script
     for the emporium targets (callme is a ROP Emporium binary: its
     service.c is the lib's behavior, the run script is the only source
     text the operator sees)."""
-    service = LICTOR_LAB / target / "service.c"
+    service = lab_dir / target / "service.c"
     if service.exists():
         return service.read_text(encoding="utf-8")
-    run = LICTOR_LAB / target / "run.sh"
+    run = lab_dir / target / "run.sh"
     if run.exists():
         return run.read_text(encoding="utf-8")
-    raise FileNotFoundError(f"no material for {target}")
+    raise FileNotFoundError(f"no material for {target} under {lab_dir}")
 
 
 # Ground truth per target: the fact lines the decision engine needs
@@ -92,6 +92,12 @@ TRAINING_TARGETS = list(GROUND_TRUTH)
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="datasets/sft-facts/train.jsonl")
+    ap.add_argument(
+        "--lab-dir",
+        type=Path,
+        default=LICTOR_LAB,
+        help="lictor lab targets dir (override for tests: the runner has no lictor checkout)",
+    )
     args = ap.parse_args()
 
     out = Path(args.out)
@@ -99,7 +105,7 @@ def main() -> None:
 
     records = []
     for target in TRAINING_TARGETS:
-        material = material_for(target)
+        material = material_for(target, lab_dir=args.lab_dir)
         prompt = FACT_PROMPT.format(material=material)
         completion = "\n".join(GROUND_TRUTH[target])
         records.append(

@@ -52,11 +52,23 @@ def test_fmtstr_ground_truth_is_intact() -> None:
 
 def test_builder_produces_jsonl_with_provenance(tmp_path: Path) -> None:
     """Running the script must write valid JSONL records that carry
-    provenance metadata (pipeline, target, n_facts)."""
+    provenance metadata (pipeline, target, n_facts). The lab dir is
+    a tmp fixture: the CI runner has no lictor checkout."""
     module = _load_script()
+    lab_dir = tmp_path / "lab" / "targets"
+    for target in module.TRAINING_TARGETS:
+        (lab_dir / target).mkdir(parents=True, exist_ok=True)
+        (lab_dir / target / "service.c").write_text(f"/* {target} fixture */\n", encoding="utf-8")
     out = tmp_path / "train.jsonl"
     result = subprocess.run(
-        [sys.executable, str(SCRIPT_PATH), "--out", str(out)],
+        [
+            sys.executable,
+            str(SCRIPT_PATH),
+            "--out",
+            str(out),
+            "--lab-dir",
+            str(lab_dir),
+        ],
         check=True,
         capture_output=True,
         text=True,
