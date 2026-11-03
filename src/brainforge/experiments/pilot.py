@@ -216,16 +216,35 @@ def ask_facts(provider: Any, model: str, material: str) -> list[str]:
 PACKS_DIR = "/home/logout/projets/github/logout/augure/packs"
 
 
-def run_lictor(workdir: Path, args: list[str], lictor_bin: str = "lictor") -> dict:
+def run_lictor(
+    workdir: Path, args: list[str], lictor_bin: str = "lictor", timeout: int = 600
+) -> dict:
     """Run one lictor subcommand in the workdir, parse its JSON output when
     the subcommand emits some. For ``run``, the stdout carries the truth
     (``status:`` line and the flag line matched by the flag regex) - the
-    JSON paths never carry the flag, the runner's output does."""
+    JSON paths never carry the flag, the runner's output does.
+
+    A hung subcommand (dead service, drip-feed stdout) raises
+    subprocess.TimeoutExpired: run_lictor turns it into a failed record -
+    the caller's timeout path, not an exception that destroys the whole
+    run (measured: one blocked target killed an 11-target run)."""
     import subprocess
 
-    result = subprocess.run(
-        [lictor_bin, *args], cwd=workdir, capture_output=True, text=True, timeout=600, check=False
-    )
+    try:
+        result = subprocess.run(
+            [lictor_bin, *args],
+            cwd=workdir,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return {
+            "status": "error",
+            "stderr": f"lictor timed out after {timeout}s: {' '.join(args[:2])}",
+            "timed_out": True,
+        }
     if result.returncode != 0:
         return {"status": "error", "stderr": result.stderr[-400:]}
     for line in reversed((result.stdout or "").splitlines()):
@@ -248,6 +267,151 @@ def run_lictor(workdir: Path, args: list[str], lictor_bin: str = "lictor") -> di
     return outcome
 
 
+def _run_one_target(
+    entry: tuple,
+    workdir: Path,
+    provider: Any,
+    model: str,
+    runner: Any,
+) -> dict:
+    """One target: acquire, harvest, suggest, plan, build, run, outcome.
+
+    A workdir per target: the run's manifest (run.json), the trail and
+    the facts are the per-target debugging record - a shared workdir
+    overwrote them target after target and the failed attempts were
+    unreadable. The build failure is not fatal (fmtstr-class exploits
+    need no measured offset); the stale payload of the PREVIOUS target
+    must go too (measured: a shared workdir fed the ret2func payload to
+    the fmtstr exploit)."""
+    challenge_id, target, binary, material = entry[:4]
+    expected_flag = entry[4] if len(entry) > 4 else None
+    tgt = workdir / binary
+    tgt.mkdir(parents=True, exist_ok=True)
+    (tgt / "lictor.yml").write_text(
+        f"trail: trail-{binary}.jsonl\npacks: {PACKS_DIR}\n", encoding="utf-8"
+    )
+    runner(tgt, ["acquire", target, "--from", f"http://127.0.0.1:8000/{binary}"])
+    # shellcode and orw classes need the MEASURED leak before build:
+    # the service banner carries the buffer's address, harvest lifts
+    # it into the facts (the demo harvests; the pilot skipped it and
+    # the orw build failed on "no leaked_address(input) fact")
+    runner(tgt, ["harvest", target, "--facts", "target.facts"])
+    facts = ask_facts(provider, model, material)
+    if facts:
+        merged = runner(tgt, ["suggest", "target.facts", "\n".join(facts), "-o", "target.facts"])
+        # the '1 facts -> error' log line must show WHY the merge
+        # failed, not just the word 'error' - the stderr is the
+        # debugging record (measured: the reason was lost in the log)
+        _detail = (
+            merged.get("stderr", "")
+            if merged.get("status") == "error"
+            else merged.get("stdout", merged.get("status", ""))
+        )
+        print(f"[pilot] {binary}: {len(facts)} facts -> {str(_detail)[:110]}")
+    else:
+        merged = {"status": "no_llm_facts"}
+        print(f"[pilot] {binary}: the LLM emitted no usable facts")
+    seed = "7"
+    decision = runner(tgt, ["plan", "target.facts", "-s", seed])
+    (tgt / "payload.bin").unlink(missing_ok=True)
+    # the plan's ranking IS the decision: a draw whose layout the
+    # facts cannot supply (measured: ret2libc drawn on the shellcode
+    # binary, whose facts carry no pop_rdi_ret) must not burn the
+    # target - the build walks the ranking, the first buildable
+    # technique is the one that runs, and the failed builds stay in
+    # the outcome (zero-reward rollouts for the trainer)
+    stdout = str(decision.get("stdout", ""))
+    drawn = re.search(r"selected:\s+(\S+)", stdout)
+    rank_line = re.search(r"ranking:\s+(.+)", stdout)
+    ranked = [t.strip() for t in rank_line.group(1).split(">")] if rank_line else []
+    if drawn:
+        ranked = [drawn.group(1)] + [t for t in ranked if t != drawn.group(1)]
+    build_failures: list[dict[str, Any]] = []
+    built: dict[str, Any] = {}
+    built_technique: str | None = None
+    for technique in ranked or [None]:
+        # the per-target flag file: the stubs must read THEIR flag,
+        # not the shared flag.txt (the ret2func's)
+        build_args = [
+            "build",
+            binary,
+            "--facts",
+            "target.facts",
+            "-o",
+            "payload.bin",
+            "-s",
+            seed,
+        ]
+        build_args += (
+            ["--shellcode-path", f"/opt/target/{binary}.flag"] if binary != "shellcode" else []
+        )
+        # the build re-plans with its own bandit draw: --technique
+        # pins the ranked technique, so the built layout is the
+        # decided one
+        if technique:
+            build_args += ["--technique", technique]
+        (tgt / "payload.bin").unlink(missing_ok=True)
+        built = runner(tgt, build_args)
+        if built.get("status") != "error":
+            built_technique = technique
+            break
+        build_failures.append(
+            {"technique": technique, "error": str(built.get("stderr", ""))[-200:]}
+        )
+    if built.get("status") == "error":
+        # no ranked technique built: fmtstr-class and heap exploits
+        # need no payload (the write goes through %n, the heap goes
+        # through the allocator) - the run still goes out, its own
+        # recipe decides; a ROP-class target ends budget-exhausted
+        # honestly instead of silently
+        pass
+    run_args = [
+        "run",
+        target,
+        "--facts",
+        "target.facts",
+        "--executor",
+        "ronin",
+        "--max-attempts",
+        "4",
+        "-s",
+        seed,
+        "--flag-regex",
+        re.escape(expected_flag) if expected_flag else "FLAG\\{[^}]+\\}",
+    ]
+    if (tgt / "payload.bin").is_file():
+        run_args += ["--payload", "payload.bin"]
+    # the run's own bandit draw could pick a technique whose exploit
+    # recipe differs from the payload the build just produced
+    # (measured: the shellcode run drew ret2libc, no exploit exists
+    # for it -> handoff x4) - the run executes the built technique
+    if built_technique:
+        run_args += ["--technique", built_technique]
+    outcome: dict[str, Any] = runner(tgt, run_args)
+    outcome["built_technique"] = built_technique
+    if build_failures:
+        outcome["build_failures"] = build_failures
+    # a handoff stops the run (the recipe is identical, nothing was
+    # attempted): the seeded bandit explored a technique without an
+    # exploit - the next seed draws the next rank
+    while outcome.get("status") == "handoff" and int(seed) < 11:
+        seed = str(int(seed) + 1)
+        run_args[run_args.index("-s") + 1] = seed
+        outcome = runner(tgt, run_args)
+    if merged.get("status") == "error":
+        outcome["suggest_error"] = merged.get("stderr")
+    if built.get("status") == "error":
+        outcome["build_error"] = built.get("stderr")
+    return build_trajectory(
+        challenge_id=challenge_id,
+        student_input=f"Solve this CTF challenge against the local lab target {binary}.",
+        facts_steps=facts,
+        decision=decision,
+        outcome=outcome,
+        model=model,
+    )
+
+
 def run_pilot(
     targets: list[tuple],
     workdir: Path,
@@ -264,147 +428,32 @@ def run_pilot(
     expected flag the run's oracle matches THAT flag, not the first
     FLAG{...} in the output (the lab's cat prints six).
     ``lictor_runner`` overrides the subprocess runner (tests).
-    """
+    A blocked target (hung runner, dead service) produces a failed
+    record with outcome timeout+reason; the remaining targets still
+    run (measured: one hung target destroyed a full 11-target run)."""
     workdir.mkdir(parents=True, exist_ok=True)
     runner = lictor_runner or (lambda wd, args: run_lictor(wd, args, lictor_bin))
     records: list[dict] = []
     for entry in targets:
-        challenge_id, target, binary, material = entry[:4]
-        expected_flag = entry[4] if len(entry) > 4 else None
-        # a workdir per target: the run's manifest (run.json), the trail
-        # and the facts are the per-target debugging record - a shared
-        # workdir overwrote them target after target and the failed
-        # attempts were unreadable
-        tgt = workdir / binary
-        tgt.mkdir(parents=True, exist_ok=True)
-        (tgt / "lictor.yml").write_text(
-            f"trail: trail-{binary}.jsonl\npacks: {PACKS_DIR}\n", encoding="utf-8"
-        )
-        runner(tgt, ["acquire", target, "--from", f"http://127.0.0.1:8000/{binary}"])
-        # shellcode and orw classes need the MEASURED leak before build:
-        # the service banner carries the buffer's address, harvest lifts
-        # it into the facts (the demo harvests; the pilot skipped it and
-        # the orw build failed on "no leaked_address(input) fact")
-        runner(tgt, ["harvest", target, "--facts", "target.facts"])
-        facts = ask_facts(provider, model, material)
-        if facts:
-            merged = runner(
-                tgt, ["suggest", "target.facts", "\n".join(facts), "-o", "target.facts"]
+        try:
+            records.append(_run_one_target(entry, workdir, provider, model, runner))
+        except Exception as exc:
+            # one blocked target must not destroy the whole run: the
+            # failed record keeps the trajectory and the run goes on
+            challenge_id = entry[0]
+            binary = entry[2] if len(entry) > 2 else str(entry[0])
+            records.append(
+                build_trajectory(
+                    challenge_id=challenge_id,
+                    student_input=(
+                        f"Solve this CTF challenge against the local lab target {binary}."
+                    ),
+                    facts_steps=[],
+                    decision={"status": "error", "stderr": f"pilot exception: {exc}"},
+                    outcome={"status": "timeout", "reason": str(exc)},
+                    model=model,
+                )
             )
-            print(
-                f"[pilot] {binary}: {len(facts)} facts -> "
-                f"{str(merged.get('stdout', merged.get('status', '')))[:110]}"
-            )
-        else:
-            merged = {"status": "no_llm_facts"}
-            print(f"[pilot] {binary}: the LLM emitted no usable facts")
-        seed = "7"
-        decision = runner(tgt, ["plan", "target.facts", "-s", seed])
-        # the build failure is not fatal: fmtstr-class exploits need no
-        # measured offset (the write goes through %n, not a return
-        # address) - the run goes out without a payload instead. The
-        # stale payload of the PREVIOUS target must go too: a shared
-        # workdir run fed the ret2func payload to the fmtstr exploit
-        # (measured: executed/failed x2 on every target after the first
-        # successful build).
-        (tgt / "payload.bin").unlink(missing_ok=True)
-        # the plan's ranking IS the decision: a draw whose layout the
-        # facts cannot supply (measured: ret2libc drawn on the shellcode
-        # binary, whose facts carry no pop_rdi_ret) must not burn the
-        # target - the build walks the ranking, the first buildable
-        # technique is the one that runs, and the failed builds stay in
-        # the outcome (zero-reward rollouts for the trainer)
-        stdout = str(decision.get("stdout", ""))
-        drawn = re.search(r"selected:\s+(\S+)", stdout)
-        rank_line = re.search(r"ranking:\s+(.+)", stdout)
-        ranked = [t.strip() for t in rank_line.group(1).split(">")] if rank_line else []
-        if drawn:
-            ranked = [drawn.group(1)] + [t for t in ranked if t != drawn.group(1)]
-        build_failures: list[dict[str, Any]] = []
-        built: dict[str, Any] = {}
-        built_technique: str | None = None
-        for technique in ranked or [None]:
-            # the per-target flag file: the stubs must read THEIR flag,
-            # not the shared flag.txt (the ret2func's)
-            build_args = [
-                "build",
-                binary,
-                "--facts",
-                "target.facts",
-                "-o",
-                "payload.bin",
-                "-s",
-                seed,
-            ]
-            build_args += (
-                ["--shellcode-path", f"/opt/target/{binary}.flag"] if binary != "shellcode" else []
-            )
-            # the build re-plans with its own bandit draw: --technique
-            # pins the ranked technique, so the built layout is the
-            # decided one
-            if technique:
-                build_args += ["--technique", technique]
-            (tgt / "payload.bin").unlink(missing_ok=True)
-            built = runner(tgt, build_args)
-            if built.get("status") != "error":
-                built_technique = technique
-                break
-            build_failures.append(
-                {"technique": technique, "error": str(built.get("stderr", ""))[-200:]}
-            )
-        if built.get("status") == "error":
-            # no ranked technique built: fmtstr-class and heap exploits
-            # need no payload (the write goes through %n, the heap goes
-            # through the allocator) - the run still goes out, its own
-            # recipe decides; a ROP-class target ends budget-exhausted
-            # honestly instead of silently
-            pass
-        run_args = [
-            "run",
-            target,
-            "--facts",
-            "target.facts",
-            "--executor",
-            "ronin",
-            "--max-attempts",
-            "4",
-            "-s",
-            seed,
-            "--flag-regex",
-            re.escape(expected_flag) if expected_flag else "FLAG\\{[^}]+\\}",
-        ]
-        if (tgt / "payload.bin").is_file():
-            run_args += ["--payload", "payload.bin"]
-        # the run's own bandit draw could pick a technique whose exploit
-        # recipe differs from the payload the build just produced
-        # (measured: the shellcode run drew ret2libc, no exploit exists
-        # for it -> handoff x4) - the run executes the built technique
-        if built_technique:
-            run_args += ["--technique", built_technique]
-        outcome: dict[str, Any] = runner(tgt, run_args)
-        outcome["built_technique"] = built_technique
-        if build_failures:
-            outcome["build_failures"] = build_failures
-        # a handoff stops the run (the recipe is identical, nothing was
-        # attempted): the seeded bandit explored a technique without an
-        # exploit - the next seed draws the next rank
-        while outcome.get("status") == "handoff" and int(seed) < 11:
-            seed = str(int(seed) + 1)
-            run_args[run_args.index("-s") + 1] = seed
-            outcome = runner(tgt, run_args)
-        if merged.get("status") == "error":
-            outcome["suggest_error"] = merged.get("stderr")
-        if built.get("status") == "error":
-            outcome["build_error"] = built.get("stderr")
-        record = build_trajectory(
-            challenge_id=challenge_id,
-            student_input=f"Solve this CTF challenge against the local lab target {binary}.",
-            facts_steps=facts,
-            decision=decision,
-            outcome=outcome,
-            model=model,
-        )
-        records.append(record)
     if output is not None:
         output.parent.mkdir(parents=True, exist_ok=True)
         text = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records)
