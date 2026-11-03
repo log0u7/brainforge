@@ -27,6 +27,18 @@ LICTOR_LAB_PORTS: dict[str, int] = {
     "ret2func": 9999,
     "orw": 9994,
     "ret2csu": 9992,
+    # the MR5 scale-up targets (lictor #25): the listener per target
+    # binary, the port the lab's start.sh socat lines publish
+    "ret2libc-001": 9982,
+    "ret2libc-002": 9983,
+    "fmtstr-002": 9984,
+    "ret2func-002": 9985,
+    "shellcode-002": 9986,
+    "uaf_heap-002": 9987,
+    "orw-002": 9988,
+    "callme-002": 9989,
+    "ret2plt-002": 9990,
+    "srop-001": 9991,
 }
 
 

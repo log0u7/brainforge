@@ -138,6 +138,43 @@ class TestLoadVerifiedChallenges:
         ]
         assert skipped == []
 
+    @pytest.mark.parametrize(
+        ("binary", "port"),
+        [
+            ("ret2libc-001", 9982),
+            ("ret2libc-002", 9983),
+            ("fmtstr-002", 9984),
+            ("ret2func-002", 9985),
+            ("shellcode-002", 9986),
+            ("uaf_heap-002", 9987),
+            ("orw-002", 9988),
+            ("callme-002", 9989),
+            ("ret2plt-002", 9990),
+            ("srop-001", 9991),
+        ],
+    )
+    def test_mr5_scaleup_targets_map_to_lab_ports(
+        self, tmp_path: Path, binary: str, port: int
+    ) -> None:
+        manifest = tmp_path / "manifest.jsonl"
+        _write_manifest(manifest, [_manifest_row(f"ctf-lictor-{binary}-001", "lictor-lab")])
+        cases = tmp_path / "cases"
+        cases.mkdir()
+        case = {
+            "id": f"ctf-lictor-{binary}-001",
+            "source": {"type": "lictor-lab", "path": f"lab/targets/{binary}"},
+            "input": {"code": "source material"},
+            "metadata": {"tier": "verified", "expected_flag": "FLAG{x}"},
+        }
+        (cases / f"ctf-lictor-{binary}-001.json").write_text(json.dumps(case), encoding="utf-8")
+
+        challenges, skipped = load_verified_challenges(manifest, cases)
+
+        assert challenges == [
+            (f"ctf-lictor-{binary}-001", f"127.0.0.1:{port}", binary, "source material", "FLAG{x}")
+        ]
+        assert skipped == []
+
     def test_no_live_target_for_binary_is_skipped(self, tmp_path: Path) -> None:
         manifest = tmp_path / "manifest.jsonl"
         _write_manifest(
@@ -179,7 +216,40 @@ class TestCommittedWiring:
         assert entry[4]
         assert "ctf-lictor-ret2csu-001" not in skipped
 
-    def test_committed_eval_set_has_seven_live_targets(self) -> None:
+    @pytest.mark.parametrize(
+        ("binary", "port"),
+        [
+            ("ret2libc-001", 9982),
+            ("ret2libc-002", 9983),
+            ("fmtstr-002", 9984),
+            ("ret2func-002", 9985),
+            ("shellcode-002", 9986),
+            ("uaf_heap-002", 9987),
+            ("orw-002", 9988),
+            ("callme-002", 9989),
+            ("ret2plt-002", 9990),
+            ("srop-001", 9991),
+        ],
+    )
+    def test_committed_mr5_scaleup_challenges_are_runnable(self, binary: str, port: int) -> None:
+        """The MR5 scale-up targets are wired: each committed manifest
+        line plus case file maps onto its live lab listener instead of
+        landing in the skipped list."""
+        repo = Path(__file__).resolve().parents[2]
+        challenges, skipped = load_verified_challenges(
+            repo / "experiments" / "ctf_ingest" / "manifest.jsonl",
+            repo / "examples" / "cases",
+        )
+        by_id = {c[0]: c for c in challenges}
+        case_id = f"ctf-lictor-{binary}-001"
+        assert case_id in by_id
+        entry = by_id[case_id]
+        assert entry[1] == f"127.0.0.1:{port}"
+        assert entry[2] == binary
+        assert entry[4]
+        assert case_id not in skipped
+
+    def test_committed_eval_set_has_seventeen_live_targets(self) -> None:
         repo = Path(__file__).resolve().parents[2]
         challenges, _skipped = load_verified_challenges(
             repo / "experiments" / "ctf_ingest" / "manifest.jsonl",
@@ -187,13 +257,23 @@ class TestCommittedWiring:
         )
         lictor_ids = {c[0] for c in challenges if c[0].startswith("ctf-lictor-")}
         assert lictor_ids == {
+            "ctf-lictor-callme-002-001",
             "ctf-lictor-fmtstr-001",
+            "ctf-lictor-fmtstr-002-001",
             "ctf-lictor-orw-001",
+            "ctf-lictor-orw-002-001",
             "ctf-lictor-ret2csu-001",
             "ctf-lictor-ret2func-001",
+            "ctf-lictor-ret2func-002-001",
+            "ctf-lictor-ret2libc-001-001",
+            "ctf-lictor-ret2libc-002-001",
             "ctf-lictor-ret2plt-001",
+            "ctf-lictor-ret2plt-002-001",
             "ctf-lictor-shellcode-001",
+            "ctf-lictor-shellcode-002-001",
+            "ctf-lictor-srop-001-001",
             "ctf-lictor-uaf_heap-001",
+            "ctf-lictor-uaf_heap-002-001",
         }
 
 
