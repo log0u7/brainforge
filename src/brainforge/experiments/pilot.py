@@ -88,6 +88,9 @@ Challenge material:
 {material}"""
 
 
+MAX_SUGGESTED_FACTS = 16
+
+
 def clean_facts(llm_text: str, allowed: set[str] | None = None) -> list[str]:
     """Extract predicate lines from the LLM output, dropping prose and
     fences. With an ``allowed`` whitelist, unknown predicates are dropped
@@ -95,7 +98,9 @@ def clean_facts(llm_text: str, allowed: set[str] | None = None) -> list[str]:
     whose value sits outside the predicate's domain are dropped too: the
     suggest merge rejects the whole batch otherwise. Values are
     re-quoted: the fact grammar wants quoted string atoms (an unquoted
-    true is a rejected term, not a boolean)."""
+    true is a rejected term, not a boolean). Identical lines are
+    deduplicated (the LLM repeats one line hundreds of times on hard
+    targets) and the output is capped at MAX_SUGGESTED_FACTS."""
     facts = []
     for line in llm_text.splitlines():
         line = _unwrap_predicate_prefix(line.strip())
@@ -119,7 +124,10 @@ def clean_facts(llm_text: str, allowed: set[str] | None = None) -> list[str]:
             continue
         quoted = value if value.startswith('"') else f'"{bare}"'
         facts.append(f"{name}({quoted}).")
-    return facts
+    # Deduplicate (the LLM repeats identical lines hundreds of times on
+    # hard targets: measured 802 facts on uaf_heap, which poisons the
+    # augure fact base) and cap the total count (degeneration guard).
+    return list(dict.fromkeys(facts))[:MAX_SUGGESTED_FACTS]
 
 
 def build_trajectory(

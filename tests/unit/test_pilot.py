@@ -126,6 +126,33 @@ def test_run_pilot_records_trajectory(tmp_path: Any, monkeypatch: Any):
     assert record["messages"][-1]["role"] == "assistant"
 
 
+def test_clean_facts_deduplicates_repeated_lines():
+    """The LLM repeats identical lines hundreds of times on hard targets
+    (measured: 802 facts on uaf_heap, each `function_pointer_on_heap`
+    emitted ~300 times), which poisons the augure fact base and distorts
+    the ranking. clean_facts must deduplicate while preserving order."""
+    from brainforge.experiments.pilot import clean_facts
+
+    llm_text = "\n".join(['vuln("uaf").'] * 802)
+    assert clean_facts(llm_text) == ['vuln("uaf").']
+
+    llm_text = 'vuln("uaf").\n' * 2 + 'seccomp("true").\n' * 3
+    assert clean_facts(llm_text) == ['vuln("uaf").', 'seccomp("true").']
+
+
+def test_clean_facts_caps_output():
+    """A degenerate suggest output must not flood the decision engine:
+    clean_facts caps the returned fact count at MAX_SUGGESTED_FACTS
+    (16), the first facts in emission order win."""
+    from brainforge.experiments import pilot
+
+    llm_text = "\n".join(f"glibc_minor({n})." for n in range(40))
+    facts = pilot.clean_facts(llm_text, allowed=pilot.LLM_ALLOWED)
+    assert len(facts) == pilot.MAX_SUGGESTED_FACTS
+    assert facts[0] == "glibc_minor(0)."
+    assert facts[-1] == "glibc_minor(15)."
+
+
 def test_clean_facts_enforces_value_domains():
     """The LLM invents out-of-domain values (fmtstr_read takes true/false
     only): lictor suggest rejects the whole merge, so the filter drops
