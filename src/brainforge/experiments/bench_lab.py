@@ -69,6 +69,32 @@ def _run_over_targets(
     return stats
 
 
+def _contaminating_ids(eval_ids: list[str], training_ids: set[str]) -> list[str]:
+    """Training IDs that name the same challenge as one of ``eval_ids``.
+
+    A raw set intersection only catches exact string matches. The GRPO
+    lab-loop training records carry ``lab-<technique>-001`` ids while
+    the eval manifest names the same lictor lab target
+    ``ctf-lictor-<technique>-001``: left unnormalized, the audit
+    certifies a contaminated eval set as clean. Every ``lab-`` record
+    is therefore evaluated under the eval-namespace spellings it can
+    denote; everything else compares literally.
+    """
+    eval_set = set(eval_ids)
+    contaminated: set[str] = set()
+    for tid in training_ids:
+        if tid in eval_set:
+            contaminated.add(tid)
+            continue
+        if not tid.startswith("lab-"):
+            continue
+        rest = tid[len("lab-") :]
+        for candidate in (f"ctf-lictor-{rest}", f"ctf-lictor-{rest}-001"):
+            if candidate in eval_set:
+                contaminated.add(candidate)
+    return sorted(contaminated)
+
+
 def run_bench_lab(
     challenges: list[tuple],
     workdir: Path,
@@ -94,7 +120,7 @@ def run_bench_lab(
             "contamination audit needs the training challenge set"
         )
     eval_ids = [entry[0] for entry in challenges]
-    leaked = sorted(set(eval_ids) & set(training_ids))
+    leaked = _contaminating_ids(eval_ids, training_ids)
 
     targets = list(challenges)
     expected_flags = {entry[0]: entry[4] for entry in targets if len(entry) > 4}
