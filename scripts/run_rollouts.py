@@ -34,10 +34,13 @@ from typing import Any
 TRAINING_ELIGIBLE_BINARIES = {
     "fmtstr",
     "orw",
-    "ret2csu",
     "ret2func",
     "ret2plt",
     "shellcode",
+    # ``ret2csu`` is deliberately absent: it is an Emporium multi-file
+    # target (the binary needs ``libret2csu.so``), the pilot's
+    # single-binary acquire 404s on it, and it produced ZERO records
+    # in every measured run. Not trainable in the current loop.
 }
 
 

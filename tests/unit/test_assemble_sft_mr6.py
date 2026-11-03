@@ -105,6 +105,19 @@ def test_assemble_refuses_eval_contamination(tmp_path: Path) -> None:
     assert "lab-fmtstr-001" in text
 
 
+def test_ret2csu_noise_never_reaches_the_training_file(tmp_path: Path) -> None:
+    """The Emporium target's acquire-failure records (the current
+    sweep produces one per seed) are dropped by the assembler."""
+    module = _load_script()
+    noise = [_record("lab-ret2csu-001", "fail") for _ in range(5)]
+    good = [_record("lab-fmtstr-001", f"v-{i}") for i in range(3)]
+    src = _write_jsonl(tmp_path / "noise.jsonl", noise + good)
+    out = tmp_path / "train.jsonl"
+    summary = module.assemble(sources=[src], out=out, per_target_cap=10, empty_completion_share=0.2)
+    assert summary["records"] == 3
+    assert "ret2csu" not in out.read_text(encoding="utf-8")
+
+
 def test_rollout_repetitions_capped_per_target(tmp_path: Path) -> None:
     """40 seeds x 6 targets = 240 rollout records: useful variety, but
     one target must not dominate the mix (the cap keeps the dataset

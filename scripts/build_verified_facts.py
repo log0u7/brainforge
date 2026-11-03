@@ -48,20 +48,42 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build_sft_facts import FACT_PROMPT, LICTOR_LAB, material_for
 
-# The training-eligible lab originals (the 6 GRPO lab-loop targets).
-TRAINING_TARGETS = ["fmtstr", "orw", "ret2csu", "ret2func", "ret2plt", "shellcode"]
+# The training-eligible lab originals (the GRPO lab-loop targets that
+# actually run). ``ret2csu`` is excluded: Emporium multi-file target,
+# the single-binary acquire 404s on it, zero records in every run.
+TRAINING_TARGETS = ["fmtstr", "orw", "ret2func", "ret2plt", "shellcode"]
 
-# The correct augure technique per target, from the MR5 measured runs
-# (the technique the lab loop's successful exploits used). A candidate
-# fact is verified AGAINST this selection, not against a domain schema.
+# The correct augure technique per target: the routes the MEASURED
+# WINNING runs used (the 2026-11-03 trails with success: true), not
+# guessed names. A candidate fact is verified AGAINST this selection.
 CORRECT_TECHNIQUE: dict[str, str] = {
-    "fmtstr": "fmtstr_write",
+    "fmtstr": "fmtstr_leak",
     "orw": "orw",
-    "ret2csu": "ret2csu",
     "ret2func": "ret2func",
-    "ret2plt": "ret2plt_leak",
+    "ret2plt": "ret2plt",
     "shellcode": "shellcode",
 }
+
+PACKS_DIR = "/home/logout/projets/github/logout/augure/packs"
+
+
+def fresh_baseline(target: str, workdir: Path, runner: Any) -> str:
+    """Harvest a fresh facts baseline for one target from the live lab.
+
+    The stale run-dir facts file is the last rep's state and diverges
+    from the state that produced the winning plan (measured: the
+    shellcode file plans ret2libc while the winner ran shellcode).
+    This mirrors the pilot's own flow: acquire the binary from the lab
+    http server, harvest it into ``target.facts``."""
+    tgt = workdir / target
+    tgt.mkdir(parents=True, exist_ok=True)
+    (tgt / "lictor.yml").write_text(
+        f"trail: trail-{target}.jsonl\npacks: {PACKS_DIR}\n", encoding="utf-8"
+    )
+    runner(tgt, ["acquire", target, "--from", f"http://127.0.0.1:8000/{target}"])
+    runner(tgt, ["harvest", target, "--facts", "target.facts"])
+    facts_path = tgt / "target.facts"
+    return facts_path.read_text(encoding="utf-8") if facts_path.exists() else ""
 
 
 def verify_candidates(
@@ -121,15 +143,6 @@ def main() -> int:
     parser.add_argument("--model", required=True)
     parser.add_argument("--samples", type=int, default=8)
     parser.add_argument("--temperature", type=float, default=0.7)
-    parser.add_argument(
-        "--facts-from",
-        type=Path,
-        default=Path("experiments/final-bench-results/run-20261103-17ch"),
-        help=(
-            "Run dir holding the per-target baseline facts (the profiler"
-            " facts the pilot harvested); <dir>/<target>/target.facts"
-        ),
-    )
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--workdir", type=Path, default=Path("/tmp/opencode/verified-facts"))
     args = parser.parse_args()
@@ -152,12 +165,12 @@ def main() -> int:
         material = material_for(target, LICTOR_LAB)
         correct = CORRECT_TECHNIQUE[target]
         workdir = args.workdir / target
-        # the baseline: the facts the pilot actually harvested for this
-        # target in the measured run (profiler + leak); a candidate is
-        # verified against the route THOSE facts produce, not against a
-        # vacuum
-        facts_path = args.facts_from / target / "target.facts"
-        baseline_facts = facts_path.read_text(encoding="utf-8") if facts_path.exists() else ""
+        # the baseline: a FRESH harvest from the live lab (the same
+        # flow the pilot runs); a candidate is verified against the
+        # route the fresh facts produce, not against a stale run-dir
+        # file (measured: the on-disk state diverges from the winning
+        # plan's state)
+        baseline_facts = fresh_baseline(target, args.workdir, lambda wd, a: run_lictor(wd, a))
         kept_total: list[str] = []
         rejected_total: list[str] = []
         for sample in range(args.samples):
