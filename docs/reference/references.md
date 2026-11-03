@@ -39,6 +39,7 @@ stage it informs.
 | [Agent traces on the Hub](https://huggingface.co/docs/hub/agent-traces) | SFT on recorded agent sessions (multi-turn, tool calls) with assistant-only loss |
 | [Agent glossary](https://huggingface.co/blog/agent-glossary) | Shared vocabulary: the agent is a model plus a harness; same weights score differently across harnesses |
 | [pi-mono sessions](https://huggingface.co/datasets/badlogicgames/pi-mono) | Raw agent-session JSONL convertible to chat messages, an example trace source for the agentic pack |
+| [Sparks of Weight-Space Programming](https://rikiyat.github.io/blog/weight-space-programming/) (Takehi, Teoh, Zhang, Khattab, MIT CSAIL, 2026) | Parked candidate for a final post-training pass: frontier LLMs read and write neural-network weights without gradients (a Qwen3.5-0.8B looping failure fixed by subtracting one MLP direction, 0.016% of weights, MATH-500 7.9 to 48.1). Matches our measured suggest degenerate repetition; editing removes obstacles hiding an ability, it does not add missing abilities, so absent capabilities (uaf_heap) stay a training problem |
 
 ## Standards and tools
 
