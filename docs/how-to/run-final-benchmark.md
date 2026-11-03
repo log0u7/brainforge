@@ -29,7 +29,7 @@ git clone https://github.com/log0u7/lictor && cd lictor
 docker compose -f lab/docker-compose.yml up -d
 ```
 
-The lab publishes: HTTP `8000` (binaries), `9992-9999` plus `8897-8899`
+The lab publishes: HTTP `8000` (binaries), `9982-9999` plus `8897-8899`
 (the challenge listeners). Verify with `docker ps`.
 
 ## 2. Serve the two models

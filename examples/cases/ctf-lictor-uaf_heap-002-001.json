@@ -1,0 +1,21 @@
+{
+  "id": "ctf-lictor-uaf_heap-002-001",
+  "source": {
+    "type": "lictor-lab",
+    "repository": "log0u7/lictor lab",
+    "path": "lab/targets/uaf_heap-002",
+    "date": "2026-10-01"
+  },
+  "input": {
+    "code": "/* uaf_heap-002: the UAF behind a SAFE-LINKED tcache. Compiled against\n * bookworm glibc 2.36 (tcache present, safe-linking on): after the\n * free, the chunk's first word is the tcache next pointer MANGLED\n * (PROTECT_PTR: (pos >> 12) ^ ptr) - a naive read sees garbage, a\n * naive poison lands nowhere. The menu's edit writes the fn slot\n * straight through the dangling pointer (the UAF): the exploit aims it\n * at win() and the call - which only fires through a FREED chunk -\n * runs. The mangling only matters to whoever tries the poisoned path.\n * No banner addresses (no-PIE: the facts come from the binary): the\n * alloc leak prints the chunk address (the mangling's pos).\n * Compiled: -fno-stack-protector -no-pie (the stack stays boring; the\n * heap is the weapon). */\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <unistd.h>\n#include <stdint.h>\n\nvoid win(void) {\n    __asm__ volatile(\"and $-16, %rsp\");\n    FILE *f = fopen(\"uaf_heap-002.flag\", \"r\");\n    char flag[64];\n    if (!f) { puts(\"no flag file\"); exit(1); }\n    if (!fgets(flag, sizeof(flag), f)) exit(1);\n    fputs(\"FLAG: \", stdout);\n    fputs(flag, stdout);\n    fflush(stdout);\n    exit(0);\n}\n\nstruct obj {\n    void (*fn)(void);\n    char name[8];\n};\n\nstatic struct obj *held = NULL;\nstatic int freed = 0; /* the call fires only through the FREED chunk */\n\nint main(void) {\n    setvbuf(stdout, NULL, _IONBF, 0);\n    puts(\"heap menu: 1=alloc 2=free 3=edit 4=call 5=quit\");\n    for (;;) {\n        char line[16];",
+    "description": "Binary exploitation lab target 'uaf_heap-002' (local service, source provided, compiled with stack protections per its header comment). A flag file is read by the service when the challenge is solved. Solve this CTF challenge.",
+    "question": "Solve this CTF challenge."
+  },
+  "metadata": {
+    "language": "c",
+    "category": "pwn",
+    "tier": "verified",
+    "expected_flag": "FLAG{mr5_uaf_safe_linking}",
+    "expected_technique": "uaf_heap-002"
+  }
+}
