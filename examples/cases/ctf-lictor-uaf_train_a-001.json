@@ -1,0 +1,21 @@
+{
+  "id": "ctf-lictor-uaf_train_a-001",
+  "source": {
+    "type": "lictor-lab",
+    "repository": "log0u7/lictor lab",
+    "path": "lab/targets/uaf_train_a",
+    "date": "2026-10-01"
+  },
+  "input": {
+    "code": "/* uaf_train_a: a TRAINING TWIN of the uaf_heap class (MR6). Same\n * capability (use-after-free on a tcache chunk whose function pointer\n * lives on the heap), a different program: 48-byte canvas struct with\n * the brush pointer at +40 (past the tcache next AND key), a LETTER\n * menu ([f]ree listed first), and a live-check on the call: `go`\n * refuses a freed chunk, so the free forces the tcache-REUSE path (a\n * fresh new() re-mounts the same chunk before the paint can win).\n * Compiled: -fno-stack-protector -no-pie (the stack stays boring; the\n * heap is the weapon). */\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <unistd.h>\n#include <stdint.h>\n\nvoid win(void) {\n    __asm__ volatile(\"and $-16, %rsp\");\n    FILE *f = fopen(\"uaf_train_a.flag\", \"r\");\n    char flag[64];\n    if (!f) { puts(\"no flag file\"); exit(1); }\n    if (!fgets(flag, sizeof(flag), f)) exit(1);\n    fputs(\"FLAG: \", stdout);\n    fputs(flag, stdout);\n    fflush(stdout);\n    exit(0);\n}\n\nstruct canvas {\n    char title[40];      /* the brush pointer sits at +40: the tcache\n                            metadata (next at 0, key at 8) never\n                            reaches it */\n    void (*brush)(void);\n};\n\nstatic struct canvas *easel = NULL;\nstatic int mounted = 0; /* go fires only through a LIVE chunk: after\n                           the free, a fresh new() must re-mount the\n                           tcache-reused chunk before the paint wins */\n\nint main(void) {\n    setvbuf(stdout, NULL, _IO",
+    "description": "Binary exploitation lab target 'uaf_train_a' (local service, source provided, compiled with stack protections per its header comment). A flag file is read by the service when the challenge is solved. Solve this CTF challenge.",
+    "question": "Solve this CTF challenge."
+  },
+  "metadata": {
+    "language": "c",
+    "category": "pwn",
+    "tier": "verified",
+    "expected_flag": "FLAG{uaf_train_a_reuse_paints_win}",
+    "expected_technique": "uaf_train_a"
+  }
+}

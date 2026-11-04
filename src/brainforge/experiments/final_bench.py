@@ -39,6 +39,11 @@ LICTOR_LAB_PORTS: dict[str, int] = {
     "callme-002": 9989,
     "ret2plt-002": 9990,
     "srop-001": 9991,
+    # the MR6 training twins (lictor MR6): same uaf capability class,
+    # different programs, socat listeners 19991/19992 - training
+    # material for the class transfer, never eval challenges
+    "uaf_train_a": 19991,
+    "uaf_train_b": 19992,
 }
 
 
