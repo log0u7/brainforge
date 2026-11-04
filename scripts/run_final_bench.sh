@@ -92,9 +92,13 @@ PY
 # --- 2. run the bench ---------------------------------------------------
 echo "PROTOCOL: launching bench -> $WORKDIR"
 set +e
+REPEATED_IDS=()
+for id in "${TRAIN_IDS[@]}"; do
+	REPEATED_IDS+=(--training-ids "$id")
+done
 uv run python -m brainforge.experiments.final_bench \
 	--manifest "$MANIFEST" --cases-dir "$CASES_DIR" \
-	--training-ids "${TRAIN_IDS[@]}" \
+	"${REPEATED_IDS[@]}" \
 	--base-url "$BASE_URL" --base-model "$BASE_MODEL" \
 	--trained-url "$TRAINED_URL" --trained-model "$TRAINED_MODEL" \
 	--repetitions "$REPS" \
