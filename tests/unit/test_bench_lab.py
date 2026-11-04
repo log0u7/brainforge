@@ -7,6 +7,7 @@ never appear in the eval set.
 """
 
 import json
+import threading
 from pathlib import Path
 
 import pytest
@@ -476,3 +477,39 @@ class TestBenchProgressLine:
         assert "elapsed" in out
         # the flags are visible on the outcome line
         assert "FLAG" in out
+
+
+class TestBenchAttemptWatchdog:
+    """The MR6-v2 re-bench froze for 67 minutes: a hung attempt blocked
+    the whole bench (the provider guard never fired, nothing bounded the
+    attempt). Every attempt runs under a wall-clock cap: a blocked
+    attempt becomes an explicit TIMEOUT miss and the bench moves on to
+    the next challenge."""
+
+    def test_blocked_attempt_times_out_and_bench_continues(self, tmp_path: Path, capsys):
+        release = threading.Event()
+        calls: list[str] = []
+
+        def hung_pilot(targets, workdir, provider, model, **kwargs):
+            challenge_id = targets[0][0]
+            calls.append(challenge_id)
+            if challenge_id == "chal-unseen-1":
+                release.wait()  # simulates the gpu3080 freeze
+            return [_pilot_record(challenge_id, model, None)]
+
+        run_bench_lab(
+            challenges=_challenges(),
+            workdir=tmp_path,
+            provider=None,
+            base_model="base",
+            trained_model="trained",
+            repetitions=1,
+            training_ids=set(),
+            pilot_fn=hung_pilot,
+            attempt_cap=0.5,
+        )
+        out = capsys.readouterr().out
+        # the bench survived the blocked attempt and ran every next one
+        assert calls == ["chal-unseen-1", "chal-unseen-2", "chal-unseen-1", "chal-unseen-2"]
+        # the blocked attempt is announced as a TIMEOUT miss, never silent
+        assert "[bench base rep 1/1] chal-unseen-1: TIMEOUT" in out

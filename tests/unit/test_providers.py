@@ -1,4 +1,6 @@
 import json
+import threading
+import time
 
 import httpx
 import pytest
@@ -333,3 +335,60 @@ def test_usage_logger(tmp_path):
     assert entry["provider"] == "mock"
     assert entry["cost_usd"] == 0.01
     assert entry["cache_hit"] is False
+
+
+class TestOpenaiCompatHangGuard:
+    """The gpu3080 freeze: ThreadPoolExecutor request threads are not
+    daemons and the interpreter's atexit hook joins them - a call hung
+    on a server-closed (CLOSE-WAIT) socket froze the bench process for
+    67 minutes with zero CPU. The wall-clock guard must bound the call
+    and leave ONLY daemon threads behind."""
+
+    def test_hung_call_times_out_and_leaves_only_daemon_threads(self, monkeypatch):
+        monkeypatch.setattr("brainforge.providers.openai_compat.DEADLINE_GRACE", 0.1)
+        release = threading.Event()
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            release.wait()
+            return httpx.Response(200, json=COMPLETION_BODY)
+
+        config = ProviderConfig(
+            type="openai", base_url="http://testserver/v1", api_key="k", timeout=0.05
+        )
+        http_client = httpx.Client(transport=httpx.MockTransport(handler))
+        provider = OpenAICompatProvider("test", config, http_client=http_client)
+
+        before = set(threading.enumerate())
+        started = time.monotonic()
+        with pytest.raises(TimeoutError):
+            provider.complete(make_request(), "m")
+        elapsed = time.monotonic() - started
+        # bounded: the deadline fired well below the pool grace, the test
+        # never waited for the hang to end
+        assert elapsed < 10.0
+
+        # the orphaned hung request thread must be a daemon: process exit
+        # must never join it (the gpu3080 freeze was an atexit join trap)
+        new_threads = [t for t in threading.enumerate() if t.is_alive() and t not in before]
+        assert new_threads, "expected the hung request thread to still be alive"
+        assert all(t.daemon for t in new_threads)
+
+        release.set()
+
+
+class TestOpenaiCompatHttpxHardening:
+    """The second freeze mechanism: an idle keep-alive socket the server
+    had closed (CLOSE-WAIT) was handed back to the connection pool for
+    the next request. When the caller passes no http_client, the
+    provider must build its own with a short keepalive_expiry so idle
+    connections die before the server closes them."""
+
+    def test_default_http_client_is_hardened(self):
+        config = ProviderConfig(type="openai", base_url="http://testserver/v1", api_key="k")
+        provider = OpenAICompatProvider("test", config)
+        client = provider._http_client
+        limits = getattr(provider, "_limits", None)
+        assert limits is not None
+        assert limits.keepalive_expiry is not None
+        assert limits.keepalive_expiry <= 30.0
+        assert client.timeout.read == config.timeout

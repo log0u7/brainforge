@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Providers: the OpenAI-compatible client no longer freezes the process on
+  server-closed keep-alive sockets or wedged transports. Calls run in a
+  daemon thread with a wall-clock deadline, own httpx clients use short
+  keepalive expiry, and orphaned workers die with the process (fixes the
+  67-minute bench freeze observed on gpu3080).
+- Bench: `run_bench_lab` caps each pilot attempt with a per-attempt
+  watchdog; a blocked attempt becomes an explicit `TIMEOUT` miss and the
+  bench continues instead of freezing.
 ### Changed
 
 - Bench progress observability: `run_bench_lab` prints one flushed
