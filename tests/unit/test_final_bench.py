@@ -249,7 +249,31 @@ class TestCommittedWiring:
         assert entry[4]
         assert case_id not in skipped
 
+    def test_committed_uaf_train_twins_map_to_lab_ports(self) -> None:
+        """The MR6 training twins are wired: each committed manifest
+        line plus case file maps onto its live socat listener (the
+        training-eligible targets, NOT the eval set)."""
+        repo = Path(__file__).resolve().parents[2]
+        challenges, skipped = load_verified_challenges(
+            repo / "experiments" / "ctf_ingest" / "manifest.jsonl",
+            repo / "examples" / "cases",
+        )
+        by_id = {c[0]: c for c in challenges}
+        for case_id, binary, port in (
+            ("ctf-lictor-uaf_train_a-001", "uaf_train_a", 19991),
+            ("ctf-lictor-uaf_train_b-001", "uaf_train_b", 19992),
+        ):
+            assert case_id in by_id
+            entry = by_id[case_id]
+            assert entry[1] == f"127.0.0.1:{port}"
+            assert entry[2] == binary
+            assert entry[4]
+            assert case_id not in skipped
+
     def test_committed_eval_set_has_seventeen_live_targets(self) -> None:
+        """The live lictor lab holds 19 targets: the 17 clean-protocol
+        eval challenges plus the 2 MR6 training twins (training
+        material, never eval)."""
         repo = Path(__file__).resolve().parents[2]
         challenges, _skipped = load_verified_challenges(
             repo / "experiments" / "ctf_ingest" / "manifest.jsonl",
@@ -274,6 +298,10 @@ class TestCommittedWiring:
             "ctf-lictor-srop-001-001",
             "ctf-lictor-uaf_heap-001",
             "ctf-lictor-uaf_heap-002-001",
+            # the MR6 training twins: live lab targets, training-eligible,
+            # NOT eval challenges (they never enter the eval set)
+            "ctf-lictor-uaf_train_a-001",
+            "ctf-lictor-uaf_train_b-001",
         }
 
 

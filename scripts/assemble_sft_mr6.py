@@ -54,7 +54,26 @@ EVAL_ID_MARKERS = (
     "ret2plt-002",
     "shellcode-002",
     "srop-001",
+    # the uaf_heap eval twins: uaf_heap-001 stays eval, uaf_heap-002 is
+    # sacrificed (training) ONLY when the CLI declares it through
+    # --sacrificed-eval; undeclared, it is still eval (fail-closed).
     "uaf_heap",
+)
+
+# The MR6 training twins: training-eligible targets whose IDs live in
+# the eval namespace shape but are NOT eval challenges - their records
+# always pass the contamination gate.
+TWIN_IDS = ("ctf-lictor-uaf_train_a-001", "ctf-lictor-uaf_train_b-001")
+
+# The uaf class fact: the ONLY targets allowed to carry vuln("uaf") in
+# their facts step. Any other target emitting the class fact is the
+# dataset-v1 poison (hallucinated UAF against fmtstr/shellcode rollouts
+# taught the model to claim UAF where there is none).
+UAF_CLASS_FACT = 'vuln("uaf").'
+UAF_CLASS_TARGET_MARKERS = (
+    "uaf_train_a",
+    "uaf_train_b",
+    "uaf_heap-002",  # the sacrificed target, mined into training
 )
 
 # The Emporium multi-file target: the pilot's single-binary acquire
@@ -178,19 +197,53 @@ def assemble(
     per_target_cap: int,
     empty_completion_share: float,
     keep_failed: bool = False,
+    sacrificed_eval: tuple[str, ...] = (),
 ) -> dict:
     """Merge, gate, cap, write. Returns the summary the CLI prints."""
     records: list[dict] = []
     contaminating = 0
     failed_dropped = 0
+    class_fact_mismatched = 0
     for path in sources:
         for record in _load(path):
             rid = str(record.get("id", ""))
-            if any(marker in rid for marker in EVAL_ID_MARKERS):
-                contaminating += 1
-                continue
+            if any(marker in rid for marker in EVAL_ID_MARKERS) and not any(
+                twin in rid for twin in TWIN_IDS
+            ):
+                if any(sac in rid for sac in sacrificed_eval):
+                    # the sacrifice ledger admitted this eval-namespaced
+                    # ID: it is training material now, not eval
+                    pass
+                else:
+                    contaminating += 1
+                    continue
             if any(marker in rid for marker in EXCLUDED_TARGETS):
                 continue
+            # class-fact gate: a uaf claim is only legal on a uaf-class
+            # target (the dataset-v1 poison, made structural). The scan
+            # covers both shapes: structured facts actions (the rollout
+            # records) and plain-text assistant content (the mined
+            # records) - the class fact must not hide in either.
+            if not any(marker in rid for marker in UAF_CLASS_TARGET_MARKERS):
+                facts_text: list[str] = []
+                for message in record.get("messages") or []:
+                    if message.get("role") != "assistant":
+                        continue
+                    content = message.get("content") or ""
+                    try:
+                        payload = json.loads(content)
+                    except json.JSONDecodeError:
+                        payload = None
+                    if isinstance(payload, dict) and payload.get("action") == "facts":
+                        for predicate in (payload.get("action_input") or {}).get(
+                            "predicates"
+                        ) or []:
+                            facts_text.append(str(predicate))
+                    else:
+                        facts_text.append(content)
+                if UAF_CLASS_FACT in "".join(facts_text):
+                    class_fact_mismatched += 1
+                    continue
             if not keep_failed and _verdict_flag(record) is None:
                 # a failed trajectory is not SFT material: cloning it
                 # teaches the model to fail (MR5 lesson). The failures
@@ -242,6 +295,7 @@ def assemble(
         "records": len(final),
         "contaminating": contaminating,
         "failed_dropped": failed_dropped,
+        "class_fact_mismatched": class_fact_mismatched,
         "empties_dropped": len(empties) - len(kept_empties),
         "per_target": counts,
     }
@@ -273,6 +327,15 @@ def main() -> int:
         help="retain failed rollouts (for the GRPO sidecar, not SFT)",
     )
     parser.add_argument("--empty-completion-share", type=float, default=0.2)
+    parser.add_argument(
+        "--sacrificed-eval",
+        action="append",
+        default=[],
+        help=(
+            "eval-namespaced challenge ID moved to training (the sacrifice"
+            " ledger in datasets/eval/README.md); repeatable"
+        ),
+    )
     args = parser.parse_args()
 
     sources = _expand(args.source)
@@ -282,10 +345,13 @@ def main() -> int:
         per_target_cap=args.per_target_cap,
         empty_completion_share=args.empty_completion_share,
         keep_failed=args.keep_failed,
+        sacrificed_eval=tuple(args.sacrificed_eval),
     )
     print(
         f"[assemble] records: {summary['records']}, contaminating dropped: "
-        f"{summary['contaminating']}, empties dropped: {summary['empties_dropped']}"
+        f"{summary['contaminating']}, class-fact-mismatched dropped: "
+        f"{summary['class_fact_mismatched']}, empties dropped: "
+        f"{summary['empties_dropped']}"
     )
     for key, count in sorted(summary["per_target"].items()):
         print(f"[assemble]   {key}: {count}")

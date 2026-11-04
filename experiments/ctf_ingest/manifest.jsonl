@@ -61,3 +61,5 @@
 {"source": "ctf-archives", "id": "ctf-ccb-ghostpatch_59b347d7ba71f9e26493a87161f9b-001", "tier": "unverified", "expected_flag": false, "url": "https://github.com/CTF-Archives/CCB2026-Quals/releases/tag/attachments"}
 {"source": "ctf-archives", "id": "ctf-ccb-ticketsage_18da7d3bc6cf4d67926a6f6e79777-001", "tier": "unverified", "expected_flag": false, "url": "https://github.com/CTF-Archives/CCB2026-Quals/releases/tag/attachments"}
 {"source": "lictor-lab", "id": "ctf-lictor-ret2csu-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-uaf_train_a-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-uaf_train_b-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}

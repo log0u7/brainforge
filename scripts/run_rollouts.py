@@ -37,6 +37,10 @@ TRAINING_ELIGIBLE_BINARIES = {
     "ret2func",
     "ret2plt",
     "shellcode",
+    # the MR6 training twins: the uaf capability class as training
+    # material (the eval targets uaf_heap/-002 stay unseen by training)
+    "uaf_train_a",
+    "uaf_train_b",
     # ``ret2csu`` is deliberately absent: it is an Emporium multi-file
     # target (the binary needs ``libret2csu.so``), the pilot's
     # single-binary acquire 404s on it, and it produced ZERO records
