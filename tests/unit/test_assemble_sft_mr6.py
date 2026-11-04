@@ -56,6 +56,90 @@ def _write_jsonl(path: Path, records: list[dict]) -> Path:
     return path
 
 
+def test_sacrificed_eval_record_is_admitted(tmp_path: Path) -> None:
+    """The sacrifice ledger: uaf_heap-002 was moved eval -> training
+    (its measured base wins were mined). Its eval-namespaced records
+    are now legitimate training material and must NOT be flagged as
+    contamination, while the non-sacrificed eval twin uaf_heap-001
+    stays blocked."""
+    module = _load_script()
+    mined = _record("ctf-lictor-uaf_heap-002-001", 'vuln("uaf").')
+    eval_still = _record("ctf-lictor-uaf_heap-001", 'vuln("uaf").')
+    src = _write_jsonl(
+        tmp_path / "src.jsonl",
+        [mined, eval_still, _record("lab-fmtstr-001")],
+    )
+    out = tmp_path / "train.jsonl"
+    summary = module.assemble(
+        sources=[src],
+        out=out,
+        per_target_cap=10,
+        empty_completion_share=1.0,
+        sacrificed_eval=("ctf-lictor-uaf_heap-002-001",),
+    )
+    assert summary["contaminating"] == 1
+    text = out.read_text(encoding="utf-8")
+    assert "uaf_heap-002-001" in text
+    assert "uaf_heap-001" not in text
+
+
+def test_twin_records_are_admitted_not_eval(tmp_path: Path) -> None:
+    """The MR6 training twins (uaf_train_a/b) are training-eligible
+    targets, not eval challenges: their records pass the gate."""
+    module = _load_script()
+    src = _write_jsonl(
+        tmp_path / "src.jsonl",
+        [
+            _record("ctf-lictor-uaf_train_a-001", 'vuln("uaf").'),
+            _record("ctf-lictor-uaf_train_b-001", 'vuln("uaf").'),
+        ],
+    )
+    out = tmp_path / "train.jsonl"
+    summary = module.assemble(
+        sources=[src],
+        out=out,
+        per_target_cap=10,
+        empty_completion_share=1.0,
+        sacrificed_eval=(),
+    )
+    assert summary["contaminating"] == 0
+    assert summary["records"] == 2
+
+
+def test_uaf_class_fact_on_non_uaf_target_is_dropped(tmp_path: Path) -> None:
+    """The dataset-v1 poison: rollout records that emit vuln("uaf")
+    against a non-uaf target (fmtstr, shellcode). The hallucinated
+    class fact teaches the model to claim UAF where there is none -
+    the exact failure the retrain must fix. Such records are dropped
+    AND counted; the twin/sacrificed uaf targets are the only ones
+    allowed to carry the class fact."""
+    module = _load_script()
+    poisons = [
+        _record("ctf-lictor-fmtstr-001", 'vuln("uaf").'),
+        _record("lab-shellcode-001", 'vuln("uaf").\nallocator("tcache").'),
+    ]
+    healthy = [
+        _record("ctf-lictor-fmtstr-001", 'vuln("sof").'),
+        _record("ctf-lictor-uaf_train_a-001", 'vuln("uaf").'),
+    ]
+    src = _write_jsonl(tmp_path / "src.jsonl", poisons + healthy)
+    out = tmp_path / "train.jsonl"
+    summary = module.assemble(
+        sources=[src],
+        out=out,
+        per_target_cap=10,
+        empty_completion_share=1.0,
+        sacrificed_eval=(),
+    )
+    assert summary["class_fact_mismatched"] == 2
+    assert summary["records"] == 2
+    lines = out.read_text(encoding="utf-8").strip().splitlines()
+    kept_ids = [json.loads(line)["id"] for line in lines]
+    assert "ctf-lictor-uaf_train_a-001" in kept_ids  # the twin survives
+    fmtstr_kept = [json.loads(line) for line in lines if "fmtstr" in line]
+    assert all('vuln("uaf").' not in r["messages"][1]["content"] for r in fmtstr_kept)
+
+
 def test_assemble_merges_all_sources(tmp_path: Path) -> None:
     module = _load_script()
     trails = _write_jsonl(tmp_path / "trails.jsonl", [_record("lab-fmtstr-001")])
