@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- MR6 retrain documentation: `docs/explanation/benchmark.md` gains the
+  MR6 retrain section — the execution-grounded dataset
+  (`datasets/sft-mr6/train.jsonl`, 115 gated records split 75/25/15),
+  the QLoRA 4-bit retrain of Qwen3-1.7B (12 epochs, 120 steps, 2h25m on
+  the RTX 3080; train_loss 0.0797, eval_loss 1.465e-04, token accuracy
+  1.0, eval_entropy 8.1e-04, honestly read as overfitting/memorization
+  at this scale), the GGUF Q4_K_M export (`models/export-mr6/`) served
+  as `trained-mr6` on port 9933, and the final 10-repetition benchmark
+  skeleton (`run-20261104-mr6-10rep`, 11 clean challenges × 2 models ×
+  10 repetitions) whose per-challenge results are TBD until the run
+  completes.
+
 - Ten more lictor lab challenges in the final benchmark: the MR5 scale-up
   targets (`ret2libc-001`, `ret2libc-002`, `fmtstr-002`, `ret2func-002`,
   `shellcode-002`, `uaf_heap-002`, `orw-002`, `callme-002`, `ret2plt-002`,
