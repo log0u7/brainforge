@@ -148,6 +148,175 @@ def mine_run_dirs(run_dirs: list[Path], out: Path) -> dict:
     }
 
 
+def _suggested_facts(suggest_events: list[dict]) -> list[str]:
+    """Suggested predicates to augure fact lines: ``["vuln", ["uaf"]]``
+    becomes ``vuln("uaf").`` (strings quoted, numbers bare - the
+    ``target.facts`` convention: ``gadget("ret_align", 4198422).``)."""
+    lines: list[str] = []
+    for event in suggest_events:
+        for predicate, values in event.get("suggested") or []:
+            rendered = []
+            for value in values or []:
+                rendered.append(f'"{value}"' if isinstance(value, str) else str(value))
+            if rendered:
+                lines.append(f"{predicate}({', '.join(rendered)}).")
+    return lines
+
+
+def _plan_decision(events: list[dict], index: int) -> tuple[dict | None, list[str]]:
+    """The decision that produced the winning outcome at ``events[index]``:
+    the nearest preceding plan event carrying a selection. Returns
+    ``(decision, suggested_fact_lines)`` where the suggestion lines are
+    the suggested predicates emitted before that plan (the facts state
+    reconstruction material) and the decision dict carries the plan's
+    provenance evidence under ``_provenance_evidence``."""
+    decision: dict | None = None
+    suggestions: list[dict] = []
+    for event in events[:index]:
+        if event.get("type") == "suggest":
+            suggestions.append(event)
+        if event.get("type") == "plan" and event.get("selected"):
+            decision = {
+                "technique": event.get("selected"),
+                "applicable": event.get("applicable", []),
+                "_provenance_evidence": (event.get("explain") or {}).get("provenance") or {},
+            }
+    if decision is None:
+        return None, []
+    return decision, _suggested_facts(suggestions)
+
+
+def _evidence_facts(decision: dict) -> list[tuple[str, str]]:
+    """The (predicate, value) pairs the winning plan's provenance rule
+    actually matched - the facts that MUST be in the reconstruction."""
+    pairs: list[tuple[str, str]] = []
+    for entries in (decision.get("_provenance_evidence") or {}).values():
+        for entry in entries:
+            for pair in entry.get("evidence") or []:
+                if len(pair) == 2:
+                    pairs.append((str(pair[0]), str(pair[1])))
+    return pairs
+
+
+def mine_sacrificed_wins(
+    run_dirs: list[Path],
+    out: Path,
+    target: str,
+    challenge_id: str,
+    expected_flag: str | None = None,
+) -> dict:
+    """Mine ONE record per executed win from a SACRIFICED target.
+
+    The target was moved from eval into training (the sacrifice ledger
+    in ``datasets/eval/README.md``): its measured wins are real
+    executed-success trajectories on the live target, the strongest
+    SFT material available. Records keep the eval-namespaced
+    ``challenge_id`` on purpose: once they land in the training set,
+    the bench protocol's contamination derivation drops the challenge
+    from the eval list automatically.
+
+    ``expected_flag`` is the sacrificed case's oracle flag: when the
+    run.json carries no successful attempt (the pilot budget ran out
+    while the lictor repetitions won) the trail wins still read the
+    oracle - the bench lab verified them - so the oracle fills the
+    verdict and the record reads solved like every other SFT record.
+
+    Facts reconstruction: the final on-disk ``target.facts`` is a later
+    fresh harvest that may LACK the facts the winning plan used (they
+    were suggested mid-run and later overwritten). The record's facts
+    step = final facts + every suggested predicate emitted before the
+    winning plan, deduplicated. A win is kept only if every evidence
+    pair of its plan provenance is present in the reconstruction.
+    """
+    from brainforge.experiments.pilot import build_trajectory
+
+    records: list[dict] = []
+    skipped_no_plan = 0
+    skipped_evidence_missing = 0
+    wins_seen = 0
+    for run_dir in run_dirs:
+        target_dir = run_dir / target
+        trail_path = target_dir / f"trail-{target}.jsonl"
+        if not trail_path.is_file():
+            continue
+        events = []
+        for line in trail_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line.startswith("{"):
+                continue
+            try:
+                events.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+        facts_path = target_dir / "target.facts"
+        facts_final = (
+            [
+                line.strip()
+                for line in facts_path.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            if facts_path.is_file()
+            else []
+        )
+        run_json = (
+            json.loads((target_dir / "run.json").read_text(encoding="utf-8"))
+            if (target_dir / "run.json").is_file()
+            else {}
+        )
+        flag = next(
+            (a.get("flag") for a in run_json.get("attempts", []) if a.get("success")),
+            None,
+        )
+        for index, event in enumerate(events):
+            if event.get("type") != "outcome" or not (
+                event.get("success") and event.get("executed")
+            ):
+                continue
+            wins_seen += 1
+            decision, suggested = _plan_decision(events, index)
+            if decision is None:
+                skipped_no_plan += 1
+                continue
+            reconstructed = list(dict.fromkeys(facts_final + suggested))
+            # the plan's provenance evidence must be explainable by the
+            # reconstruction, otherwise the facts state is untrustworthy
+            evidence_pairs = _evidence_facts(decision)
+            fact_set = set(reconstructed)
+            missing = [
+                (p, v)
+                for p, v in evidence_pairs
+                if f'{p}("{v}").' not in fact_set and f"{p}({v})." not in fact_set
+            ]
+            if evidence_pairs and missing:
+                skipped_evidence_missing += 1
+                continue
+            outcome = {"status": "success", "flag": flag or expected_flag}
+            # _provenance_evidence is internal bookkeeping: strip it
+            # before the record is built, it must not reach training data
+            clean_decision = {k: v for k, v in decision.items() if not k.startswith("_")}
+            record = build_trajectory(
+                challenge_id=challenge_id,
+                student_input=(f"Solve this CTF challenge against the local lab target {target}."),
+                facts_steps=reconstructed,
+                decision=clean_decision,
+                outcome=outcome,
+                model="base-qwen3-1.7b (mined from trail)",
+            )
+            record["metadata"]["provenance"] = f"executed-success-{event.get('run')}"
+            record["metadata"]["mined_from"] = str(run_dir)
+            records.append(record)
+    if records:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        text = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records)
+        out.write_text(text, encoding="utf-8")
+    return {
+        "wins": wins_seen,
+        "records": len(records),
+        "skipped_no_plan": skipped_no_plan,
+        "skipped_evidence_missing": skipped_evidence_missing,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-dir", action="append", required=True, type=Path)
