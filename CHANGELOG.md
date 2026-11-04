@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Bench protocol fix: `scripts/run_final_bench.sh` now repeats
+  `--training-ids` per contamination source. It previously passed all
+  three paths as a single occurrence and argparse `action="append"`
+  dropped the rest, aborting the bench before any run.
+
 - Dataset v2 replay sources: `scripts/assemble_sft_mr6.py --replay-source`
   passes the teacher corpora (ctf-big, ctf-distill, ctf-first*) around
   the failed-trajectory gate and the per-id cap - every other gate
