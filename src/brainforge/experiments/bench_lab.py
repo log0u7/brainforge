@@ -7,6 +7,7 @@ the eval set, or the whole benchmark is void.
 """
 
 import json
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -29,6 +30,43 @@ def _record_flag(record: dict) -> str | None:
     return None
 
 
+def _run_attempt_capped(
+    pilot_fn: Any,
+    entry: list[tuple],
+    workdir: Path,
+    provider: Any,
+    model: str,
+    attempt_cap: float | None,
+) -> tuple[list[dict], bool]:
+    """Run one pilot attempt under a wall-clock cap in a daemon thread.
+
+    A hung attempt must never block the bench: the MR6-v2 re-bench froze
+    for 67 minutes on one wedged provider call. The attempt runs in a
+    daemon thread (it dies with the process) and a cap expiry becomes an
+    explicit TIMEOUT miss the bench moves on from."""
+    box: dict[str, Any] = {}
+    done = threading.Event()
+
+    def run() -> None:
+        try:
+            box["records"] = pilot_fn(entry, workdir, provider, model)
+        except Exception as exc:  # re-raised on the caller side
+            box["error"] = exc
+        finally:
+            done.set()
+
+    worker = threading.Thread(target=run, daemon=True)
+    worker.start()
+    if attempt_cap is None:
+        done.wait()
+    elif not done.wait(timeout=attempt_cap):
+        return [], True
+    if "error" in box:
+        raise box["error"]
+    records: list[dict] = box.get("records", [])
+    return records, False
+
+
 def _run_over_targets(
     targets: list[tuple],
     workdir: Path,
@@ -37,6 +75,7 @@ def _run_over_targets(
     repetitions: int,
     pilot_fn: Any,
     expected_flags: dict[str, str],
+    attempt_cap: float | None = None,
 ) -> dict:
     """Run one model over the challenge list ``repetitions`` times and
     tally the success rate: a success is a run whose verdict flag matches
@@ -55,10 +94,12 @@ def _run_over_targets(
                 f"[bench {model} rep {rep + 1}/{repetitions}] {challenge_id} launching", flush=True
             )
             started = time.monotonic()
-            records = pilot_fn([entry], workdir, provider, model)
+            records, timed_out = _run_attempt_capped(
+                pilot_fn, [entry], workdir, provider, model, attempt_cap
+            )
             elapsed = time.monotonic() - started
             flag = _record_flag(records[0]) if records else None
-            outcome = "FLAG" if flag else "miss"
+            outcome = "TIMEOUT" if timed_out else ("FLAG" if flag else "miss")
             print(
                 f"[bench {model} rep {rep + 1}/{repetitions}] {challenge_id}: "
                 f"{outcome} (elapsed {elapsed:.0f}s)",
@@ -124,6 +165,7 @@ def run_bench_lab(
     training_ids: set[str] | None = None,
     output: Path | None = None,
     pilot_fn: Any = None,
+    attempt_cap: float | None = None,
 ) -> dict:
     """Run the final benchmark over ``challenges`` for the two models.
 
@@ -132,6 +174,10 @@ def run_bench_lab(
     oracle flag the pilot verifies against). ``training_ids``: the set
     of challenge IDs used for training - the contamination audit fails
     the benchmark when one of them leaks into the eval list.
+
+    ``attempt_cap``: wall-clock cap (seconds) per attempt. A hung attempt
+    becomes an explicit TIMEOUT miss and the bench moves on - without a
+    cap a single hung attempt can freeze the whole bench.
     """
     if training_ids is None:
         raise BrainforgeError(
@@ -155,7 +201,14 @@ def run_bench_lab(
     }
     for name, model in (("base", base_model), ("trained", trained_model)):
         results[name] = _run_over_targets(
-            targets, workdir, provider, model, repetitions, pilot, expected_flags
+            targets,
+            workdir,
+            provider,
+            model,
+            repetitions,
+            pilot,
+            expected_flags,
+            attempt_cap,
         )
 
     if output is not None:

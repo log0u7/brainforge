@@ -1,5 +1,5 @@
+import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import httpx
@@ -17,6 +17,15 @@ from brainforge.providers.base import (
 from brainforge.types import ApiStyle
 
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+
+#: wall-clock grace added on top of ``config.timeout`` before the guard
+#: declares the call hung: the SDK read timeout fires first in the normal
+#: case, this backstop covers drip-feed streams and wedged transports
+DEADLINE_GRACE = 30.0
+#: idle keep-alive sockets are dropped after this many seconds - before the
+#: server closes them itself. A server-closed socket handed back from the
+#: pool freezes the reader (the gpu3080 CLOSE-WAIT freeze).
+HTTPX_KEEPALIVE_EXPIRY = 30.0
 
 
 def _create_call(create: Any, kwargs: dict[str, Any]) -> Any:
@@ -43,6 +52,25 @@ class OpenAICompatProvider(Provider):
         base_url = config.base_url or self.default_base_url
         if base_url is None:
             raise ProviderError(f"provider '{name}' requires a base_url")
+        if http_client is None:
+            # own the connection pool: a short keepalive_expiry drops idle
+            # keep-alive sockets before the server closes them itself, so
+            # the next request is never handed a dead (CLOSE-WAIT) socket
+            limits = httpx.Limits(
+                max_connections=64,
+                max_keepalive_connections=16,
+                keepalive_expiry=HTTPX_KEEPALIVE_EXPIRY,
+            )
+            http_client = httpx.Client(
+                timeout=httpx.Timeout(config.timeout, connect=10.0),
+                limits=limits,
+            )
+            self._limits = limits
+        else:
+            self._limits = getattr(http_client, "_limits", None) or getattr(
+                http_client, "limits", None
+            )
+        self._http_client = http_client
         self._client = OpenAI(
             base_url=base_url,
             api_key=config.api_key or "not-needed",
@@ -68,33 +96,47 @@ class OpenAICompatProvider(Provider):
             kwargs["extra_body"] = request.extra_body
         attempts = self.config.max_retries + 1
         last_error: Exception | None = None
-        deadline = self.config.timeout + 30.0
+        deadline = self.config.timeout + DEADLINE_GRACE
         for attempt in range(attempts):
             try:
                 start = time.perf_counter()
                 # httpx read timeouts bound the time BETWEEN chunks, so a
                 # drip-feeding stream can hang a call past any read timeout
                 # (observed twice on gpu3080: pipeline frozen mid-batch at
-                # zero CPU). Run the call in a worker thread and enforce a
-                # wall-clock deadline here; the orphaned request thread dies
-                # with the process.
-                # no 'with': exiting the context manager calls
-                # shutdown(wait=True), which waits for the orphaned hung
-                # request thread and reintroduces the hang we are guarding
-                # against. shutdown(wait=False) leaves it running (it dies
-                # with the process) and unblocks the retry loop.
-                pool = ThreadPoolExecutor(max_workers=1)
-                try:
-                    future = pool.submit(_create_call, self._client.chat.completions.create, kwargs)
-                    response = future.result(timeout=deadline)
-                finally:
-                    pool.shutdown(wait=False)
+                # zero CPU). Run the call in a dedicated daemon thread and
+                # enforce a wall-clock deadline here: a daemon dies with the
+                # process, so an orphaned hung thread can never block
+                # interpreter exit (the gpu3080 freeze was the ThreadPool-
+                # Executor atexit hook joining a worker stuck on a server-
+                # closed socket - 67 minutes at zero CPU).
+                box: dict[str, Any] = {}
+                done = threading.Event()
+
+                def run_call() -> None:
+                    try:
+                        box["response"] = _create_call(self._client.chat.completions.create, kwargs)
+                    except Exception as exc:  # re-raised on the caller side
+                        box["error"] = exc
+                    finally:
+                        done.set()
+
+                worker = threading.Thread(target=run_call, daemon=True)
+                worker.start()
+                if not done.wait(timeout=deadline):
+                    raise TimeoutError(
+                        f"provider '{self.name}' call exceeded the "
+                        f"{deadline:.0f}s wall-clock deadline"
+                    )
+                if "error" in box:
+                    raise box["error"]
                 latency_ms = (time.perf_counter() - start) * 1000
-                return response, latency_ms, attempt
-            except TimeoutError as exc:
-                last_error = exc
-                if attempt < attempts - 1:
-                    time.sleep(min(2**attempt * 0.5, 8.0))
+                return box["response"], latency_ms, attempt
+            except TimeoutError:
+                # a wall-clock deadline hit means the transport is wedged:
+                # retrying would just burn another full deadline on the same
+                # hang, so the guard raises straight through (SDK-level
+                # timeouts below still retry)
+                raise
             except (APITimeoutError, APIConnectionError, APIStatusError) as exc:
                 status = getattr(exc, "status_code", None)
                 if isinstance(exc, APIStatusError) and status not in _RETRYABLE_STATUS:
