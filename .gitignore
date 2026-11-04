@@ -28,6 +28,7 @@ rag/index/*
 !rag/index/.gitkeep
 datasets/*
 !datasets/.gitkeep
+!datasets/eval/
 experiments/*
 !experiments/.gitkeep
 !experiments/ctf_ingest/
