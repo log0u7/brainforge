@@ -441,6 +441,12 @@
           "title": "Save Steps",
           "type": "integer"
         },
+        "save_total_limit": {
+          "default": 2,
+          "minimum": 1,
+          "title": "Save Total Limit",
+          "type": "integer"
+        },
         "seed": {
           "default": 42,
           "minimum": 0,
@@ -592,6 +598,7 @@
         "gkd_seq_kd": false,
         "backend": "auto",
         "save_steps": 100,
+        "save_total_limit": 2,
         "seed": 42,
         "output_dir": "experiments",
         "lr_scheduler_type": "cosine",
