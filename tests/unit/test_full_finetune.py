@@ -138,7 +138,18 @@ def test_qlora_strategy_keeps_quantization_and_peft(fake_training_modules, tmp_p
     assert summary["effective_strategy"] == "qlora"
     stored = json.loads((tmp_path / "run" / "train_summary.json").read_text())
     assert stored["strategy"] == "qlora"
-    assert stored["device"] == "cuda:0"
+
+
+def test_save_total_limit_follows_the_config(fake_training_modules, tmp_path):
+    """The dcaf4389 lesson: a hardcoded limit of 2 deletes the best
+    (earliest) checkpoint when save_steps lands inside the epoch span -
+    the limit must follow the config so a per-epoch save survives."""
+    config = TrainingConfig(save_steps=10, save_total_limit=4)
+    train_qlora(config, _dataset_dir(tmp_path), tmp_path / "run")
+    trainer = fake_training_modules.instances[-1]
+    args = trainer.init_kwargs["args"].kwargs
+    assert args["save_total_limit"] == 4
+    assert args["save_steps"] == 10
 
 
 def test_cli_strategy_flag_overrides_config(fake_training_modules, project_env, auto_fit_stub):

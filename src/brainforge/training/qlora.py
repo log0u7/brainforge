@@ -186,7 +186,7 @@ def _trainer_kwargs(
         "eval_steps": 10,
         "save_strategy": "steps",
         "save_steps": config.save_steps,
-        "save_total_limit": 2,
+        "save_total_limit": config.save_total_limit,
         "seed": config.seed,
         "report_to": [],
     }

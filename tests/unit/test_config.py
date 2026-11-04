@@ -248,9 +248,12 @@ def test_training_checkpoint_fields():
 
     config = TrainingConfig()
     assert config.save_steps == 100
+    assert config.save_total_limit == 2
     assert config.seed == 42
     with pytest.raises(ValidationError):
         TrainingConfig(save_steps=0)
+    with pytest.raises(ValidationError):
+        TrainingConfig(save_total_limit=0)
 
 
 def test_training_schedule_fields():

@@ -110,6 +110,7 @@ class TrainingConfig(BaseModel):
     gkd_seq_kd: bool = False
     backend: Literal["auto", "trl", "unsloth"] = "auto"
     save_steps: int = Field(default=100, ge=1)
+    save_total_limit: int = Field(default=2, ge=1)
     seed: int = Field(default=42, ge=0)
     output_dir: str = "experiments"
     lr_scheduler_type: str = "cosine"
