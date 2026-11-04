@@ -40,6 +40,18 @@ uncommitted (large, generated). The protocol script requires it on
 disk and fails with a clear error when missing; regenerate it with
 `scripts/assemble_sft_mr6.py` from the bench run dirs.
 
+## sft-mr6-v2/train.jsonl (referenced, NOT committed)
+
+Dataset v2 (2026-11-04): the MR6 mix (mined trails, verified facts,
+the 15 uaf-heap-002 mined wins, the classic rollouts) PLUS the teacher
+replay corpora (ctf-big, ctf-distill, ctf-first*) passed through
+`--replay-source` - the failed-trajectory gate and the per-id cap do
+not apply to replay records (v1 shipped with ZERO replay records,
+which re-created the forgetting failure). The 15 mined
+`ctf-lictor-uaf_heap-002-001` records keep the challenge out of the
+clean derivation: after v2 the eval set is the 10 remaining
+challenges, transfer criterion `uaf_heap-001`.
+
 ## uaf sacrifice ledger (to be maintained)
 
 When a challenge is moved from eval to training (e.g. uaf_heap-002
