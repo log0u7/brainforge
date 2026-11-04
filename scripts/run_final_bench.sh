@@ -12,6 +12,7 @@
 #   2. Every protocol input is COMMITTED in the repo (no /tmp):
 #      - the challenge manifest        experiments/ctf_ingest/manifest.jsonl
 #      - the contamination sources     datasets/sft-mr6/train.jsonl
+#                                      datasets/sft-mr6-v2/train.jsonl
 #                                      datasets/eval/grpo-translated.jsonl
 #   3. The clean list is DERIVED (verified lab challenges minus training
 #      IDs), printed at launch, and the final verdict is computed on
@@ -43,6 +44,7 @@ export REPS
 CASES_DIR="examples/cases"
 TRAIN_IDS=(
 	"datasets/sft-mr6/train.jsonl"
+	"datasets/sft-mr6-v2/train.jsonl"
 	"datasets/eval/grpo-translated.jsonl"
 )
 BASE_URL="${BASE_URL:-http://192.168.1.26:9932/v1}"

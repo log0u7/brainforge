@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Dataset v2 replay sources: `scripts/assemble_sft_mr6.py --replay-source`
+  passes the teacher corpora (ctf-big, ctf-distill, ctf-first*) around
+  the failed-trajectory gate and the per-id cap - every other gate
+  (contamination, class-fact, excluded targets) still applies. The v1
+  dataset shipped with ZERO replay records, which re-created the
+  catastrophic-forgetting failure the replay exists to prevent. The
+  bench protocol (`scripts/run_final_bench.sh`) gains the v2 file in
+  TRAIN_IDS: the clean derivation drops uaf_heap-002 from eval
+  automatically, the eval set after v2 is the 10 remaining challenges.
+
 - MR6 retrain documentation: `docs/explanation/benchmark.md` gains the
   MR6 retrain section — the execution-grounded dataset
   (`datasets/sft-mr6/train.jsonl`, 115 gated records split 75/25/15),

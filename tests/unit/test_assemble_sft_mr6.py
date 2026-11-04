@@ -228,6 +228,75 @@ def test_ret2csu_noise_never_reaches_the_training_file(tmp_path: Path) -> None:
     assert "ret2csu" not in out.read_text(encoding="utf-8")
 
 
+def _teacher_record(rid: str, content: str = "the technique, explained") -> dict:
+    """A teacher/replay-shaped record: facts or a technique walkthrough
+    with NO execution verdict (the verdict gate must not apply to the
+    anti-forgetting corpus)."""
+    return {
+        "id": rid,
+        "domain": "agentic",
+        "messages": [
+            {"role": "user", "content": "challenge"},
+            {"role": "assistant", "content": content},
+        ],
+        "metadata": {"pipeline": "ctf-distill", "recitation_risk": False},
+    }
+
+
+def test_replay_source_records_kept_without_verdicts(tmp_path: Path) -> None:
+    """The replay corpus (teacher MR1-3 records) carries no execution
+    verdict - the failed-trajectory gate (MR5 lesson, aimed at rollout
+    records) must not silently eject it: the v1/v2 datasets shipped
+    with ZERO replay records and re-created the forgetting failure."""
+    module = _load_script()
+    replay = _write_jsonl(
+        tmp_path / "replay.jsonl",
+        [_teacher_record(f"ctf-teacher-{i}") for i in range(5)],
+    )
+    out = tmp_path / "train.jsonl"
+    summary = module.assemble(
+        sources=[], replay_sources=[replay], out=out, per_target_cap=10, empty_completion_share=1.0
+    )
+    assert summary["records"] == 5
+    assert summary["failed_dropped"] == 0
+    assert "ctf-teacher-0" in out.read_text(encoding="utf-8")
+
+
+def test_replay_sources_skip_the_per_target_cap(tmp_path: Path) -> None:
+    """Replay record IDs are teacher-namespace, not rollout namespace:
+    the per-id cap must not apply to them (a 68-record replay corpus
+    would otherwise cap to 24 and starve the anti-forgetting mix)."""
+    module = _load_script()
+    replay = _write_jsonl(
+        tmp_path / "replay.jsonl",
+        [_teacher_record(f"ctf-teacher-{i}") for i in range(30)],
+    )
+    out = tmp_path / "train.jsonl"
+    summary = module.assemble(
+        sources=[], replay_sources=[replay], out=out, per_target_cap=10, empty_completion_share=1.0
+    )
+    assert summary["records"] == 30
+
+
+def test_replay_source_eval_contamination_still_refused(tmp_path: Path) -> None:
+    """The contamination gate runs on replay sources too: a teacher
+    record whose ID translates into the eval namespace is dropped AND
+    the run exits nonzero at the CLI layer (the uaf_heap-001 teacher
+    records in ctf-first.jsonl, the MR5 leak)."""
+    module = _load_script()
+    replay = _write_jsonl(
+        tmp_path / "replay.jsonl",
+        [_teacher_record("ctf-lictor-uaf_heap-001"), _teacher_record("ctf-teacher-0")],
+    )
+    out = tmp_path / "train.jsonl"
+    summary = module.assemble(
+        sources=[], replay_sources=[replay], out=out, per_target_cap=10, empty_completion_share=1.0
+    )
+    assert summary["contaminating"] == 1
+    assert summary["records"] == 1
+    assert "uaf_heap" not in out.read_text(encoding="utf-8")
+
+
 def test_rollout_repetitions_capped_per_target(tmp_path: Path) -> None:
     """40 seeds x 6 targets = 240 rollout records: useful variety, but
     one target must not dominate the mix (the cap keeps the dataset

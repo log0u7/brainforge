@@ -198,13 +198,25 @@ def assemble(
     empty_completion_share: float,
     keep_failed: bool = False,
     sacrificed_eval: tuple[str, ...] = (),
+    replay_sources: list[Path] | None = None,
 ) -> dict:
-    """Merge, gate, cap, write. Returns the summary the CLI prints."""
+    """Merge, gate, cap, write. Returns the summary the CLI prints.
+
+    ``replay_sources`` carries the teacher corpora (MR1-3): their
+    records have no execution verdict and their IDs are
+    teacher-namespace, so they skip the failed-trajectory gate AND the
+    per-id cap. Every other gate (contamination, class-fact, excluded
+    targets, empty share) still applies - the uaf_heap-001 teacher
+    records in ctf-first.jsonl were an eval leak, not replay.
+    """
     records: list[dict] = []
+    replay_records: list[dict] = []
     contaminating = 0
     failed_dropped = 0
     class_fact_mismatched = 0
-    for path in sources:
+    all_sources: list[tuple[Path, bool]] = [(path, False) for path in sources]
+    all_sources += [(path, True) for path in (replay_sources or [])]
+    for path, is_replay in all_sources:
         for record in _load(path):
             rid = str(record.get("id", ""))
             if any(marker in rid for marker in EVAL_ID_MARKERS) and not any(
@@ -244,6 +256,12 @@ def assemble(
                 if UAF_CLASS_FACT in "".join(facts_text):
                     class_fact_mismatched += 1
                     continue
+            if is_replay:
+                # the teacher corpus has no execution verdict and its
+                # IDs sit outside the rollout namespace: the replay
+                # records flow around the failed gate and the cap
+                replay_records.append(_enrich_metadata(_fill_empty_messages(record)))
+                continue
             if not keep_failed and _verdict_flag(record) is None:
                 # a failed trajectory is not SFT material: cloning it
                 # teaches the model to fail (MR5 lesson). The failures
@@ -283,7 +301,7 @@ def assemble(
     else:
         max_empties = int(empty_completion_share * len(non_empty) / (1 - empty_completion_share))
     kept_empties = empties[:max_empties]
-    final = non_empty + kept_empties
+    final = non_empty + kept_empties + replay_records
 
     if final:
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -319,6 +337,16 @@ def main() -> int:
         required=True,
         help="JSONL path or glob pattern (repeatable)",
     )
+    parser.add_argument(
+        "--replay-source",
+        action="append",
+        default=[],
+        help=(
+            "teacher/replay JSONL (MR1-3 corpora): no execution verdict,"
+            " skips the failed-trajectory gate and the per-id cap; the"
+            " contamination and class-fact gates still apply. Repeatable."
+        ),
+    )
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--per-target-cap", type=int, default=24)
     parser.add_argument(
@@ -339,6 +367,7 @@ def main() -> int:
     args = parser.parse_args()
 
     sources = _expand(args.source)
+    replays = _expand(args.replay_source)
     summary = assemble(
         sources=sources,
         out=args.out,
@@ -346,6 +375,7 @@ def main() -> int:
         empty_completion_share=args.empty_completion_share,
         keep_failed=args.keep_failed,
         sacrificed_eval=tuple(args.sacrificed_eval),
+        replay_sources=replays,
     )
     print(
         f"[assemble] records: {summary['records']}, contaminating dropped: "
