@@ -47,7 +47,12 @@ after MR6, mined from its 15 measured base wins), its records enter
 `datasets/sft-mr6/train.jsonl` and the clean-derivation in
 `scripts/run_final_bench.sh` drops it from the eval automatically.
 Log the decision here:
-- (2026-11-04, pending) uaf_heap-002: sacrifice EVAL -> TRAIN, mined
-  from 15 executed wins (5 distinct run UUIDs) in
-  run-20261104-mr6-10rep. Replacement eval instance: uaf_heap-003
-  (new twin, to be built + verified winnable before the next bench).
+- (2026-11-04, done) uaf_heap-002: sacrifice EVAL -> TRAIN, mined from
+  15 executed wins (15 distinct run UUIDs, zero dedup) across all
+  seven run-20261103/04 dirs into `datasets/sft-uaf-wins/train.jsonl`
+  (local, gitignored like every generated corpus). Records carry the
+  eval-namespaced `ctf-lictor-uaf_heap-002-001` ID on purpose: the
+  assembly (dataset v2) merges them into the training set that feeds
+  the protocol derivation, which then drops the challenge from eval.
+  The remaining unseen eval instance for the uaf class:
+  `uaf_heap-001` (0/10 both models so far).
