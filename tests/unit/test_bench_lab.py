@@ -438,3 +438,41 @@ class TestRealPilotRecordShape:
         assert result["trained"]["successes"] == 0
         assert result["trained"]["per_challenge"]["chal-unseen-1"]["successes"] == 0
         assert result["trained"]["per_challenge"]["chal-unseen-1"]["attempts"] == 1
+
+
+class TestBenchProgressLine:
+    """The MR6-v2 hang measured the gap: a hung challenge is invisible
+    while the bench runs (the protocol pipes the output through
+    ``tail -45``). One progress line per (model, rep, challenge) launch
+    and one per outcome - flushed - makes the oldest in-flight run
+    visible in the log instead of the trails."""
+
+    def test_prints_a_progress_line_per_launch_and_outcome(self, tmp_path: Path, capsys) -> None:
+        pilot, _ = _fake_pilot(
+            [
+                [_record("chal-unseen-1", "base", "FLAG{secreta}")],
+                [_record("chal-unseen-2", "base", None)],
+                [_record("chal-unseen-1", "trained", None)],
+                [_record("chal-unseen-2", "trained", None)],
+            ]
+        )
+        run_bench_lab(
+            challenges=_challenges(),
+            workdir=tmp_path,
+            provider=None,
+            base_model="base",
+            trained_model="trained",
+            repetitions=1,
+            training_ids=set(),
+            pilot_fn=pilot,
+        )
+        out = capsys.readouterr().out
+        # every launch and every outcome is announced, flushed
+        assert "[bench base rep 1/1] chal-unseen-1" in out
+        assert "[bench base rep 1/1] chal-unseen-2" in out
+        assert "[bench trained rep 1/1] chal-unseen-1" in out
+        assert "[bench trained rep 1/1] chal-unseen-2" in out
+        # the outcome lines carry the elapsed time (the hang detector)
+        assert "elapsed" in out
+        # the flags are visible on the outcome line
+        assert "FLAG" in out

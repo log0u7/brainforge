@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Bench progress observability: `run_bench_lab` prints one flushed
+  progress line per launch and per outcome
+  (`[bench <model> rep N/M] <challenge>: FLAG|miss (elapsed Ns)`).
+  The MR6-v2 re-bench hid a hung challenge for ~40 min because the
+  protocol pipes the output through `tail -45`; the trails stayed
+  silent and nothing in the log showed the oldest in-flight run.
+
+### Docs
+
+- `docs/explanation/benchmark.md`: the ronin-cache lesson - the
+  installed ronin cache is the SSOT of lab execution; land the exploit
+  against every target class BEFORE rollouts/benches (a broken exploit
+  silently poisons rollouts, datasets, retrains and benches downstream).
+
 ### Added
 
 - Bench protocol fix: `scripts/run_final_bench.sh` now repeats

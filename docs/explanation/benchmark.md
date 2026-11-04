@@ -766,3 +766,36 @@ holds this run's `results.json` + `results.md`. Launch protocol: use
 which prints the derived clean list at launch and computes the
 clean-only verdict - hand-typed bench commands are how the missing
 manifest filter above happened.
+
+## Lesson: the ronin cache is the SSOT of lab execution (MR6-v2)
+
+The v2 re-bench revealed that **every lab exploit runs from the
+operator's installed ronin cache** (`~/.cache/ronin-repos/ronin-repo`),
+not from `lictor/lab/ronin-repo`. The lictor-side smoke tests (merged
+as #32) verify the *deployed* binaries, but nothing verified the
+*exploit side*:
+
+- the bench hung for ~40 min: three `ronin-exploits run
+  lab_uaf_tcache_010` workers waited on a menu banner the twin targets
+  never print (`read_until("5=quit\n")` against a
+  `0=drop 1=forge ... 4=bye` menu), because the cached exploit was the
+  original-menu version;
+- the `win_addr` fact param was rejected (`unknown param`), so even
+  fast-fails were wrong for the wrong reason;
+- the uaf rollouts measured 0/30 for the same root cause: a broken
+  exploit silently poisons every *downstream* product (rollouts,
+  datasets, retrains, benches).
+
+Rules adopted:
+
+1. **Before any rollout or bench on lab challenges: land the exploit
+   against every target class first.** A one-line `ronin-exploits run`
+   per target is the smoke test; a hang or an unknown-param here
+   invalidates everything downstream.
+2. The cache must be re-cloned (or patched + committed back to
+   `lictor/lab/ronin-repo`) whenever the lab image changes - the twin
+   targets ship with different menus by design (ADR-0022 class twins).
+3. Lictor's executor watchdog (v0.5.0) now caps a silent runner
+   (soft 30s) and a chatty one (hard 120s), and the trail records the
+   timeout - a hung exploit can no longer silently stall a bench.
+

@@ -7,6 +7,7 @@ the eval set, or the whole benchmark is void.
 """
 
 import json
+import time
 from pathlib import Path
 from typing import Any
 
@@ -42,9 +43,27 @@ def _run_over_targets(
     the challenge's expected flag (a recited training flag on the wrong
     challenge is not a success, it is contamination)."""
     stats = {"attempts": 0, "successes": 0, "per_challenge": {}}  # type: dict
-    for _ in range(repetitions):
+    for rep in range(repetitions):
         for entry in targets:
+            challenge_id = entry[0]
+            # the progress lines: the MR6-v2 hang made a stuck challenge
+            # invisible for hours (the protocol pipes the output through
+            # tail -45 and the trails stayed silent). One flushed line per
+            # launch and per outcome - with the elapsed time - keeps the
+            # oldest in-flight run readable in the bench log itself.
+            print(
+                f"[bench {model} rep {rep + 1}/{repetitions}] {challenge_id} launching", flush=True
+            )
+            started = time.monotonic()
             records = pilot_fn([entry], workdir, provider, model)
+            elapsed = time.monotonic() - started
+            flag = _record_flag(records[0]) if records else None
+            outcome = "FLAG" if flag else "miss"
+            print(
+                f"[bench {model} rep {rep + 1}/{repetitions}] {challenge_id}: "
+                f"{outcome} (elapsed {elapsed:.0f}s)",
+                flush=True,
+            )
             for record in records:
                 # the record's id is the launched challenge; fall back to the
                 # entry the harness itself launched if the pilot dropped it
