@@ -709,38 +709,60 @@ and served through llama.cpp on port 9933 under the alias
 `trained-mr6`. The comparison stays base Q8_0 vs trained Q4_K_M, the
 same quantization asymmetry the previous runs assumed.
 
-### Numbers (PENDING: bench `run-20261104-mr6-10rep` still running)
+### Numbers (run `run-20261104-mr6-10rep`, complete 2026-11-04 ~08:00)
 
 | model | successes/attempts | success_rate |
 |---|---|---|
-| base | TBD | TBD |
-| trained-mr6 | TBD | TBD |
+| base (17 challenges) | 128/170 | 0.753 |
+| trained-mr6 (17 challenges) | 129/170 | 0.759 |
+| base (11 clean only) | 85/110 | 0.773 |
+| trained-mr6 (11 clean only) | 88/110 | 0.800 |
 
-### Per-challenge breakdown (all values TBD, bench in flight)
+The run had no `--manifest` filter at launch, so it executed all 17
+lab challenges; the contamination audit flagged 6 of them as mined
+(`fmtstr-001`, `orw-001`, `ret2csu-001`, `ret2func-001`,
+`ret2plt-001`, `shellcode-001`) and the run exits nonzero on purpose
+(the audit gate). The clean-only rows above are the verdict; the
+global 0.753/0.759 rows are kept for the record only.
 
-| challenge | base | trained-mr6 |
-|---|---|---|
-| callme-002 | TBD | TBD |
-| fmtstr-002 | TBD | TBD |
-| orw-002 | TBD | TBD |
-| ret2func-002 | TBD | TBD |
-| ret2libc-001 | TBD | TBD |
-| ret2libc-002 | TBD | TBD |
-| ret2plt-002 | TBD | TBD |
-| shellcode-002 | TBD | TBD |
-| srop-001 | TBD | TBD |
-| uaf_heap-001 | TBD | TBD |
-| uaf_heap-002 | TBD | TBD |
+### Per-challenge breakdown (clean set, x/10)
 
-### Honest reading (to be written once the run lands)
+| challenge | base | trained-mr6 | delta |
+|---|---|---|---|
+| callme-002 | 9 | 9 | 0 |
+| fmtstr-002 | 10 | 10 | 0 |
+| orw-002 | 10 | 10 | 0 |
+| ret2func-002 | 10 | 10 | 0 |
+| ret2libc-001 | 8 | 10 | +2 |
+| ret2libc-002 | 8 | 10 | +2 |
+| ret2plt-002 | 9 | 10 | +1 |
+| shellcode-002 | 8 | 9 | +1 |
+| srop-001 | 8 | 10 | +2 |
+| uaf_heap-001 | 0 | 0 | 0 |
+| uaf_heap-002 | 5 | 0 | **-5 (REGRESSION)** |
 
-To be filled when the run completes. The questions this run answers:
-does the execution-grounded dataset recover the regression that the
-fact-suggestion SFT caused (`ret2libc-001` 2/10, `srop-001` 0/10,
-`shellcode-002` 5/10), does it beat base 0.76, and does `uaf_heap-001`
-finally move off 0/10.
+### Honest reading
+
+- **The recovery worked**: the MR5 regressions are gone and the
+  clean-set aggregate moves above base (0.773 -> 0.800). Gains are
+  exactly on the challenge classes the rollouts trained: ret2libc
+  (+4), srop (+2), shellcode (+1), ret2plt (+1).
+- **`uaf_heap-002` regressed hard (5/10 -> 0/10)** on a clean
+  challenge. The dataset held no uaf-class records at all: the two
+  `uaf_heap` IDs in the training set were rollout hallucinations
+  (`vuln("uaf")` emitted against fmtstr/shellcode targets), and the
+  planned twin rollouts (`uaf_train_a`/`b`) never ran. The fine-tune
+  therefore had no uaf teacher and destroyed the base behavior that
+  was scoring 5/10.
+- **`uaf_heap-001` stays 0/10 everywhere**: absent capability, same
+  diagnostic as before.
+- The success metric for this stage (`trained >= base` with no
+  per-challenge regression, and `trained > 0/10` on uaf) is **not
+  met**: two of three criteria pass, the uaf one fails.
 
 Reproduction: `experiments/final-bench-results/run-20261104-mr6-10rep/`
-will hold this run's `results.json` + `results.md` (11 clean
-challenges × 2 models × 10 repetitions = 220 executions; expected
-~4 hours after launch).
+holds this run's `results.json` + `results.md`. Launch protocol: use
+`scripts/run_final_bench.sh` (merged on the bench-protocol branch),
+which prints the derived clean list at launch and computes the
+clean-only verdict - hand-typed bench commands are how the missing
+manifest filter above happened.
