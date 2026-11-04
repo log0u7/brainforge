@@ -678,3 +678,69 @@ logged trails (training-eligible targets only, eval IDs never enter
 training), add replay data to prevent forgetting, and train the
 use-after-free capability class on dedicated lab twins so the eval
 targets stay unseen.
+
+## The MR6 retrain run (2026-11-04): execution-grounded dataset, final 10-rep bench in flight
+
+MR6 executed the fix: a much larger, execution-grounded SFT dataset
+replaces the 6-record fact-suggestion dataset. The training data is
+mined from logged trails (training-eligible targets only, eval IDs
+never enter training), quality-gated, and split 75/25/15
+(train/validation/test) into `datasets/sft-mr6/train.jsonl` (115
+records).
+
+The retrain ran on gpu3080 as QLoRA 4-bit on Qwen3-1.7B: 12 epochs,
+120 steps, 2h25m wall clock. Final metrics:
+
+| metric | value |
+|---|---|
+| train_loss | 0.0797 |
+| eval_loss | 1.465e-04 |
+| token accuracy | 1.0 |
+| eval_entropy | 8.1e-04 |
+
+Honest reading: eval_loss below train_loss, token accuracy at 1.0 and
+near-zero entropy are the signature of overfitting/memorization on a
+tiny dataset. That is expected at this scale and says nothing about
+exploitation capability. The metric that matters is the execution
+benchmark below, not the training curves.
+
+The merged adapter was exported to GGUF Q4_K_M (`models/export-mr6/`)
+and served through llama.cpp on port 9933 under the alias
+`trained-mr6`. The comparison stays base Q8_0 vs trained Q4_K_M, the
+same quantization asymmetry the previous runs assumed.
+
+### Numbers (PENDING: bench `run-20261104-mr6-10rep` still running)
+
+| model | successes/attempts | success_rate |
+|---|---|---|
+| base | TBD | TBD |
+| trained-mr6 | TBD | TBD |
+
+### Per-challenge breakdown (all values TBD, bench in flight)
+
+| challenge | base | trained-mr6 |
+|---|---|---|
+| callme-002 | TBD | TBD |
+| fmtstr-002 | TBD | TBD |
+| orw-002 | TBD | TBD |
+| ret2func-002 | TBD | TBD |
+| ret2libc-001 | TBD | TBD |
+| ret2libc-002 | TBD | TBD |
+| ret2plt-002 | TBD | TBD |
+| shellcode-002 | TBD | TBD |
+| srop-001 | TBD | TBD |
+| uaf_heap-001 | TBD | TBD |
+| uaf_heap-002 | TBD | TBD |
+
+### Honest reading (to be written once the run lands)
+
+To be filled when the run completes. The questions this run answers:
+does the execution-grounded dataset recover the regression that the
+fact-suggestion SFT caused (`ret2libc-001` 2/10, `srop-001` 0/10,
+`shellcode-002` 5/10), does it beat base 0.76, and does `uaf_heap-001`
+finally move off 0/10.
+
+Reproduction: `experiments/final-bench-results/run-20261104-mr6-10rep/`
+will hold this run's `results.json` + `results.md` (11 clean
+challenges × 2 models × 10 repetitions = 220 executions; expected
+~4 hours after launch).
