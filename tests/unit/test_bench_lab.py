@@ -479,6 +479,61 @@ class TestBenchProgressLine:
         assert "FLAG" in out
 
 
+class TestBenchRepetitionSeed:
+    """The bench never passed a seed to the pilot, so every repetition ran
+    run_pilot's default seed 7 and lictor replayed the same bandit draws:
+    N repetitions were N copies of one trajectory, not N independent
+    samples. Each repetition must carry its own seed."""
+
+    def test_each_repetition_gets_its_own_seed(self, tmp_path: Path) -> None:
+        seen: list[tuple[str, str | None]] = []
+
+        def pilot(targets, workdir, provider, model, **kwargs):
+            seen.append((model, kwargs.get("seed")))
+            return [_pilot_record(targets[0][0], model, None)]
+
+        run_bench_lab(
+            challenges=[_target("chal-unseen-1", "chall1", "FLAG{secreta}")],
+            workdir=tmp_path,
+            provider=None,
+            base_model="base",
+            trained_model="trained",
+            repetitions=3,
+            training_ids=set(),
+            pilot_fn=pilot,
+        )
+        # same rep index -> same seed across models (paired comparison),
+        # consecutive reps -> consecutive seeds (independent draws)
+        assert seen == [
+            ("base", "7"),
+            ("base", "8"),
+            ("base", "9"),
+            ("trained", "7"),
+            ("trained", "8"),
+            ("trained", "9"),
+        ]
+
+    def test_seed_base_is_configurable(self, tmp_path: Path) -> None:
+        seen: list[str | None] = []
+
+        def pilot(targets, workdir, provider, model, **kwargs):
+            seen.append(kwargs.get("seed"))
+            return [_pilot_record(targets[0][0], model, None)]
+
+        run_bench_lab(
+            challenges=[_target("chal-unseen-1", "chall1", "FLAG{secreta}")],
+            workdir=tmp_path,
+            provider=None,
+            base_model="base",
+            trained_model="trained",
+            repetitions=2,
+            training_ids=set(),
+            pilot_fn=pilot,
+            seed_base=100,
+        )
+        assert seen == ["100", "101", "100", "101"]
+
+
 class TestBenchAttemptWatchdog:
     """The MR6-v2 re-bench froze for 67 minutes: a hung attempt blocked
     the whole bench (the provider guard never fired, nothing bounded the

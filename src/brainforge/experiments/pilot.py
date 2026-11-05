@@ -79,8 +79,9 @@ function_pointer_on_heap, win_function.
 Value domains are strict: fmtstr_read, seccomp and
 function_pointer_on_heap take ONLY true or false. vuln takes exactly
 one of: "sof", "fmtstr", "uaf". allocator takes "tcache" when the
-source shows tcache/heap use, nothing otherwise. glibc_minor takes a
-bare integer.
+source shows tcache/heap use. glibc_minor takes a bare integer.
+Never emit an empty value: if a predicate does not apply, omit the
+line entirely (no bare `allocator()`, no empty atom `allocator("")`).
 Emit nothing else: no prose, no markdown, no code fences.
 Only emit facts the source actually shows.
 
@@ -121,6 +122,13 @@ def clean_facts(llm_text: str, allowed: set[str] | None = None) -> list[str]:
             if not bare.isdigit():
                 continue
             facts.append(f"{name}({bare}).")
+            continue
+        if not bare:
+            # an empty atom (`allocator("")`, `allocator().`) is a rejected
+            # term, and the suggest merge is atomic: one bad line sinks the
+            # whole batch (measured: 14 of the 30-rep attempts died on
+            # `allocator arg 1 may not be an empty string`). No predicate
+            # the LLM may emit takes an empty value, so the line is noise.
             continue
         quoted = value if value.startswith('"') else f'"{bare}"'
         facts.append(f"{name}({quoted}).")

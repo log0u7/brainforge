@@ -37,6 +37,7 @@ def _run_attempt_capped(
     provider: Any,
     model: str,
     attempt_cap: float | None,
+    seed: str | None = None,
 ) -> tuple[list[dict], bool]:
     """Run one pilot attempt under a wall-clock cap in a daemon thread.
 
@@ -49,7 +50,7 @@ def _run_attempt_capped(
 
     def run() -> None:
         try:
-            box["records"] = pilot_fn(entry, workdir, provider, model)
+            box["records"] = pilot_fn(entry, workdir, provider, model, seed=seed)
         except Exception as exc:  # re-raised on the caller side
             box["error"] = exc
         finally:
@@ -76,13 +77,21 @@ def _run_over_targets(
     pilot_fn: Any,
     expected_flags: dict[str, str],
     attempt_cap: float | None = None,
+    seed_base: int = 7,
 ) -> dict:
     """Run one model over the challenge list ``repetitions`` times and
     tally the success rate: a success is a run whose verdict flag matches
     the challenge's expected flag (a recited training flag on the wrong
-    challenge is not a success, it is contamination)."""
+    challenge is not a success, it is contamination).
+
+    Each repetition passes its own seed to the pilot (``seed_base + rep``):
+    lictor's bandit draws and the exploit build were otherwise identical
+    across repetitions, so N reps replayed one trajectory instead of
+    drawing N samples. The same rep index gets the same seed for both
+    models, which keeps the comparison paired."""
     stats = {"attempts": 0, "successes": 0, "per_challenge": {}}  # type: dict
     for rep in range(repetitions):
+        seed = str(seed_base + rep)
         for entry in targets:
             challenge_id = entry[0]
             # the progress lines: the MR6-v2 hang made a stuck challenge
@@ -95,7 +104,7 @@ def _run_over_targets(
             )
             started = time.monotonic()
             records, timed_out = _run_attempt_capped(
-                pilot_fn, [entry], workdir, provider, model, attempt_cap
+                pilot_fn, [entry], workdir, provider, model, attempt_cap, seed=seed
             )
             elapsed = time.monotonic() - started
             flag = _record_flag(records[0]) if records else None
@@ -166,6 +175,7 @@ def run_bench_lab(
     output: Path | None = None,
     pilot_fn: Any = None,
     attempt_cap: float | None = None,
+    seed_base: int = 7,
 ) -> dict:
     """Run the final benchmark over ``challenges`` for the two models.
 
@@ -178,6 +188,10 @@ def run_bench_lab(
     ``attempt_cap``: wall-clock cap (seconds) per attempt. A hung attempt
     becomes an explicit TIMEOUT miss and the bench moves on - without a
     cap a single hung attempt can freeze the whole bench.
+
+    ``seed_base``: the repetition ``rep`` runs with seed ``seed_base + rep``
+    (lictors bandit draws and the payload build). Repetitions must be
+    independent samples, not replays of one trajectory.
     """
     if training_ids is None:
         raise BrainforgeError(
@@ -209,6 +223,7 @@ def run_bench_lab(
             pilot,
             expected_flags,
             attempt_cap,
+            seed_base,
         )
 
     if output is not None:
