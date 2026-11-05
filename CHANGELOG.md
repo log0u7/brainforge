@@ -48,6 +48,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   against every target class BEFORE rollouts/benches (a broken exploit
   silently poisons rollouts, datasets, retrains and benches downstream).
 
+- `CONTRIBUTING.md` and `AGENTS.md` now describe the merge policy actually
+  in use since PR #110: squash-merge (`gh pr merge --squash
+  --delete-branch`), one commit per topic on `main`, MR title as the
+  Conventional Commits subject. Release tags go on the squash commit.
+
 ### Added
 
 - Bench protocol fix: `scripts/run_final_bench.sh` now repeats

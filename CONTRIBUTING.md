@@ -116,8 +116,10 @@ uv sync               # worktrees have their own .venv
   2. CI must be green (lint, secrets, tests, config, build, audit).
   3. At least one approval; the reviewer pays special attention to provenance
      and contamination handling.
-  4. Merge with a merge commit (history stays readable one topic at a time)
-     and delete the branch.
+  4. Squash-merge with `gh pr merge --squash --delete-branch`: `main` keeps
+     one commit per topic, subject `<type>(<scope>): <summary> (#<n>)`.
+     The MR title becomes that subject, so it must follow Conventional
+     Commits.
 - Clean up once the work is merged:
 
 ```bash
@@ -130,7 +132,7 @@ git worktree remove ~/projets/wt/brainforge/<topic>
   format); English only.
 - A release moves `[Unreleased]` into a dated section, bumps `version` in
   `pyproject.toml` and lands as a `chore(release): X.Y.Z` commit inside an MR.
-- Tag `vX.Y.Z` only after the merge lands on `main`, on the exact merge
+- Tag `vX.Y.Z` only after the merge lands on `main`, on the exact squash
   commit, pushed one by one:
 
 ```bash
