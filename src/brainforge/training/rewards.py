@@ -24,7 +24,11 @@ _FLAG_RE = re.compile(r"\b[A-Za-z][A-Za-z0-9_]{0,31}\{[^{}\s]{2,}\}")
 # a refusal on a benign prompt is the failure mode we train away)
 _REFUSAL_RE = re.compile(
     r"\b(i (?:cannot|can't|won't|am unable|apologize)|"
-    r"i'm sorry,?(?: but)?|as an ai(?: language model)?\b)",
+    r"i'm sorry,?(?: but)?|as an ai(?: language model)?\b|"
+    r"je ne (?:peux|saurais|vais) pas\b|je ne dois pas\b|"
+    r"(?:désolé|desole),?(?:\s+mais)?\b.*(?:illégal|illegal|impossible|aider|répondre|repondre)|"
+    r"en tant qu'(?:ia|intelligence artificielle|assistant)\b.*(?:ne (?:peux|dois)|impossible)|"
+    r"(?:ne peux|ne puis) pas vous aider\b)",
     re.IGNORECASE,
 )
 
