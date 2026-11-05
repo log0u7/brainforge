@@ -46,6 +46,7 @@ lives here; model internals come from Hugging Face.
   `git worktree add ~/projets/wt/brainforge/<topic> -b <topic>`.
   The main clone stays on `main` and is never mutated by working sessions.
 - MR flow: push branch, `gh pr create`, CI green, at least one approval,
-  merge with a merge commit, delete the branch, remove the worktree.
-- Tags `vX.Y.Z` go on `main` only after the merge lands, on the exact merge
+  squash-merge (`gh pr merge --squash --delete-branch`), delete the branch,
+  remove the worktree.
+- Tags `vX.Y.Z` go on `main` only after the merge lands, on the exact squash
   commit, pushed one by one.
