@@ -52,6 +52,7 @@ class OpenAICompatProvider(Provider):
         base_url = config.base_url or self.default_base_url
         if base_url is None:
             raise ProviderError(f"provider '{name}' requires a base_url")
+        self._limits: httpx.Limits | None = None
         if http_client is None:
             # own the connection pool: a short keepalive_expiry drops idle
             # keep-alive sockets before the server closes them itself, so
@@ -112,7 +113,7 @@ class OpenAICompatProvider(Provider):
                 box: dict[str, Any] = {}
                 done = threading.Event()
 
-                def run_call() -> None:
+                def run_call(box: dict[str, Any] = box, done: threading.Event = done) -> None:
                     try:
                         box["response"] = _create_call(self._client.chat.completions.create, kwargs)
                     except Exception as exc:  # re-raised on the caller side

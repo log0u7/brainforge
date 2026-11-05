@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Bench measurement validity: each repetition now runs with its own lictor
+  seed (`seed_base + rep`, default base 7, same seed across both models for
+  a paired comparison). The bench never passed a seed to the pilot, so every
+  repetition replayed run_pilot's default seed-7 trajectory: 30 reps were 30
+  copies of one draw, not 30 independent samples.
+- Pilot facts: `clean_facts` drops empty-value lines (`allocator()`,
+  `allocator("")`, `vuln()`). The suggest merge is atomic, so one empty atom
+  sank the whole batch (measured: 14 of the 30-rep attempts died on
+  `allocator arg 1 may not be an empty string`). `FACT_PROMPT` no longer says
+  allocator is `nothing otherwise` (the literal invitation) and forbids empty
+  values explicitly.
+- Providers: clear the ruff (`B023`) and mypy regressions introduced with the
+  wall-clock hang guard (#145): the guard closure binds its box/event
+  explicitly, and `_limits` is annotated before the branch.
+
 - Providers: the OpenAI-compatible client no longer freezes the process on
   server-closed keep-alive sockets or wedged transports. Calls run in a
   daemon thread with a wall-clock deadline, own httpx clients use short

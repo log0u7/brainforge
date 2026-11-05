@@ -284,6 +284,34 @@ def test_clean_facts_enforces_value_domains():
     assert facts == ['vuln("fmtstr").', 'seccomp("true").']
 
 
+def test_clean_facts_drops_empty_value_lines():
+    """The LLM emits bare predicates when the source does not show the
+    fact (``allocator().``) or an explicit empty atom
+    (``allocator("")``). augure rejects that line, and the suggest merge
+    is atomic: 14 of the 30-rep attempts died on the whole batch with
+    ``allocator arg 1 may not be an empty string``. The filter must drop
+    the line instead of passing it."""
+    from brainforge.experiments.pilot import LLM_ALLOWED, clean_facts
+
+    llm_text = (
+        'allocator().\nvuln().\nallocator("").\nglibc_minor().\nvuln("uaf").\nallocator("tcache").'
+    )
+    facts = clean_facts(llm_text, allowed=LLM_ALLOWED)
+    assert facts == ['vuln("uaf").', 'allocator("tcache").']
+
+
+def test_fact_prompt_forbids_empty_values():
+    """The prompt said `allocator takes "tcache" when the source shows
+    tcache/heap use, nothing otherwise`: "nothing" read as a value, and
+    the model emitted the empty atom that kills the merge. The prompt
+    must ask for no line at all when the fact does not apply."""
+    from brainforge.experiments.pilot import FACT_PROMPT
+
+    lowered = FACT_PROMPT.lower()
+    assert "nothing otherwise" not in lowered
+    assert "never emit an empty value" in lowered
+
+
 def test_suggest_failure_does_not_abort_the_run():
     """A rejected suggest merge must not erase the outcome: the profiler
     facts alone still decide, lictor still runs."""
