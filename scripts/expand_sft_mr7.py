@@ -72,7 +72,11 @@ def main() -> int:
     parser.add_argument(
         "--source-glob",
         nargs="+",
-        default=["experiments/experiments/rollouts/trajectories/*.jsonl"],
+        default=[
+            "experiments/experiments/rollouts/trajectories/*.jsonl",
+            "experiments/experiments/rollouts-twins/trajectories/*.jsonl",
+            "datasets/sft-mr6-v2/train.jsonl",
+        ],
     )
     parser.add_argument("--cases-dir", default="examples/cases")
     parser.add_argument("--out", default="datasets/sft-mr7-facts/train.jsonl")
