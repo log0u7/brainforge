@@ -23,9 +23,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from brainforge.experiments.pilot import FACT_PROMPT, LLM_ALLOWED  # noqa: E402
+from assemble_sft_mr7 import VULN_TRUTH, case_material
 
-from assemble_sft_mr7 import VULN_TRUTH, case_material  # noqa: E402
+from brainforge.experiments.pilot import FACT_PROMPT, LLM_ALLOWED
 
 # the trajectory regex strips both numeric suffixes, so the uaf twin
 # arrives as "uaf_heap"; VULN_TRUTH and the case files key it as the
@@ -92,7 +92,7 @@ def main() -> int:
                     continue
                 record = json.loads(line)
                 target = _target_of(record)
-                if target is None or target not in VULN_TRUTH:
+                if target is not None and target not in VULN_TRUTH:
                     target = TARGET_ALIASES.get(target, target)
                 if target is None or target not in VULN_TRUTH:
                     continue
