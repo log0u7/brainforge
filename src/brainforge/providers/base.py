@@ -27,6 +27,10 @@ class ChatRequest(BaseModel):
     # for Qwen3 thinking control). Provider-specific fields ride here so the
     # request model stays provider-agnostic.
     extra_body: dict[str, Any] | None = None
+    # OpenAI-style structured output (``{"type": "json_schema", ...}``).
+    # llama.cpp honours it through constrained decoding, which turns a
+    # free-form answer into one parseable shape.
+    response_format: dict[str, Any] | None = None
 
 
 class PositionLogprobs(BaseModel):

@@ -11,7 +11,9 @@ base and the trained student need separate endpoints).
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -165,6 +167,11 @@ def main(argv: list[str] | None = None) -> int:
         default=Path("experiments/final-bench"),
         help="Pilot workdir and results output directory",
     )
+    parser.add_argument(
+        "--attempt-cap", type=float, default=600.0, help="Wall-clock cap per attempt (seconds)"
+    )
+    parser.add_argument("--seed-base", type=int, default=7, help="Base seed for repetitions")
+    parser.add_argument("--skip-preflight", action="store_true", help="Skip preflight checks")
     args = parser.parse_args(argv)
 
     challenges, skipped = load_verified_challenges(args.manifest, args.cases_dir)
@@ -187,7 +194,29 @@ def main(argv: list[str] | None = None) -> int:
         ),
     }
 
+    if not args.skip_preflight:
+        from brainforge.experiments import preflight
+
+        preflight_result = preflight.run_preflight(
+            args.base_url, args.trained_url, args.base_model, args.trained_model
+        )
+        for c in preflight_result.checks:
+            print(f"[{c['status'].upper()}] {c['id']}: {c['message']}")
+        if not preflight_result.ok:
+            print("PREFLIGHT FAILED: refusing to run bench", file=sys.stderr)
+            return 2
+
     from brainforge.experiments.bench_lab import run_bench_lab
+
+    git_sha = None
+    with contextlib.suppress(Exception):
+        git_sha = (
+            subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=Path(__file__).parent.parent.parent.parent
+            )
+            .decode()
+            .strip()
+        )
 
     results = run_bench_lab(
         challenges=challenges,
@@ -198,7 +227,26 @@ def main(argv: list[str] | None = None) -> int:
         repetitions=args.repetitions,
         training_ids=training_ids,
         output=args.workdir,
+        attempt_cap=args.attempt_cap,
+        seed_base=args.seed_base,
     )
+    results["protocol"] = {
+        "git_sha": git_sha,
+        "seed_base": args.seed_base,
+        "repetitions": args.repetitions,
+        "attempt_cap": args.attempt_cap,
+        "base_url": args.base_url,
+        "trained_url": args.trained_url,
+        "base_model": args.base_model,
+        "trained_model": args.trained_model,
+        "manifest": str(args.manifest),
+        "cases_dir": str(args.cases_dir),
+    }
+    if args.workdir:
+        args.workdir.mkdir(parents=True, exist_ok=True)
+        (args.workdir / "results.json").write_text(
+            json.dumps(results, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
     for name in ("base", "trained"):
         stats = results[name]
         print(f"{name}: {stats['successes']}/{stats['attempts']} = {stats['success_rate']:.2f}")

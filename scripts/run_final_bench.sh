@@ -39,6 +39,7 @@ cd "$(dirname "$0")/.."
 
 TAG="${1:?usage: run_final_bench.sh <tag> [repetitions]}"
 REPS="${2:-10}"
+ATTEMPT_CAP="${ATTEMPT_CAP:-600}"
 MANIFEST="experiments/ctf_ingest/manifest.jsonl"
 export REPS
 CASES_DIR="examples/cases"
@@ -89,6 +90,15 @@ for c in d["clean"]:
 print(f"expected totals: {d['n_clean']} challenges x 2 models x {os.environ.get('REPS', '?')} reps")
 PY
 
+# --- 1b. preflight -------------------------------------------------------
+echo "PROTOCOL: running preflight"
+uv run python -m brainforge.experiments.preflight \
+	--base-url "$BASE_URL" --base-model "$BASE_MODEL" \
+	--trained-url "$TRAINED_URL" --trained-model "$TRAINED_MODEL" || {
+	echo "PROTOCOL ERROR: preflight failed" >&2
+	exit 2
+}
+
 # --- 2. run the bench ---------------------------------------------------
 echo "PROTOCOL: launching bench -> $WORKDIR"
 set +e
@@ -102,7 +112,8 @@ uv run python -m brainforge.experiments.final_bench \
 	--base-url "$BASE_URL" --base-model "$BASE_MODEL" \
 	--trained-url "$TRAINED_URL" --trained-model "$TRAINED_MODEL" \
 	--repetitions "$REPS" \
-	--workdir "$WORKDIR"
+	--workdir "$WORKDIR" \
+	--attempt-cap "$ATTEMPT_CAP"
 BENCH_RC=$?
 set -e
 if [ "$BENCH_RC" -ne 0 ]; then

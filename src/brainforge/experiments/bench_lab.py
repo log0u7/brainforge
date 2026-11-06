@@ -89,7 +89,7 @@ def _run_over_targets(
     across repetitions, so N reps replayed one trajectory instead of
     drawing N samples. The same rep index gets the same seed for both
     models, which keeps the comparison paired."""
-    stats = {"attempts": 0, "successes": 0, "per_challenge": {}}  # type: dict
+    stats = {"attempts": 0, "successes": 0, "attempts_without_llm_facts": 0, "per_challenge": {}}  # type: dict
     for rep in range(repetitions):
         seed = str(seed_base + rep)
         for entry in targets:
@@ -123,6 +123,10 @@ def _run_over_targets(
                     challenge_id in expected_flags and flag == expected_flags[challenge_id]
                 )
                 stats["attempts"] += 1
+                if not (record.get("metadata") or {}).get("pilot", {}).get("facts"):
+                    # a flag found with zero LLM facts measures lictor's
+                    # deterministic harvest, not the model: surface it
+                    stats["attempts_without_llm_facts"] += 1
                 if is_success:
                     stats["successes"] += 1
                 slot = stats["per_challenge"].setdefault(
@@ -216,7 +220,10 @@ def run_bench_lab(
     for name, model in (("base", base_model), ("trained", trained_model)):
         results[name] = _run_over_targets(
             targets,
-            workdir,
+            # a per-model evidence dir: pilot.run_pilot writes
+            # run.json/target.facts/trail-*.jsonl under workdir/<binary>,
+            # so a shared dir let the trained arm overwrite the base arm
+            workdir / name,
             provider,
             model,
             repetitions,
@@ -236,11 +243,16 @@ def run_bench_lab(
             for name, res in (("base", results["base"]), ("trained", results["trained"]))
         ]
         contamination = "clean" if results["contamination"]["clean"] else f"LEAKED: {leaked}"
+        without_facts = ", ".join(
+            f"{name} {results[name]['attempts_without_llm_facts']}/{results[name]['attempts']}"
+            for name in ("base", "trained")
+        )
         (output / "results.md").write_text(
             "# Bench lab results\n\n"
             f"repetitions: {repetitions}\n\n"
             "| model | successes/attempts | success_rate |\n"
             "|---|---|---|\n" + "\n".join(rows) + "\n\n"
+            f"attempts without LLM facts: {without_facts}\n\n"
             f"contamination: {contamination}\n",
             encoding="utf-8",
         )

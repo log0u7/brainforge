@@ -95,6 +95,8 @@ class OpenAICompatProvider(Provider):
             kwargs["max_tokens"] = request.max_tokens
         if request.extra_body:
             kwargs["extra_body"] = request.extra_body
+        if request.response_format:
+            kwargs["response_format"] = request.response_format
         attempts = self.config.max_retries + 1
         last_error: Exception | None = None
         deadline = self.config.timeout + DEADLINE_GRACE
