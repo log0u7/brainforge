@@ -10,6 +10,7 @@ it is read from the service the exploit reached.
 """
 
 import json
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -215,13 +216,14 @@ def ask_facts(provider: Any, model: str, material: str) -> list[str]:
         ChatRequest(
             messages=[ChatMessage(role="user", content=FACT_PROMPT.format(material=material))],
             temperature=0.2,
+            max_tokens=512,
         ),
         model,
     )
     return clean_facts(response.content or "", allowed=LLM_ALLOWED)
 
 
-PACKS_DIR = "/home/logout/projets/github/logout/augure/packs"
+PACKS_DIR = os.environ.get("AUGURE_PACKS_DIR", "/home/logout/projets/github/logout/augure/packs")
 
 
 def run_lictor(

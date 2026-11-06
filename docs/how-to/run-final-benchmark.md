@@ -35,29 +35,51 @@ The lab publishes: HTTP `8000` (binaries), `9982-9999` plus `8897-8899`
 ## 2. Serve the two models
 
 llama.cpp serves one model per instance, so the benchmark needs the
-base and the trained student on two separate ports. On the GPU host:
+base and the trained student on two separate ports. On the GPU host
+(preferred: nssm services):
+
+```powershell
+# From repo root on the control machine, or on gpu3080
+powershell -ExecutionPolicy Bypass -File scripts/setup_bench_servers.ps1 -Apply
+nssm start bf-bench-base
+nssm start bf-bench-trained
+```
+
+Manual equivalent (must include `--jinja` and match protocol flags):
 
 ```cmd
-C:\llama.cpp\llama-server.exe -m <path>\Qwen3-1.7B-Q8_0.gguf --host 0.0.0.0 --port 9932 --alias base-qwen3-1.7b
-C:\llama.cpp\llama-server.exe -m <path>\model-q4_k_m.gguf --host 0.0.0.0 --port 9933 --alias trained-sft17
+C:\llama.cpp\llama-server.exe -m <path>\Qwen3-1.7B-Q8_0.gguf --host 0.0.0.0 --port 9932 --alias base-qwen3-1.7b -c 16384 -ngl 99 -fa on --parallel 1 --jinja --metrics
+C:\llama.cpp\llama-server.exe -m <path>\model-q4_k_m.gguf --host 0.0.0.0 --port 9933 --alias trained-mr6 -c 16384 -ngl 99 -fa on --parallel 1 --jinja --metrics
 ```
 
 The `--alias` value is the model name the runner routes on: it must
-match the `--base-model` / `--trained-model` arguments below.
+match the `--base-model` / `--trained-model` arguments below. The
+preflight checks enforce jinja/chat template support, distinct servers,
+and healthy latency.
 
 ## 3. Run the benchmark
 
-From the brainforge repo root, on a machine that reaches both the lab
-listeners (localhost) and the GPU host over the network:
+Preferred entry point (runs preflight, passes attempt cap, enforces
+protocol):
+
+```sh
+scripts/run_final_bench.sh mr6-v2-seeded 10
+```
+
+Environment overrides: `BASE_URL`, `BASE_MODEL`, `TRAINED_URL`,
+`TRAINED_MODEL`, `ATTEMPT_CAP`. Manual equivalent:
 
 ```sh
 uv run python -m brainforge.experiments.final_bench \
-  --training-ids datasets/kd-glm-full/train.jsonl \
-  --base-url http://<gpu-host>:9932/v1 \
+  --training-ids datasets/sft-mr6/train.jsonl \
+  --training-ids datasets/sft-mr6-v2/train.jsonl \
+  --training-ids datasets/eval/grpo-translated.jsonl \
+  --base-url http://192.168.1.26:9932/v1 \
   --base-model base-qwen3-1.7b \
-  --trained-url http://<gpu-host>:9933/v1 \
-  --trained-model trained-sft17 \
-  --repetitions 1
+  --trained-url http://192.168.1.26:9933/v1 \
+  --trained-model trained-mr6 \
+  --repetitions 10 \
+  --attempt-cap 600
 ```
 
 The runner:

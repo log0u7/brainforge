@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a paired comparison). The bench never passed a seed to the pilot, so every
   repetition replayed run_pilot's default seed-7 trajectory: 30 reps were 30
   copies of one draw, not 30 independent samples.
+- Bench protocol: enforce jinja/chat template checks, alias validation, distinct
+  servers, per-attempt wall-clock cap, health probes, and protocol metadata in
+  results. `ask_facts` caps generation to 512 tokens; `AUGURE_PACKS_DIR` is
+  configurable. nssm service setup and bf-train repair script added.
 - Pilot facts: `clean_facts` drops empty-value lines (`allocator()`,
   `allocator("")`, `vuln()`). The suggest merge is atomic, so one empty atom
   sank the whole batch (measured: 14 of the 30-rep attempts died on
