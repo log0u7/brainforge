@@ -136,6 +136,60 @@ def check_latency(
     return {"id": "latency", "status": "pass", "message": f"{elapsed:.2f}s"}
 
 
+PROBE_JSON_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {"ok": {"type": "boolean"}},
+    "required": ["ok"],
+    "additionalProperties": False,
+}
+
+
+def check_constrained_output(base_url: str, model: str, timeout: float = 30.0) -> dict[str, Any]:
+    """The fact request depends on json_schema constrained decoding.
+
+    A server that ignores ``response_format`` returns prose, and the bench
+    then measures the parser instead of the model. The check asks for a
+    trivial schema and fails unless the answer parses as JSON.
+    """
+    check_id = f"constrained_output.{model}"
+    payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": 'Answer with JSON: {"ok": true}'}],
+        "temperature": 0.0,
+        "max_tokens": 128,
+        "stream": False,
+        "chat_template_kwargs": {"enable_thinking": False},
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {"name": "bench_probe", "schema": PROBE_JSON_SCHEMA, "strict": True},
+        },
+    }
+    try:
+        code, body = _http_json(
+            f"{_strip_v1(base_url)}/v1/chat/completions",
+            payload=payload,
+            timeout=timeout,
+        )
+    except Exception as exc:
+        return {"id": check_id, "status": "fail", "message": str(exc)}
+    if code != 200:
+        return {
+            "id": check_id,
+            "status": "fail",
+            "message": f"HTTP {code}: response_format rejected",
+        }
+    try:
+        content = json.loads(body)["choices"][0]["message"]["content"]
+        json.loads(content)
+    except (KeyError, IndexError, TypeError, json.JSONDecodeError):
+        return {
+            "id": check_id,
+            "status": "fail",
+            "message": "endpoint ignored the schema (answer is not JSON)",
+        }
+    return {"id": check_id, "status": "pass", "message": "json_schema honoured"}
+
+
 def probe(base_url: str, model: str, timeout: float = 30.0) -> bool:
     """One cheap completion: True when the endpoint answers 200."""
     payload = {
@@ -181,6 +235,8 @@ def run_preflight(
     checks.append(
         check_latency(trained_url, trained_model, timeout=timeout, max_seconds=max_latency)
     )
+    checks.append(check_constrained_output(base_url, base_model, timeout=timeout))
+    checks.append(check_constrained_output(trained_url, trained_model, timeout=timeout))
 
     details = {
         "base_url": base_url,

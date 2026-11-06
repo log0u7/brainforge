@@ -55,7 +55,9 @@ C:\llama.cpp\llama-server.exe -m <path>\model-q4_k_m.gguf --host 0.0.0.0 --port 
 The `--alias` value is the model name the runner routes on: it must
 match the `--base-model` / `--trained-model` arguments below. The
 preflight checks enforce jinja/chat template support, distinct servers,
-and healthy latency.
+healthy latency, and `json_schema` constrained decoding (the fact
+request relies on it, and a server that ignores `response_format`
+invalidates the measurement).
 
 ## 3. Run the benchmark
 

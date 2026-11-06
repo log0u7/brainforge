@@ -70,20 +70,20 @@ LLM_ALLOWED = {
 }
 
 FACT_PROMPT = """You are feeding an auditable exploitation decision engine.
-Read the CTF challenge material below and emit ONLY the fact predicates
-you can justify from the source code, one per line, Prolog style:
-predicate("value").
-Allowed predicates (nothing else: the profiler already emits the
+Read the CTF challenge material below and answer with ONE JSON object:
+{{"facts": [{{"name": "...", "value": "..."}}]}}
+Every fact must be one you can justify from the source code.
+Allowed names (nothing else: the profiler already emits the
 binary facts and the leak addresses are measured separately):
 vuln, fmtstr_read, seccomp, allocator, glibc_minor,
 function_pointer_on_heap, win_function.
 Value domains are strict: fmtstr_read, seccomp and
 function_pointer_on_heap take ONLY true or false. vuln takes exactly
 one of: "sof", "fmtstr", "uaf". allocator takes "tcache" when the
-source shows tcache/heap use. glibc_minor takes a bare integer.
-Never emit an empty value: if a predicate does not apply, omit the
-line entirely (no bare `allocator()`, no empty atom `allocator("")`).
-Emit nothing else: no prose, no markdown, no code fences.
+source shows tcache/heap use. glibc_minor takes an integer.
+Never emit an empty value: if a fact does not apply, omit it entirely
+(no empty string, no empty fact object).
+Emit nothing else: no prose, no markdown, no code fences, no other keys.
 Only emit facts the source actually shows.
 
 Challenge material:
@@ -91,6 +91,43 @@ Challenge material:
 
 
 MAX_SUGGESTED_FACTS = 16
+
+# The value atoms the constrained decoder may emit. ``tcache`` is the only
+# meaningful allocator value and the integer branch covers glibc_minor.
+_ALLOWED_VALUES = sorted({value for domain in VALUE_DOMAINS.values() for value in domain})
+FACT_VALUE_PATTERN = (
+    "^(?:" + "|".join([re.escape(v) for v in _ALLOWED_VALUES] + ["tcache", "[0-9]+"]) + ")$"
+)
+
+# Constrained-decoding schema for the fact request. Free-form fact lines
+# were not reproducible across models (run-20261106: the base emitted
+# value(...) shapes, the trained student emitted valueless
+# predicate("name") lines and degenerated to max_tokens), so the schema
+# fixes the envelope: one object, one array, name/value only.
+FACT_JSON_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "facts": {
+            "type": "array",
+            "maxItems": MAX_SUGGESTED_FACTS,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "enum": sorted(LLM_ALLOWED)},
+                    "value": {"type": "string", "pattern": FACT_VALUE_PATTERN},
+                },
+                "required": ["name", "value"],
+                "additionalProperties": False,
+            },
+        }
+    },
+    "required": ["facts"],
+    "additionalProperties": False,
+}
+FACT_RESPONSE_FORMAT: dict[str, Any] = {
+    "type": "json_schema",
+    "json_schema": {"name": "facts", "schema": FACT_JSON_SCHEMA, "strict": True},
+}
 
 
 def clean_facts(llm_text: str, allowed: set[str] | None = None) -> list[str]:
@@ -208,6 +245,32 @@ def build_trajectory(
     }
 
 
+def _facts_from_json(llm_text: str, allowed: set[str] | None = None) -> list[str] | None:
+    """Map the constrained JSON answer onto the fact grammar.
+
+    Returns ``None`` when the payload is not the requested object, so the
+    caller can fall back to the line parser (a provider without
+    constrained decoding still gets a chance). Domain and allow-list
+    filtering stays in ``clean_facts``: the schema fixes the shape, not
+    the truth of the values.
+    """
+    try:
+        data = json.loads(llm_text.strip())
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, dict) or not isinstance(data.get("facts"), list):
+        return None
+    lines: list[str] = []
+    for item in data["facts"]:
+        if not isinstance(item, dict):
+            continue
+        name, value = item.get("name"), item.get("value")
+        if not isinstance(name, str) or not isinstance(value, str) or not value:
+            continue
+        lines.append(f'{name}("{value}").')
+    return clean_facts("\n".join(lines), allowed=allowed)
+
+
 def ask_facts(provider: Any, model: str, material: str) -> list[str]:
     """One chat completion: the challenge material in, predicate facts out.
 
@@ -215,8 +278,12 @@ def ask_facts(provider: Any, model: str, material: str) -> list[str]:
     passthrough: a Qwen3-style template in thinking mode streams the answer
     into ``reasoning_content`` and leaves ``content`` empty, so every bench
     attempt logged "the LLM emitted no usable facts" while the flag still
-    came from lictor's deterministic harvest (run-20261106). The same
-    passthrough is already used by ``training.task_eval``.
+    came from lictor's deterministic harvest (run-20261106).
+
+    The answer is constrained to ``FACT_JSON_SCHEMA``: run-20261106 also
+    showed that free-form fact lines are not reproducible across models
+    (the base emitted ``value(...)`` shapes, the trained student emitted
+    valueless ``predicate("name")`` lines and degenerated to ``max_tokens``).
     """
     from brainforge.providers.base import ChatMessage, ChatRequest
 
@@ -226,10 +293,15 @@ def ask_facts(provider: Any, model: str, material: str) -> list[str]:
             temperature=0.2,
             max_tokens=512,
             extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+            response_format=FACT_RESPONSE_FORMAT,
         ),
         model,
     )
-    return clean_facts(response.content or "", allowed=LLM_ALLOWED)
+    content = response.content or ""
+    facts = _facts_from_json(content, allowed=LLM_ALLOWED)
+    if facts is None:
+        facts = clean_facts(content, allowed=LLM_ALLOWED)
+    return facts
 
 
 PACKS_DIR = os.environ.get("AUGURE_PACKS_DIR", "/home/logout/projets/github/logout/augure/packs")
