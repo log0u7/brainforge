@@ -73,14 +73,28 @@ FACT_PROMPT = """You are feeding an auditable exploitation decision engine.
 Read the CTF challenge material below and answer with ONE JSON object:
 {{"facts": [{{"name": "...", "value": "..."}}]}}
 Every fact must be one you can justify from the source code.
+
+The vuln class is the MOST important fact: it decides which exploit
+technique the engine picks. Classify from the source code, not from
+the challenge name:
+- vuln "fmtstr": a printf/snprintf/fprintf family call whose format
+  string comes from user input (printf(user_input), printf(buf)).
+- vuln "sof": a stack buffer overflow - strcpy, strcat, sprintf, gets,
+  read(fd, buf, N) with N > sizeof(buf), memcpy into a fixed buffer.
+- vuln "uaf": use-after-free - a pointer freed then dereferenced or
+  called before reassignment.
+Emit vuln AT MOST ONCE, with the single class the source shows. If
+the source shows none of these three patterns, omit vuln entirely
+(do NOT guess: a wrong class sends the engine down a failing path).
+
 Allowed names (nothing else: the profiler already emits the
 binary facts and the leak addresses are measured separately):
 vuln, fmtstr_read, seccomp, allocator, glibc_minor,
 function_pointer_on_heap, win_function.
 Value domains are strict: fmtstr_read, seccomp and
-function_pointer_on_heap take ONLY true or false. vuln takes exactly
-one of: "sof", "fmtstr", "uaf". allocator takes "tcache" when the
-source shows tcache/heap use. glibc_minor takes an integer.
+function_pointer_on_heap take ONLY true or false. allocator takes
+"tcache" when the source shows tcache/heap use. glibc_minor takes an
+integer. Emit each name at most once.
 Never emit an empty value: if a fact does not apply, omit it entirely
 (no empty string, no empty fact object).
 Emit nothing else: no prose, no markdown, no code fences, no other keys.
