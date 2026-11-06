@@ -30,7 +30,6 @@ Run:  python scripts/assemble_sft_mr7.py --out datasets/sft-mr7-facts/train.json
 from __future__ import annotations
 
 import argparse
-import glob
 import json
 import re
 import sys
@@ -38,7 +37,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from brainforge.experiments.pilot import FACT_PROMPT, LLM_ALLOWED  # noqa: E402
+from brainforge.experiments.pilot import FACT_PROMPT, LLM_ALLOWED
 
 # The training-eligible targets and their ground-truth vuln class.
 # Majority vote over the MR6 trajectories, cross-checked against the
