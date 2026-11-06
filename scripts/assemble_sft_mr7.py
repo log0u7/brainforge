@@ -53,6 +53,17 @@ VULN_TRUTH: dict[str, str] = {
     "uaf_heap-002": "uaf",
     "uaf_train_a": "uaf",
     "uaf_train_b": "uaf",
+    # the -002 twins and the extra lab targets: same class as their
+    # base target (the challenge source shows the same primitive).
+    "callme-002": "sof",
+    "fmtstr-002": "fmtstr",
+    "orw-002": "fmtstr",
+    "ret2func-002": "sof",
+    "ret2libc-001": "sof",
+    "ret2libc-002": "sof",
+    "ret2plt-002": "sof",
+    "shellcode-002": "sof",
+    "srop-001": "sof",
 }
 
 # Facts with very few MR6 votes are noise; these overrides carry the
