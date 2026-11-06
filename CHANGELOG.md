@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   servers, per-attempt wall-clock cap, health probes, and protocol metadata in
   results. `ask_facts` caps generation to 512 tokens; `AUGURE_PACKS_DIR` is
   configurable. nssm service setup and bf-train repair script added.
+- Bench measurement validity: `ask_facts` disables Qwen3 thinking through
+  `chat_template_kwargs` (thinking mode left `content` empty, so every attempt
+  logged "the LLM emitted no usable facts" while lictor's deterministic harvest
+  still found flags). Each model now writes its evidence under
+  `workdir/<base|trained>/` so the trained arm no longer overwrites the base
+  arm, and `results.json` reports `attempts_without_llm_facts` per model.
 - Pilot facts: `clean_facts` drops empty-value lines (`allocator()`,
   `allocator("")`, `vuln()`). The suggest merge is atomic, so one empty atom
   sank the whole batch (measured: 14 of the 30-rep attempts died on

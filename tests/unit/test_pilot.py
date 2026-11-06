@@ -680,3 +680,55 @@ def test_run_executes_the_built_technique(tmp_path: Any):
     assert run_args[run_args.index("--technique") + 1] == "shellcode"
     verdict = json.loads(records[0]["messages"][-1]["content"])
     assert verdict["flag"] == "FLAG{run_pinned}"
+
+
+def test_ask_facts_disables_thinking_generation():
+    """Qwen3 in thinking mode returns the text in ``reasoning_content`` and
+    leaves ``content`` empty: every bench attempt logged 'the LLM emitted
+    no usable facts' while the flag still came from lictor's deterministic
+    harvest. The fact request must disable thinking so the answer lands in
+    ``content``."""
+    from brainforge.experiments.pilot import ask_facts
+    from brainforge.providers.base import ChatResponse
+
+    class FakeProvider:
+        def __init__(self) -> None:
+            self.requests = []
+
+        def complete(self, request, model):
+            self.requests.append(request)
+            return ChatResponse(content='vuln("fmtstr").', provider="fake", model=model)
+
+    provider = FakeProvider()
+    facts = ask_facts(provider, "base-qwen3-1.7b", "material")
+
+    assert facts == ['vuln("fmtstr").']
+    request = provider.requests[0]
+    assert request.extra_body == {"chat_template_kwargs": {"enable_thinking": False}}
+    assert request.max_tokens == 512
+
+
+def test_trajectory_metadata_records_the_llm_fact_count():
+    """The bench must be able to flag attempts where the model contributed
+    nothing: the record carries the number of facts the LLM supplied."""
+    from brainforge.experiments.pilot import build_trajectory
+
+    empty = build_trajectory(
+        challenge_id="chal-1",
+        student_input="solve",
+        facts_steps=[],
+        decision={"technique": "ret2plt"},
+        outcome={"status": "flagged", "flag": "FLAG{x}"},
+        model="m",
+    )
+    fed = build_trajectory(
+        challenge_id="chal-1",
+        student_input="solve",
+        facts_steps=['vuln("fmtstr").', 'seccomp("false").'],
+        decision={"technique": "ret2plt"},
+        outcome={"status": "flagged", "flag": "FLAG{x}"},
+        model="m",
+    )
+
+    assert empty["metadata"]["pilot"]["facts"] == 0
+    assert fed["metadata"]["pilot"]["facts"] == 2

@@ -197,7 +197,7 @@ def build_trajectory(
     metadata = {
         "pipeline": "pilot",
         "domain": "agentic",
-        "pilot": {"model": model, "decision": decision},
+        "pilot": {"model": model, "decision": decision, "facts": len(facts_steps)},
         "flag_verified": bool(outcome.get("flag")),
     }
     return {
@@ -209,7 +209,15 @@ def build_trajectory(
 
 
 def ask_facts(provider: Any, model: str, material: str) -> list[str]:
-    """One chat completion: the challenge material in, predicate facts out."""
+    """One chat completion: the challenge material in, predicate facts out.
+
+    Thinking is disabled through the llama.cpp ``chat_template_kwargs``
+    passthrough: a Qwen3-style template in thinking mode streams the answer
+    into ``reasoning_content`` and leaves ``content`` empty, so every bench
+    attempt logged "the LLM emitted no usable facts" while the flag still
+    came from lictor's deterministic harvest (run-20261106). The same
+    passthrough is already used by ``training.task_eval``.
+    """
     from brainforge.providers.base import ChatMessage, ChatRequest
 
     response = provider.complete(
@@ -217,6 +225,7 @@ def ask_facts(provider: Any, model: str, material: str) -> list[str]:
             messages=[ChatMessage(role="user", content=FACT_PROMPT.format(material=material))],
             temperature=0.2,
             max_tokens=512,
+            extra_body={"chat_template_kwargs": {"enable_thinking": False}},
         ),
         model,
     )

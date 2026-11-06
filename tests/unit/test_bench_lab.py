@@ -43,7 +43,9 @@ def _fake_pilot(records_per_call: list[list[dict]]):
     return fake_run_pilot, calls
 
 
-def _pilot_record(challenge_id: str, model: str, flag: str | None, status: str = "done") -> dict:
+def _pilot_record(
+    challenge_id: str, model: str, flag: str | None, status: str = "done", facts: int = 1
+) -> dict:
     """The real build_trajectory record shape (pilot.py): the challenge id
     lives in ``id`` (there is no ``challenge_id`` key) and the flag lives
     in the final assistant verdict message, not in an ``outcome`` dict."""
@@ -64,7 +66,7 @@ def _pilot_record(challenge_id: str, model: str, flag: str | None, status: str =
         "metadata": {
             "pipeline": "pilot",
             "domain": "agentic",
-            "pilot": {"model": model, "decision": {"technique": "ret2plt"}},
+            "pilot": {"model": model, "decision": {"technique": "ret2plt"}, "facts": facts},
             "flag_verified": bool(flag),
         },
     }
@@ -568,3 +570,63 @@ class TestBenchAttemptWatchdog:
         assert calls == ["chal-unseen-1", "chal-unseen-2", "chal-unseen-1", "chal-unseen-2"]
         # the blocked attempt is announced as a TIMEOUT miss, never silent
         assert "[bench base rep 1/1] chal-unseen-1: TIMEOUT" in out
+
+
+class TestEvidenceSeparation:
+    def test_each_model_gets_its_own_evidence_directory(self, tmp_path: Path) -> None:
+        """pilot.run_pilot writes run.json/target.facts/trail under
+        ``workdir/<binary>``. With one shared workdir the trained arm
+        overwrites the base arm's evidence, so a per-model subdir keeps
+        both debugging records readable."""
+        pilot, calls = _fake_pilot(
+            [
+                [_record("chal-unseen-1", "base", "FLAG{secreta}")],
+                [_record("chal-unseen-2", "base", None)],
+                [_record("chal-unseen-1", "trained", "FLAG{secreta}")],
+                [_record("chal-unseen-2", "trained", None)],
+            ]
+        )
+
+        run_bench_lab(
+            challenges=_challenges(),
+            workdir=tmp_path,
+            provider=None,
+            base_model="base-snapshot",
+            trained_model="trained-snapshot",
+            repetitions=1,
+            training_ids=set(),
+            pilot_fn=pilot,
+        )
+
+        base_dirs = {str(c["workdir"]) for c in calls if c["model"] == "base-snapshot"}
+        trained_dirs = {str(c["workdir"]) for c in calls if c["model"] == "trained-snapshot"}
+        assert base_dirs == {str(tmp_path / "base")}
+        assert trained_dirs == {str(tmp_path / "trained")}
+        assert base_dirs.isdisjoint(trained_dirs)
+
+    def test_counts_attempts_where_the_llm_emitted_no_facts(self, tmp_path: Path) -> None:
+        """A bench where the model contributed nothing still finds flags
+        (lictor harvest is deterministic): the result must surface the
+        empty-fact attempts instead of reporting a model score."""
+        pilot, _calls = _fake_pilot(
+            [
+                [_pilot_record("chal-unseen-1", "base", "FLAG{secreta}", facts=0)],
+                [_pilot_record("chal-unseen-2", "base", None, facts=0)],
+                [_pilot_record("chal-unseen-1", "trained", "FLAG{secreta}", facts=3)],
+                [_pilot_record("chal-unseen-2", "trained", None, facts=3)],
+            ]
+        )
+
+        result = run_bench_lab(
+            challenges=_challenges(),
+            workdir=tmp_path,
+            provider=None,
+            base_model="base",
+            trained_model="trained",
+            repetitions=1,
+            training_ids=set(),
+            pilot_fn=pilot,
+        )
+
+        assert result["base"]["attempts_without_llm_facts"] == 2
+        assert result["trained"]["attempts_without_llm_facts"] == 0

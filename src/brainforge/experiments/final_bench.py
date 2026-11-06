@@ -11,7 +11,9 @@ base and the trained student need separate endpoints).
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -206,10 +208,8 @@ def main(argv: list[str] | None = None) -> int:
 
     from brainforge.experiments.bench_lab import run_bench_lab
 
-    import subprocess
-
     git_sha = None
-    try:
+    with contextlib.suppress(Exception):
         git_sha = (
             subprocess.check_output(
                 ["git", "rev-parse", "HEAD"], cwd=Path(__file__).parent.parent.parent.parent
@@ -217,8 +217,6 @@ def main(argv: list[str] | None = None) -> int:
             .decode()
             .strip()
         )
-    except Exception:
-        pass
 
     results = run_bench_lab(
         challenges=challenges,
