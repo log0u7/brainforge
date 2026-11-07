@@ -52,17 +52,38 @@ from build_sft_facts import FACT_PROMPT, LICTOR_LAB, material_for
 # The training-eligible lab originals (the GRPO lab-loop targets that
 # actually run). ``ret2csu`` is excluded: Emporium multi-file target,
 # the single-binary acquire 404s on it, zero records in every run.
-TRAINING_TARGETS = ["fmtstr", "orw", "ret2func", "ret2plt", "shellcode"]
+TRAINING_TARGETS = [
+    "fmtstr",
+    "orw",
+    "ret2func",
+    "ret2plt",
+    "shellcode",
+    # The MR8 counter-examples: printf-family material (printf/snprintf
+    # in the source) with NO format string bug - the mr7 bench failure
+    # mode. Their measured baseline route is ret2libc (2026-11-07 fresh
+    # acquire+harvest+plan), so any vuln("fmtstr") candidate poisons the
+    # route and the decision gate rejects it: the completion teaches
+    # emitting nothing on printf-family material.
+    "ret2libc_train",
+    "srop_train",
+    "callme_train",
+]
 
 # The correct augure technique per target: the routes the MEASURED
 # WINNING runs used (the 2026-11-03 trails with success: true), not
 # guessed names. A candidate fact is verified AGAINST this selection.
+# The MR8 twins have no winning trail yet (never rolled out): their
+# labels are the measured fresh-baseline routes (2026-11-07), the same
+# measurement the gate will re-run at build time.
 CORRECT_TECHNIQUE: dict[str, str] = {
     "fmtstr": "fmtstr_leak",
     "orw": "orw",
     "ret2func": "ret2func",
     "ret2plt": "ret2plt",
     "shellcode": "shellcode",
+    "ret2libc_train": "ret2libc",
+    "srop_train": "ret2libc",
+    "callme_train": "ret2libc",
 }
 
 PACKS_DIR = "/home/logout/projets/github/logout/augure/packs"
