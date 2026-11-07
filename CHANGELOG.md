@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Verified-facts builder: the decision gate plans its trials with the
+  production packs config and rejects route-preserving contradictions.
+  The 2026-11-07 mr8 build measured two gate defects: the trials ran
+  without a lictor.yml so the augure packs never loaded (pack-only
+  techniques like `orw` were unreachable - every orw candidate was
+  rejected and the orw record stayed empty since mr6, while the same
+  facts plan `orw` fine with the packs loaded), and a candidate that
+  flips an asserted fact was kept while the route survived
+  (`fmtstr_read("true")` and `fmtstr_read("false")` both landed in the
+  fmtstr completion). A flip is now kept only when it repairs a wrong
+  baseline.
 - Bench measurement validity: each repetition now runs with its own lictor
   seed (`seed_base + rep`, default base 7, same seed across both models for
   a paired comparison). The bench never passed a seed to the pilot, so every

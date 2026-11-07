@@ -102,6 +102,69 @@ def test_wrong_baseline_candidate_must_move_toward_correct(tmp_path: Path) -> No
     assert kept == ['fmtstr_read("true").']
 
 
+def test_gate_plans_with_the_production_packs_config(tmp_path: Path) -> None:
+    """The 2026-11-07 mr8 build: the gate's ``lictor plan`` trials ran
+    without a lictor.yml, so the augure packs never loaded and pack-only
+    techniques (orw) were unreachable - every orw candidate was rejected
+    and the orw record stayed empty for a config reason, not a poison
+    reason. The gate must plan against the same rule universe as
+    production."""
+    module = _load_script()
+    runner = _fake_runner_factory({'seccomp("true").\n': "orw"})
+    module.verify_candidates(
+        baseline_facts="",
+        correct_technique="orw",
+        candidates=['seccomp("true").'],
+        workdir=tmp_path,
+        runner=runner,
+    )
+    yml = (tmp_path / "lictor.yml").read_text(encoding="utf-8")
+    assert f"packs: {module.PACKS_DIR}" in yml
+
+
+def test_route_preserving_contradiction_is_rejected(tmp_path: Path) -> None:
+    """The mr8 fmtstr completion carried fmtstr_read("true") AND
+    fmtstr_read("false"): the gate kept a candidate that contradicts the
+    merged fact base as long as the route survived, so the student would
+    learn to emit both values. A contradiction that preserves an already
+    correct route is a poison, not a suggestion."""
+    module = _load_script()
+    plans = {
+        'vuln("fmtstr").\nfmtstr_read("true").\n': "fmtstr_leak",
+        'vuln("fmtstr").\nfmtstr_read("true").\nfmtstr_read("false").\n': "fmtstr_leak",
+    }
+    runner = _fake_runner_factory(plans)
+    kept, rejected = module.verify_candidates(
+        baseline_facts='vuln("fmtstr").\nfmtstr_read("true").',
+        correct_technique="fmtstr_leak",
+        candidates=['fmtstr_read("false").'],
+        workdir=tmp_path,
+        runner=runner,
+    )
+    assert kept == []
+    assert rejected and rejected[0].startswith('fmtstr_read("false")')
+
+
+def test_conflicting_repair_of_a_wrong_baseline_is_kept(tmp_path: Path) -> None:
+    """A candidate contradicting the merged facts is still the most
+    valuable record there is when it MOVES a wrong baseline onto the
+    correct technique."""
+    module = _load_script()
+    plans = {
+        'seccomp("false").\n': "ret2vdso",  # baseline: wrong
+        'seccomp("false").\nseccomp("true").\n': "orw",  # repaired
+    }
+    runner = _fake_runner_factory(plans)
+    kept, _rejected = module.verify_candidates(
+        baseline_facts='seccomp("false").',
+        correct_technique="orw",
+        candidates=['seccomp("true").'],
+        workdir=tmp_path,
+        runner=runner,
+    )
+    assert kept == ['seccomp("true").']
+
+
 def test_eval_targets_are_excluded() -> None:
     """uaf_heap's material is the eval challenge: never a training
     target, whatever the caller passes."""
