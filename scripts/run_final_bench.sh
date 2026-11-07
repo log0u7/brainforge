@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # PROTOCOL: the single entry point for final MR benches (ADR-0021).
 #
+# Two arms:
+#   full   - model + augure + lictor (the production system)
+#   model  - model alone, no augure/lictor: the model must solve the
+#            challenge from source code alone
+#
 # WHY THIS SCRIPT EXISTS (lesson from run-20261104-mr6-10rep, 2026-11-04):
 #   the re-bench was launched by hand WITHOUT the committed protocol
 #   inputs and the /tmp working files the earlier runs had used. The
@@ -23,11 +28,11 @@
 #      confuse exit 1 with a failed run.
 #
 # Usage:
-#   scripts/run_final_bench.sh <tag> [repetitions]
+#   scripts/run_final_bench.sh <tag> [repetitions] [--mode full|model]
 #   tag examples: mr6-3ep, mr6-uafwin, mr5-final
 #
 # Env overrides (defaults keep the MR5/MR6 reference setup):
-#   TRAINED_URL / TRAINED_MODEL   (default 9933 / trained-mr6)
+#   TRAINED_URL / TRAINED_MODEL   (default 9933 / trained-mr8)
 #   BASE_URL / BASE_MODEL         (default 9932 / base-qwen3-1.7b)
 #
 # Outputs:
@@ -37,8 +42,19 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-TAG="${1:?usage: run_final_bench.sh <tag> [repetitions]}"
+TAG="${1:?usage: run_final_bench.sh <tag> [repetitions] [--mode full|model]}"
 REPS="${2:-10}"
+shift 2 2>/dev/null || true
+MODE="full"
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+	--mode)
+		MODE="$2"
+		shift 2
+		;;
+	*) shift ;;
+	esac
+done
 MANIFEST="experiments/ctf_ingest/manifest.jsonl"
 export REPS
 CASES_DIR="examples/cases"
@@ -50,7 +66,7 @@ TRAIN_IDS=(
 BASE_URL="${BASE_URL:-http://192.168.1.26:9932/v1}"
 BASE_MODEL="${BASE_MODEL:-base-qwen3-1.7b}"
 TRAINED_URL="${TRAINED_URL:-http://192.168.1.26:9933/v1}"
-TRAINED_MODEL="${TRAINED_MODEL:-trained-mr6}"
+TRAINED_MODEL="${TRAINED_MODEL:-trained-mr8}"
 
 for f in "$MANIFEST" "${TRAIN_IDS[@]}"; do
 	if [ ! -f "$f" ]; then
@@ -85,12 +101,13 @@ import json, os, sys
 d = json.loads(sys.argv[1])
 print(f"PROTOCOL: {d['n_challenges']} lab challenges in manifest, {d['n_clean']} CLEAN for the verdict:")
 for c in d["clean"]:
-    print(f"  - {c}")
-print(f"expected totals: {d['n_clean']} challenges x 2 models x {os.environ.get('REPS', '?')} reps")
+	print(f"  - {c}")
+print(f"expected totals: {d['n_clean']} challenges x 2 models x ${REPS:-10} reps")
+print(f"MODE: ${MODE:-full}")
 PY
 
 # --- 2. run the bench ---------------------------------------------------
-echo "PROTOCOL: launching bench -> $WORKDIR"
+echo "PROTOCOL: launching bench -> $WORKDIR (mode: $MODE)"
 set +e
 REPEATED_IDS=()
 for id in "${TRAIN_IDS[@]}"; do
@@ -102,6 +119,7 @@ uv run python -m brainforge.experiments.final_bench \
 	--base-url "$BASE_URL" --base-model "$BASE_MODEL" \
 	--trained-url "$TRAINED_URL" --trained-model "$TRAINED_MODEL" \
 	--repetitions "$REPS" \
+	--mode "$MODE" \
 	--workdir "$WORKDIR"
 BENCH_RC=$?
 set -e
@@ -124,19 +142,19 @@ print(f"\nVERDICT (clean-only, {len(clean)} challenges):")
 print(f"{'challenge':34} {'base':>7} {'trained':>9} {'delta':>7}")
 regress = []
 for c in clean:
-    b = res["base"]["per_challenge"][c]["successes"]
-    t = res["trained"]["per_challenge"][c]["successes"]
-    mark = "  <-- REGRESSION" if t < b else ("  +GAIN" if t > b else "")
-    if t < b:
-        regress.append((c, b, t))
-    print(f"{c:34} {b:>5}/10 {t:>7}/10 {t-b:>+7}{mark}")
+	b = res["base"]["per_challenge"][c]["successes"]
+	t = res["trained"]["per_challenge"][c]["successes"]
+	mark = "  <-- REGRESSION" if t < b else ("  +GAIN" if t > b else "")
+	if t < b:
+		regress.append((c, b, t))
+	print(f"{c:34} {b:>5}/10 {t:>7}/10 {t-b:>+7}{mark}")
 bt = sum(res["base"]["per_challenge"][c]["successes"] for c in clean)
 tt = sum(res["trained"]["per_challenge"][c]["successes"] for c in clean)
 n = len(clean) * res["repetitions"]
 print(f"{'TOTAL':34} {bt:>4}/{n} {tt:>6}/{n}  ({bt/n:.3f} vs {tt/n:.3f})")
 if regress:
-    print("\nPER-CHALLENGE REGRESSIONS (metric requires none):")
-    for c, b, t in regress:
-        print(f"  {c}: {b}/10 -> {t}/10")
+	print("\nPER-CHALLENGE REGRESSIONS (metric requires none):")
+	for c, b, t in regress:
+		print(f"  {c}: {b}/10 -> {t}/10")
 PY
 echo "PROTOCOL: done. Workdir: $WORKDIR"

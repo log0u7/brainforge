@@ -160,6 +160,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--trained-model", required=True, help="Model name for the trained server")
     parser.add_argument("--repetitions", type=int, default=1, help="Runs per (model, challenge)")
     parser.add_argument(
+        "--mode",
+        type=str,
+        default="full",
+        choices=["full", "model"],
+        help="full: model + augure + lictor (production system); model: model alone, "
+        "no augure/lictor - the model must solve from source code alone",
+    )
+    parser.add_argument(
         "--workdir",
         type=Path,
         default=Path("experiments/final-bench"),
@@ -198,6 +206,7 @@ def main(argv: list[str] | None = None) -> int:
         repetitions=args.repetitions,
         training_ids=training_ids,
         output=args.workdir,
+        mode=args.mode,
     )
     for name in ("base", "trained"):
         stats = results[name]
