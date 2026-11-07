@@ -51,6 +51,28 @@ def test_ret2csu_excluded_from_every_training_surface() -> None:
         assert "Emporium" in text and "ret2csu" in text, path
 
 
+def test_mr8_counterexample_twins_verified_against_measured_routes() -> None:
+    """The MR8 counter-examples train through the decision-verified
+    gate. Each twin's baseline route is ret2libc (measured 2026-11-07:
+    fresh acquire + harvest + plan on the live lab, no LLM facts -
+    srop_train is applicable [ret2libc, ret2vdso] and selects
+    ret2libc). Their material shows printf/snprintf with NO format
+    string bug, so a vuln("fmtstr") candidate poisons the route and
+    MUST be rejected: the completion teaches emitting nothing on
+    printf-family material. ret2csu stays excluded (the Emporium
+    rationale stands: multi-file target, the pilot's acquire 404s)."""
+    facts = _load("build_verified_facts.py")
+    for twin, route in (
+        ("ret2libc_train", "ret2libc"),
+        ("srop_train", "ret2libc"),
+        ("callme_train", "ret2libc"),
+    ):
+        assert twin in facts.TRAINING_TARGETS
+        assert facts.CORRECT_TECHNIQUE[twin] == route
+    assert "ret2csu" not in facts.TRAINING_TARGETS
+    assert set(facts.CORRECT_TECHNIQUE) == set(facts.TRAINING_TARGETS)
+
+
 def test_correct_technique_matches_measured_winners() -> None:
     """The labels come from the successful trails (2026-11-03 runs):
     fmtstr -> fmtstr_leak, orw -> orw, ret2func -> ret2func,
