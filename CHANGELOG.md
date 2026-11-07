@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Assembler: decision-verified fact records (``verified_by: decision``,
+  ``sft-verified-facts-*``) survive the assembly. The failed-trajectory
+  gate parsed their Prolog fact completions as JSON verdicts and silently
+  dropped the whole corpus - the mr6-v2 dataset shipped ZERO of the 5
+  fact records, the mr8 assembly dropped all 8 (twins included): the
+  MR6 emission signal never reached a training file. The decision is
+  the ground truth for these records; the execution-verdict gate does
+  not apply.
 - Verified-facts builder: the gate now verifies every sample against the
   ACCUMULATED completion (baseline + lines kept by earlier samples) instead
   of the pristine baseline. The v2 mr8 rebuild verified each sample in
