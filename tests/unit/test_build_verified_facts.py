@@ -165,6 +165,76 @@ def test_conflicting_repair_of_a_wrong_baseline_is_kept(tmp_path: Path) -> None:
     assert kept == ['seccomp("true").']
 
 
+def test_accumulated_facts_carries_kept_candidates_forward() -> None:
+    """The gate merges the baseline with every line kept so far: later
+    samples verify against that accumulated state, not the pristine
+    baseline (the mr8 v2 bug - see the next test)."""
+    module = _load_script()
+    base = 'vuln("fmtstr").\nfmtstr_read("true").'
+    merged = module.accumulated_facts(base, ['function_pointer_on_heap("false").'])
+    assert merged == ('vuln("fmtstr").\nfmtstr_read("true").\nfunction_pointer_on_heap("false").\n')
+
+
+def test_second_sample_contradicting_a_kept_value_is_rejected(tmp_path: Path) -> None:
+    """The mr8 v2 fmtstr completion carried function_pointer_on_heap("false")
+    AND ("true"): each sample verified against the PRISTINE baseline, so
+    samples never saw each other's kept lines and both flips survived.
+    A later sample must reject a candidate that contradicts a value the
+    completion already keeps."""
+    module = _load_script()
+    baseline = 'vuln("fmtstr").\nfmtstr_read("true").'
+    plans = {
+        'vuln("fmtstr").\nfmtstr_read("true").\n'
+        'function_pointer_on_heap("false").\n': "fmtstr_leak",
+        'vuln("fmtstr").\nfmtstr_read("true").\n'
+        'function_pointer_on_heap("false").\n'
+        'function_pointer_on_heap("true").\n': "fmtstr_leak",
+    }
+    runner = _fake_runner_factory(plans)
+    first, _ = module.verify_candidates(
+        baseline_facts=baseline,
+        correct_technique="fmtstr_leak",
+        candidates=['function_pointer_on_heap("false").'],
+        workdir=tmp_path / "sample-0",
+        runner=runner,
+    )
+    assert first == ['function_pointer_on_heap("false").']
+    second, rejected = module.verify_candidates(
+        baseline_facts=baseline,
+        correct_technique="fmtstr_leak",
+        candidates=['function_pointer_on_heap("true").'],
+        workdir=tmp_path / "sample-1",
+        runner=runner,
+        kept_so_far=first,
+    )
+    assert second == []
+    assert rejected and rejected[0].startswith('function_pointer_on_heap("true")')
+
+
+def test_flip_back_after_a_repair_is_rejected(tmp_path: Path) -> None:
+    """After a repair flip the completion commits to the new value: a
+    later candidate restoring the baseline value is not a contradiction
+    anymore (the merged file now asserts BOTH values), so the old gate
+    kept it as a "confirming duplicate" and the completion taught both
+    seccomp values. A flip-back is poison unless it repairs again."""
+    module = _load_script()
+    plans = {
+        'seccomp("false").\n': "ret2vdso",  # baseline: wrong
+        'seccomp("false").\nseccomp("true").\n': "orw",  # repair kept
+        'seccomp("false").\nseccomp("true").\nseccomp("false").\n': "orw",  # route survives
+    }
+    runner = _fake_runner_factory(plans)
+    kept, rejected = module.verify_candidates(
+        baseline_facts='seccomp("false").',
+        correct_technique="orw",
+        candidates=['seccomp("true").', 'seccomp("false").'],
+        workdir=tmp_path,
+        runner=runner,
+    )
+    assert kept == ['seccomp("true").']
+    assert rejected and rejected[0].startswith('seccomp("false")')
+
+
 def test_eval_targets_are_excluded() -> None:
     """uaf_heap's material is the eval challenge: never a training
     target, whatever the caller passes."""
