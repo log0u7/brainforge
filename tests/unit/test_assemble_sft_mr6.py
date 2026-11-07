@@ -268,6 +268,46 @@ def test_assemble_never_overwrites_records_that_carry_teachers(tmp_path: Path) -
     assert kept["metadata"]["teachers"] == real
 
 
+def test_decision_verified_fact_records_survive(tmp_path: Path) -> None:
+    """The 2026-11-07 mr8 assembly measured it: the verdict gate parsed
+    the fact completions (Prolog fact lines) as JSON verdicts, failed,
+    and silently dropped ALL 8 decision-verified fact records - the mr6
+    emission signal never reached sft-mr6/sft-mr6-v2 at all (0 records).
+    A fact record's ground truth IS the augure decision
+    (``metadata.verified_by == "decision"``): like the replay corpus,
+    the execution-verdict gate must not apply."""
+    module = _load_script()
+    fact = {
+        "id": "sft-verified-facts-fmtstr",
+        "domain": "agentic",
+        "messages": [
+            {"role": "user", "content": "You are feeding an auditable engine."},
+            {"role": "assistant", "content": 'vuln("fmtstr").\nfmtstr_read("true").\n'},
+        ],
+        "metadata": {"verified_by": "decision"},
+    }
+    src = _write_jsonl(tmp_path / "facts.jsonl", [fact])
+    out = tmp_path / "train.jsonl"
+    summary = module.assemble(sources=[src], out=out, per_target_cap=10, empty_completion_share=1.0)
+    assert summary["records"] == 1
+    assert summary["failed_dropped"] == 0
+    assert "sft-verified-facts-fmtstr" in out.read_text(encoding="utf-8")
+
+
+def test_fact_records_are_capped_per_target_like_rollouts(tmp_path: Path) -> None:
+    """The cap counts per record ID: one target's fact record plus its
+    rollout records must not double-count against each other's budget
+    beyond the ID key (the fact record is one record per target, the
+    rollouts are 15-24 per target)."""
+    module = _load_script()
+    fact = _record("sft-verified-facts-ret2plt")
+    rollouts = [_record("ctf-lictor-ret2plt-001") for _ in range(6)]
+    src = _write_jsonl(tmp_path / "mix.jsonl", [fact, *rollouts])
+    out = tmp_path / "train.jsonl"
+    summary = module.assemble(sources=[src], out=out, per_target_cap=7, empty_completion_share=1.0)
+    assert summary["records"] == 7
+
+
 def test_replay_source_records_kept_without_verdicts(tmp_path: Path) -> None:
     """The replay corpus (teacher MR1-3 records) carries no execution
     verdict - the failed-trajectory gate (MR5 lesson, aimed at rollout
