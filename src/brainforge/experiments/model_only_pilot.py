@@ -28,9 +28,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-from brainforge.errors import BrainforgeError
-from brainforge.experiments.pilot import clean_facts, LLM_ALLOWED, VALUE_DOMAINS
-
 # Model-only prompt: the LLM must analyze the source and propose
 # an exploitation approach. No augure, no lictor - just the model
 # and the source code.
@@ -63,7 +60,8 @@ def _extract_json(text: str) -> dict[str, Any] | None:
     fence_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
     if fence_match:
         try:
-            return json.loads(fence_match.group(1))
+            parsed: dict[str, Any] = json.loads(fence_match.group(1))
+            return parsed
         except json.JSONDecodeError:
             pass
 
@@ -77,7 +75,8 @@ def _extract_json(text: str) -> dict[str, Any] | None:
         return None
 
     try:
-        return json.loads(text[brace_start : brace_end + 1])
+        parsed_tail: dict[str, Any] = json.loads(text[brace_start : brace_end + 1])
+        return parsed_tail
     except json.JSONDecodeError:
         return None
 
@@ -127,6 +126,7 @@ def _evaluate_response(
     vuln_type = response.get("vuln_type", "")
     technique = response.get("technique", "")
     confidence = response.get("confidence", 0.0)
+    reasoning = response.get("reasoning", "")
 
     # Map expected technique from binary name to expected vuln type
     expected_vuln = _binary_to_vuln_type(target_binary)
@@ -194,7 +194,6 @@ def run_model_only(
         challenge_id = entry[0]
         binary = entry[2]
         material = entry[3]
-        expected_flag = entry[4] if len(entry) > 4 else None
 
         # Ask the model to analyze the source
         prompt = MODEL_ONLY_PROMPT.format(material=material)
@@ -251,4 +250,4 @@ def run_model_only(
     return records
 
 
-__all__ = ["run_model_only", "MODEL_ONLY_PROMPT", "_evaluate_response", "_extract_json"]
+__all__ = ["MODEL_ONLY_PROMPT", "_evaluate_response", "_extract_json", "run_model_only"]

@@ -7,21 +7,17 @@ The bench runs in two modes:
             exploit assembly/run.
 """
 
-import json
 from pathlib import Path
-from typing import Any
 
 import pytest
-
-from brainforge.experiments.final_bench import load_verified_challenges
 
 
 def test_mode_flag_is_accepted(tmp_path: Path) -> None:
     """--mode full|model is accepted; anything else fails."""
-    from brainforge.experiments.final_bench import main
-
     # full mode parses fine (will fail later for missing server, but arg parse ok)
     import sys
+
+    from brainforge.experiments.final_bench import main
 
     sys.argv = [
         "final_bench",
@@ -104,7 +100,6 @@ def test_mode_flag_is_accepted(tmp_path: Path) -> None:
 def test_model_mode_requires_no_augure() -> None:
     """In model mode, augure is not consulted: the model must solve the
     challenge from source code alone."""
-    from brainforge.experiments.final_bench import _build_provider
 
     # The mode flag is stored; augure/lictor are not invoked in model mode.
     # This test documents the contract: model-only mode does not touch
@@ -134,7 +129,6 @@ def test_model_mode_uses_model_only_pilot() -> None:
 
 def test_model_mode_uses_different_pilot() -> None:
     """In model mode, the pilot is model_only_pilot, not run_pilot."""
-    from brainforge.experiments import final_bench
 
     # Verify that model_only_pilot exists and is importable
     from brainforge.experiments import model_only_pilot
