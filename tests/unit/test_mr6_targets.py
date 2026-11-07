@@ -73,6 +73,20 @@ def test_mr8_counterexample_twins_verified_against_measured_routes() -> None:
     assert set(facts.CORRECT_TECHNIQUE) == set(facts.TRAINING_TARGETS)
 
 
+def test_mr8_twin_record_ids_carry_no_eval_marker() -> None:
+    """The contamination gate drops any record whose ID carries an eval
+    marker (assemble_sft_mr6.EVAL_ID_MARKERS): the counter-examples
+    only reach the dataset if their generated IDs collide with
+    nothing. The builders mint IDs like ``sft-facts-ret2libc_train-001``
+    and ``sft-verified-facts-srop_train``."""
+    twins = ("ret2libc_train", "srop_train", "callme_train")
+    eval_markers = _load("assemble_sft_mr6.py").EVAL_ID_MARKERS
+    for prefix in ("sft-facts", "sft-verified-facts", "sft-trails", "lab"):
+        for twin in twins:
+            rid = f"{prefix}-{twin}-001"
+            assert not any(marker in rid for marker in eval_markers), rid
+
+
 def test_correct_technique_matches_measured_winners() -> None:
     """The labels come from the successful trails (2026-11-03 runs):
     fmtstr -> fmtstr_leak, orw -> orw, ret2func -> ret2func,
