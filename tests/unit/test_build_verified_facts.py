@@ -110,6 +110,45 @@ def test_eval_targets_are_excluded() -> None:
     assert "uaf_heap" not in module.CORRECT_TECHNIQUE
 
 
+def test_record_carries_the_real_teacher_provenance() -> None:
+    """The builder knows its teacher (the --model that proposed the
+    candidates) and must stamp it: the assembler's fallback teacher
+    (deepseek-v4-pro, hardcoded) is provenance-guessing for any run
+    that used another model. MR8 runs the teacher z-ai/glm-5.3-flash;
+    the dataset must say so."""
+    module = _load_script()
+    record = module.build_record(
+        target="fmtstr",
+        material="int main(){}",
+        completion='vuln("fmtstr").',
+        verified_by="decision",
+        teacher_model="z-ai/glm-5.3-flash",
+    )
+    assert record["metadata"]["teachers"] == [
+        {
+            "role": "fact_teacher",
+            "kind": "teacher",
+            "provider": "openrouter",
+            "model": "z-ai/glm-5.3-flash",
+            "family": "glm",
+        }
+    ]
+
+
+def test_record_without_teacher_keeps_the_legacy_shape() -> None:
+    """No teacher_model argument: no teachers key written. The assembler
+    then applies its own provenance rule (records without teachers get
+    the legacy fallback) - the builder must not guess."""
+    module = _load_script()
+    record = module.build_record(
+        target="fmtstr",
+        material="int main(){}",
+        completion='vuln("fmtstr").',
+        verified_by="decision",
+    )
+    assert "teachers" not in record["metadata"]
+
+
 def test_record_shape_carries_provenance() -> None:
     """Dataset-facing changes preserve provenance tagging (AGENTS.md):
     every record states how the completion was verified."""

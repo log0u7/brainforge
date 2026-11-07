@@ -150,9 +150,48 @@ def verify_candidates(
     return kept, rejected
 
 
-def build_record(target: str, material: str, completion: str, verified_by: str) -> dict:
+def teacher_family(model: str) -> str:
+    """The model family for provenance (the assembler's enrichment
+    uses family values like 'qwen', 'deepseek'; mirror that vocabulary)."""
+    head = model.split("/")[-1].lower()
+    for family in ("qwen", "deepseek", "glm", "gemma", "mistral", "llama"):
+        if head.startswith(family) or family in head:
+            return family
+    return "other"
+
+
+def build_record(
+    target: str,
+    material: str,
+    completion: str,
+    verified_by: str,
+    teacher_model: str | None = None,
+) -> dict:
     """One SFT record in the chat shape the trainer consumes, with the
-    decision-verification provenance in the metadata."""
+    decision-verification provenance in the metadata.
+
+    ``teacher_model``: the model that PROPOSED the candidates (the
+    builder's --model). Writing it keeps the assembler's hardcoded
+    fallback (deepseek-v4-pro, a guess about past runs) from standing
+    in for the real teacher - provenance must be measured, not guessed."""
+    metadata: dict[str, Any] = {
+        "pipeline": "verified-facts",
+        "domain": "agentic",
+        "training_target": target,
+        "verified_by": verified_by,
+        "correct_technique": CORRECT_TECHNIQUE.get(target),
+        "n_facts": len([x for x in completion.splitlines() if x.strip()]),
+    }
+    if teacher_model:
+        metadata["teachers"] = [
+            {
+                "role": "fact_teacher",
+                "kind": "teacher",
+                "provider": "openrouter",
+                "model": teacher_model,
+                "family": teacher_family(teacher_model),
+            }
+        ]
     return {
         "id": f"sft-verified-facts-{target}",
         "domain": "agentic",
@@ -160,14 +199,7 @@ def build_record(target: str, material: str, completion: str, verified_by: str) 
             {"role": "user", "content": FACT_PROMPT.format(material=material)},
             {"role": "assistant", "content": completion},
         ],
-        "metadata": {
-            "pipeline": "verified-facts",
-            "domain": "agentic",
-            "training_target": target,
-            "verified_by": verified_by,
-            "correct_technique": CORRECT_TECHNIQUE.get(target),
-            "n_facts": len([x for x in completion.splitlines() if x.strip()]),
-        },
+        "metadata": metadata,
     }
 
 
@@ -230,6 +262,7 @@ def main() -> int:
                 material=material,
                 completion="\n".join(completion_lines),
                 verified_by="decision",
+                teacher_model=args.model,
             )
         )
         print(
