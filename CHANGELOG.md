@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Recipes: new ``scripts/assemble_sft_mr8.py`` assembles the MR8
+  single-turn fact-classification dataset (mr7-58 recipe ported to main)
+  with the three printf-family training twins as counter-examples
+  (ret2libc_train, srop_train, callme_train: vuln=sof, seccomp=false,
+  printf-family PLT with no format string bug). The twins teach the
+  discrimination the fact emitter lacked: printf-family in the PLT is
+  not a format string (shellcode-002 regression, mr7 bench).
 - Assembler: decision-verified fact records (``verified_by: decision``,
   ``sft-verified-facts-*``) survive the assembly. The failed-trajectory
   gate parsed their Prolog fact completions as JSON verdicts and silently
@@ -17,6 +24,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   MR6 emission signal never reached a training file. The decision is
   the ground truth for these records; the execution-verdict gate does
   not apply.
+- Recipes: new ``scripts/assemble_sft_mr8.py`` assembles the MR8
+  single-turn fact-classification dataset (mr7-58 recipe ported to main)
+  with the three printf-family training twins as counter-examples
+  (ret2libc_train, srop_train, callme_train: vuln=sof, seccomp=false,
+  printf-family PLT with no format string bug). The twins teach the
+  discrimination the fact emitter lacked: printf-family in the PLT is
+  not a format string (shellcode-002 regression, mr7 bench). The
+  complementary extractor ``scripts/expand_sft_mr8.py`` mines majority
+  facts from the rollout trajectories.
 - Verified-facts builder: the gate now verifies every sample against the
   ACCUMULATED completion (baseline + lines kept by earlier samples) instead
   of the pristine baseline. The v2 mr8 rebuild verified each sample in
