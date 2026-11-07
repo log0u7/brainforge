@@ -243,6 +243,31 @@ def _teacher_record(rid: str, content: str = "the technique, explained") -> dict
     }
 
 
+def test_assemble_never_overwrites_records_that_carry_teachers(tmp_path: Path) -> None:
+    """Provenance rule: the builder stamps the REAL teacher; the
+    assembler's fallback (deepseek-v4-pro) fills only the legacy
+    records that carry none. A record with teachers must keep them -
+    the fallback must not rewrite provenance-guessing over truth."""
+    module = _load_script()
+    real = [
+        {
+            "role": "fact_teacher",
+            "kind": "teacher",
+            "provider": "openrouter",
+            "model": "z-ai/glm-5.3-flash",
+            "family": "glm",
+        }
+    ]
+    rec = _record("sft-verified-facts-fmtstr", content='vuln("fmtstr").\nfmtstr_read("true").')
+    rec["metadata"]["verified_by"] = "decision"
+    rec["metadata"]["teachers"] = real
+    src = _write_jsonl(tmp_path / "src.jsonl", [rec])
+    out = tmp_path / "train.jsonl"
+    module.assemble(sources=[src], out=out, per_target_cap=10, empty_completion_share=1.0)
+    kept = json.loads(out.read_text(encoding="utf-8").splitlines()[0])
+    assert kept["metadata"]["teachers"] == real
+
+
 def test_replay_source_records_kept_without_verdicts(tmp_path: Path) -> None:
     """The replay corpus (teacher MR1-3 records) carries no execution
     verdict - the failed-trajectory gate (MR5 lesson, aimed at rollout
