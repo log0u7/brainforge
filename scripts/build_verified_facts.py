@@ -203,6 +203,41 @@ def build_record(
     }
 
 
+def sample_facts(provider: Any, model: str, material: str) -> list[str]:
+    """One teacher call, network-failure tolerant.
+
+    The 2026-11-07 run measured the failure mode: a single hung teacher
+    call (the provider's wall-clock deadline) crashed the whole build at
+    target 2/8 after target 1 had produced verified records. A teacher
+    sample is a hint, not ground truth - the decision gate owns the
+    verdict. A failed call yields no candidates: the sample is skipped,
+    the build continues."""
+    from brainforge.experiments.pilot import ask_facts
+
+    try:
+        return ask_facts(provider, model, material)
+    except (TimeoutError, ConnectionError) as exc:
+        print(f"[facts] teacher call failed ({exc}); skipping sample")
+        return []
+
+
+def provider_from_args(args: argparse.Namespace) -> Any:
+    """The OpenAI-compatible teacher provider with the CLI knobs."""
+    from brainforge.config.models import ProviderConfig
+    from brainforge.providers.openai_compat import OpenAICompatProvider
+
+    return OpenAICompatProvider(
+        "verified-facts",
+        ProviderConfig(
+            type="openai",
+            base_url=args.provider_url,
+            api_key=os.environ.get(args.provider_api_key_env),
+            timeout=args.timeout,
+            max_retries=args.max_retries,
+        ),
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--provider-url", required=True)
@@ -210,22 +245,25 @@ def main() -> int:
     parser.add_argument("--model", required=True)
     parser.add_argument("--samples", type=int, default=8)
     parser.add_argument("--temperature", type=float, default=0.7)
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=300.0,
+        help="per-call wall-clock budget in seconds (a slow reasoning teacher needs more)",
+    )
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=3,
+        help="provider retries on transient failures (keep low: the gate owns quality)",
+    )
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--workdir", type=Path, default=Path("/tmp/opencode/verified-facts"))
     args = parser.parse_args()
 
-    from brainforge.config.models import ProviderConfig
-    from brainforge.experiments.pilot import ask_facts, run_lictor
-    from brainforge.providers.openai_compat import OpenAICompatProvider
+    from brainforge.experiments.pilot import run_lictor
 
-    provider = OpenAICompatProvider(
-        "verified-facts",
-        ProviderConfig(
-            type="openai",
-            base_url=args.provider_url,
-            api_key=os.environ.get(args.provider_api_key_env),
-        ),
-    )
+    provider = provider_from_args(args)
 
     records: list[dict] = []
     for target in TRAINING_TARGETS:
@@ -241,7 +279,7 @@ def main() -> int:
         kept_total: list[str] = []
         rejected_total: list[str] = []
         for sample in range(args.samples):
-            candidates = ask_facts(provider, args.model, material)
+            candidates = sample_facts(provider, args.model, material)
             if not candidates:
                 continue
             kept, rejected = verify_candidates(

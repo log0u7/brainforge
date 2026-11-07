@@ -149,6 +149,38 @@ def test_record_without_teacher_keeps_the_legacy_shape() -> None:
     assert "teachers" not in record["metadata"]
 
 
+def test_teacher_failure_skips_the_sample() -> None:
+    """The 2026-11-07 crash: one hung teacher call (provider wall-clock
+    deadline) killed the whole build at target 2/8. A sample is a hint,
+    not ground truth - a failed teacher call must skip the sample and
+    let the build continue."""
+    module = _load_script()
+    from brainforge.providers.base import ChatRequest
+
+    class DeadTeacher:
+        def complete(self, request: ChatRequest, model: str):
+            raise TimeoutError("provider call exceeded the wall-clock deadline")
+
+    provider = DeadTeacher()
+    assert module.sample_facts(provider, "z-ai/glm-5.3-flash", "int main(){}") == []
+
+
+def test_provider_from_args_carries_the_timeout_knobs() -> None:
+    """--timeout / --max-retries reach the ProviderConfig: a slow
+    reasoning teacher on OpenRouter needs more than the 120s default,
+    and the retry policy is the operator's choice."""
+    module = _load_script()
+    args = module.argparse.Namespace(
+        provider_url="https://openrouter.ai/api/v1",
+        provider_api_key_env="NO_SUCH_KEY",
+        timeout=300.0,
+        max_retries=2,
+    )
+    provider = module.provider_from_args(args)
+    assert provider.config.timeout == 300.0
+    assert provider.config.max_retries == 2
+
+
 def test_record_shape_carries_provenance() -> None:
     """Dataset-facing changes preserve provenance tagging (AGENTS.md):
     every record states how the completion was verified."""
