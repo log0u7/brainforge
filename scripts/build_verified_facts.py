@@ -43,6 +43,7 @@ import json
 import os
 import re
 import sys
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -124,19 +125,52 @@ def plan_technique(outcome: Any) -> str | None:
 _FACT_RE = re.compile(r'\s*(\w+)\("([^"]*)"\)\.\s*')
 
 
-def _contradicts(merged: str, candidate: str) -> bool:
-    """True when the candidate flips the value of a fact the merged base
-    already asserts (same predicate, a different value). Non-fact lines
-    and brand-new predicates never contradict; repeating the asserted
-    value is a confirming duplicate."""
-    asserted: dict[str, set[str]] = {}
-    for line in merged.splitlines():
+def _fact_values(text: str) -> dict[str, set[str]]:
+    """predicate -> the set of values the fact lines in ``text`` assert."""
+    values: dict[str, set[str]] = {}
+    for line in text.splitlines():
         m = _FACT_RE.fullmatch(line)
         if m:
-            asserted.setdefault(m.group(1), set()).add(m.group(2))
+            values.setdefault(m.group(1), set()).add(m.group(2))
+    return values
+
+
+def accumulated_facts(base: str, kept_lines: Iterable[str] = ()) -> str:
+    """The merged fact file: the baseline lines plus every candidate line
+    kept so far, normalized (no blank lines, one trailing newline).
+
+    Later samples must verify against this accumulated state: the mr8 v2
+    build verified each sample against the pristine baseline, so samples
+    never saw each other's kept lines and the fmtstr completion carried
+    function_pointer_on_heap("false") AND ("true") - two different samples
+    each passed the gate against a baseline that lacked the other's line.
+    """
+    lines = [
+        stripped
+        for stripped in (
+            line.strip() for line in (base + "\n" + "\n".join(kept_lines)).splitlines()
+        )
+        if stripped
+    ]
+    return "\n".join(lines) + "\n" if lines else ""
+
+
+def _flips_committed(
+    candidate: str, base_values: dict[str, set[str]], completion_values: dict[str, set[str]]
+) -> bool:
+    """True when the candidate asserts a value that contradicts what is
+    already committed: the pristine baseline (a flip) or the completion
+    lines kept so far (a flip-back after an earlier keep). A candidate
+    repeating a committed value is a confirming duplicate; new predicates
+    and non-fact lines never flip."""
     for line in candidate.splitlines():
         m = _FACT_RE.fullmatch(line)
-        if m and asserted.get(m.group(1)) and m.group(2) not in asserted[m.group(1)]:
+        if not m:
+            continue
+        pred, value = m.group(1), m.group(2)
+        if base_values.get(pred) and value not in base_values[pred]:
+            return True
+        if completion_values.get(pred) and value not in completion_values[pred]:
             return True
     return False
 
@@ -147,6 +181,7 @@ def verify_candidates(
     candidates: list[str],
     workdir: Path,
     runner: Any,
+    kept_so_far: Sequence[str] = (),
 ) -> tuple[list[str], list[str]]:
     """Keep the candidates that confirm (or repair) the augure route.
 
@@ -156,11 +191,17 @@ def verify_candidates(
     are never applicable - the 2026-11-07 mr8 build rejected every orw
     repair candidate for that config reason, not for poison reasons.
 
-    A candidate that flips an asserted fact is kept only when it MOVES
-    the selection onto the correct technique (a repair). A flip that
-    leaves an already-correct route intact would teach the student to
-    emit both values: the mr8 fmtstr completion carried
-    fmtstr_read("true") AND fmtstr_read("false").
+    A candidate that flips a committed fact (the pristine baseline or a
+    line already kept for the completion) is kept only when it MOVES the
+    current merged route onto the correct technique (a repair). A flip
+    that leaves an already-correct route intact would teach the student
+    to emit both values: the mr8 fmtstr completion carried
+    fmtstr_read("true") AND fmtstr_read("false"), and the v2 rebuild
+    still carried function_pointer_on_heap("false") AND ("true") - two
+    samples, each gated against a baseline that lacked the other's line.
+
+    ``kept_so_far`` carries the previous samples' kept lines forward so
+    every sample gates against the same accumulated completion.
 
     Returns ``(kept, rejected)``: kept candidate lines in order,
     rejected lines with their observed selection appended for the log.
@@ -171,18 +212,25 @@ def verify_candidates(
     )
     kept: list[str] = []
     rejected: list[str] = []
-    merged = baseline_facts
-    (workdir / "target.facts").write_text((merged + "\n").strip() + "\n", encoding="utf-8")
-    base_selected = plan_technique(runner(workdir, ["plan", "target.facts"]))
+    base_values = _fact_values(baseline_facts)
+    completion_values = _fact_values("\n".join(kept_so_far))
+    merged = accumulated_facts(baseline_facts, kept_so_far)
+    (workdir / "target.facts").write_text(merged, encoding="utf-8")
+    merged_selected = plan_technique(runner(workdir, ["plan", "target.facts"]))
     for candidate in candidates:
-        trial = (merged + "\n" + candidate).strip() + "\n"
+        trial = accumulated_facts(merged, [candidate])
         (workdir / "target.facts").write_text(trial, encoding="utf-8")
         selected = plan_technique(runner(workdir, ["plan", "target.facts"]))
-        contradiction = _contradicts(merged, candidate)
-        wrong_base = base_selected is not None and base_selected != correct_technique
-        if selected == correct_technique and (not contradiction or wrong_base):
+        flip = _flips_committed(candidate, base_values, completion_values)
+        wrong_now = merged_selected != correct_technique
+        if selected == correct_technique and (not flip or wrong_now):
             kept.append(candidate)
             merged = trial
+            merged_selected = selected
+            for line in candidate.splitlines():
+                m = _FACT_RE.fullmatch(line)
+                if m:
+                    completion_values.setdefault(m.group(1), set()).add(m.group(2))
         else:
             rejected.append(f"{candidate} -> {selected}")
     return kept, rejected
@@ -326,6 +374,7 @@ def main() -> int:
                 candidates=candidates,
                 workdir=workdir / f"sample-{sample}",
                 runner=lambda wd, a: run_lictor(wd, a),
+                kept_so_far=kept_total,
             )
             kept_total.extend(kept)
             rejected_total.extend(rejected)

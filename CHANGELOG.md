@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Verified-facts builder: the gate now verifies every sample against the
+  ACCUMULATED completion (baseline + lines kept by earlier samples) instead
+  of the pristine baseline. The v2 mr8 rebuild verified each sample in
+  isolation, so the fmtstr completion still carried
+  `function_pointer_on_heap("false")` AND `("true")` - two different
+  samples each passed the gate against a baseline that lacked the other's
+  line. The flip window is also re-evaluated per candidate against the
+  current merged route (before: a wrong baseline unlocked flips for the
+  whole sample, so a route-preserving flip-back after a repair survived;
+  the trial files also carried a stray blank line that made real lictor
+  plans diverge from the tests' plans keys). Merged trials are now
+  normalized through one helper (`accumulated_facts`).
 - Verified-facts builder: the decision gate plans its trials with the
   production packs config and rejects route-preserving contradictions.
   The 2026-11-07 mr8 build measured two gate defects: the trials ran
