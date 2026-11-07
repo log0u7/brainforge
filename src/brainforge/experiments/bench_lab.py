@@ -118,10 +118,18 @@ def _run_over_targets(
                 # the record's id is the launched challenge; fall back to the
                 # entry the harness itself launched if the pilot dropped it
                 challenge_id = record.get("id") or entry[0]
+                # model-only mode returns a "success" boolean directly;
+                # full mode (pilot) returns a flag in the verdict message
                 flag = _record_flag(record)
-                is_success = bool(
-                    challenge_id in expected_flags and flag == expected_flags[challenge_id]
-                )
+                record_success = record.get("success")
+                if record_success is not None:
+                    # model-only mode: success is already computed
+                    is_success = bool(record_success)
+                else:
+                    # full mode: check the flag from the verdict
+                    is_success = bool(
+                        challenge_id in expected_flags and flag == expected_flags[challenge_id]
+                    )
                 stats["attempts"] += 1
                 if is_success:
                     stats["successes"] += 1
@@ -174,6 +182,7 @@ def run_bench_lab(
     training_ids: set[str] | None = None,
     output: Path | None = None,
     pilot_fn: Any = None,
+    mode: str = "full",
     attempt_cap: float | None = None,
     seed_base: int = 7,
 ) -> dict:
@@ -192,6 +201,10 @@ def run_bench_lab(
     ``seed_base``: the repetition ``rep`` runs with seed ``seed_base + rep``
     (lictors bandit draws and the payload build). Repetitions must be
     independent samples, not replays of one trajectory.
+
+    ``mode``: "full" = model + augure + lictor (production system);
+    "model" = model alone, no augure/lictor - the model must solve from
+    source code alone.
     """
     if training_ids is None:
         raise BrainforgeError(
@@ -203,7 +216,12 @@ def run_bench_lab(
 
     targets = list(challenges)
     expected_flags = {entry[0]: entry[4] for entry in targets if len(entry) > 4}
-    pilot = pilot_fn or run_pilot
+    if mode == "model":
+        from brainforge.experiments.model_only_pilot import run_model_only
+
+        pilot = pilot_fn or run_model_only
+    else:
+        pilot = pilot_fn or run_pilot
 
     results: dict = {
         "repetitions": repetitions,
