@@ -121,6 +121,26 @@ def plan_technique(outcome: Any) -> str | None:
     return match.group(1).strip('"') if match else None
 
 
+_FACT_RE = re.compile(r'\s*(\w+)\("([^"]*)"\)\.\s*')
+
+
+def _contradicts(merged: str, candidate: str) -> bool:
+    """True when the candidate flips the value of a fact the merged base
+    already asserts (same predicate, a different value). Non-fact lines
+    and brand-new predicates never contradict; repeating the asserted
+    value is a confirming duplicate."""
+    asserted: dict[str, set[str]] = {}
+    for line in merged.splitlines():
+        m = _FACT_RE.fullmatch(line)
+        if m:
+            asserted.setdefault(m.group(1), set()).add(m.group(2))
+    for line in candidate.splitlines():
+        m = _FACT_RE.fullmatch(line)
+        if m and asserted.get(m.group(1)) and m.group(2) not in asserted[m.group(1)]:
+            return True
+    return False
+
+
 def verify_candidates(
     baseline_facts: str,
     correct_technique: str,
@@ -130,19 +150,37 @@ def verify_candidates(
 ) -> tuple[list[str], list[str]]:
     """Keep the candidates that confirm (or repair) the augure route.
 
+    The trials plan against the production rule universe: the workdir
+    carries a lictor.yml pointing at the augure packs. Without it the
+    plan sees built-in techniques only and pack-only techniques (orw)
+    are never applicable - the 2026-11-07 mr8 build rejected every orw
+    repair candidate for that config reason, not for poison reasons.
+
+    A candidate that flips an asserted fact is kept only when it MOVES
+    the selection onto the correct technique (a repair). A flip that
+    leaves an already-correct route intact would teach the student to
+    emit both values: the mr8 fmtstr completion carried
+    fmtstr_read("true") AND fmtstr_read("false").
+
     Returns ``(kept, rejected)``: kept candidate lines in order,
     rejected lines with their observed selection appended for the log.
     """
     workdir.mkdir(parents=True, exist_ok=True)
+    (workdir / "lictor.yml").write_text(
+        f"trail: trail.jsonl\npacks: {PACKS_DIR}\n", encoding="utf-8"
+    )
     kept: list[str] = []
     rejected: list[str] = []
     merged = baseline_facts
+    (workdir / "target.facts").write_text((merged + "\n").strip() + "\n", encoding="utf-8")
+    base_selected = plan_technique(runner(workdir, ["plan", "target.facts"]))
     for candidate in candidates:
         trial = (merged + "\n" + candidate).strip() + "\n"
         (workdir / "target.facts").write_text(trial, encoding="utf-8")
-        plan = runner(workdir, ["plan", "target.facts"])
-        selected = plan_technique(plan)
-        if selected == correct_technique:
+        selected = plan_technique(runner(workdir, ["plan", "target.facts"]))
+        contradiction = _contradicts(merged, candidate)
+        wrong_base = base_selected is not None and base_selected != correct_technique
+        if selected == correct_technique and (not contradiction or wrong_base):
             kept.append(candidate)
             merged = trial
         else:
