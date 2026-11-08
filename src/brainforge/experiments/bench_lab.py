@@ -156,17 +156,41 @@ def _contaminating_ids(eval_ids: list[str], training_ids: set[str]) -> list[str]
     certifies a contaminated eval set as clean. Every ``lab-`` record
     is therefore evaluated under the eval-namespace spellings it can
     denote; everything else compares literally.
+
+    Facts-dataset training records (``sft-*-facts-<binary>``) name the
+    target binary directly; they normalize to ``ctf-lictor-<binary>`` and
+    ``ctf-lictor-<binary>-001`` so a training target that leaked into the
+    eval set (e.g. ``uaf_train_a`` / ``uaf_train_b``) is caught.
     """
     eval_set = set(eval_ids)
     contaminated: set[str] = set()
+
+    # ID prefixes used by training datasets, stripped to reveal the
+    # challenge/binary name they denote. Ordered longest-first so a more
+    # specific prefix wins.
+    _TRAINING_PREFIXES = (
+        "sft-mr8-facts-",
+        "sft-verified-facts-mr8-",
+        "sft-verified-facts-",
+        "sft-facts-",
+        "lab-",
+    )
+
+    def eval_candidates(tid: str) -> list[str]:
+        """Eval-namespace spellings a single training ID can denote."""
+        out: list[str] = []
+        for prefix in _TRAINING_PREFIXES:
+            if tid.startswith(prefix):
+                suffix = tid[len(prefix) :]
+                out = [f"ctf-lictor-{suffix}", f"ctf-lictor-{suffix}-001"]
+                break
+        return out
+
     for tid in training_ids:
         if tid in eval_set:
             contaminated.add(tid)
             continue
-        if not tid.startswith("lab-"):
-            continue
-        rest = tid[len("lab-") :]
-        for candidate in (f"ctf-lictor-{rest}", f"ctf-lictor-{rest}-001"):
+        for candidate in eval_candidates(tid):
             if candidate in eval_set:
                 contaminated.add(candidate)
     return sorted(contaminated)

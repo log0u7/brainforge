@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Bench: model-only mode now shares the FACT_PROMPT + facts-JSON completion
+  format with the full arm (model + augure + lictor) - the hybrid format.
+  The ``vuln`` fact value is compared to ground truth derived from the
+  verified facts datasets instead of a hand-maintained ``_binary_to_vuln_type``
+  map that went stale each MR cycle. Fixes: srop-001 was impossible to pass
+  (the old vocabulary excluded ``srop``), callme-002 was judged against
+  ``ret2func`` instead of ``sof``, uaf_train_a/b were free passes (absent
+  from the map). ``expected_technique`` is no longer measured in model-only
+  mode (technique is augure's job, full arm only). uaf_heap is preserved as a
+  real UAF check via a documented fallback. The contamination audit now
+  normalizes facts-dataset training ids (``sft-*-facts-<binary>``) into the
+  eval namespace, so leaked training targets (uaf_train_a/b) are caught
+  instead of passing for free.
 - Recipes: new ``scripts/assemble_sft_mr8.py`` assembles the MR8
   single-turn fact-classification dataset (mr7-58 recipe ported to main)
   with the three printf-family training twins as counter-examples
