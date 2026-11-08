@@ -27,6 +27,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the trained-mr8 model (trained on the MR8 facts dataset) is audited against
   the eval set - leaked training targets such as ``uaf_train_a``/``uaf_train_b``
   are caught instead of certifying a contaminated eval as clean.
+- Bench parser: the fact extractor now tolerates the shapes live models
+  actually emit (run-20261108-mr8-model-v3 audit): quoted or bare atom values
+  with the final Prolog period optional (``vuln(sof)``), the GRPO wrapper
+  heads ``predicate(...)`/``value(...)`` wrapping two arguments, and
+  degenerate single-argument wrappers (``predicate("win_function").``) are
+  dropped silently instead of leaking a bogus fact. The v3 run had scored
+  trained-mr8 1/120 because the parser rejected the model's correct
+  ``vuln(sof)`` answer on a missing trailing period; a wrong value is still
+  a scored failure, not a parse error.
 - Recipes: new ``scripts/assemble_sft_mr8.py`` assembles the MR8
   single-turn fact-classification dataset (mr7-58 recipe ported to main)
   with the three printf-family training twins as counter-examples

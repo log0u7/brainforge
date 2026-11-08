@@ -23,12 +23,13 @@ Division of labor:
   truth derived from the verified facts datasets.
 """
 
+import csv
 import json
 import re
 from pathlib import Path
 from typing import Any
 
-from brainforge.experiments.pilot import FACT_PROMPT, clean_facts
+from brainforge.experiments.pilot import FACT_PROMPT, MAX_SUGGESTED_FACTS
 
 #: repo root, computed from this file's location (src/brainforge/experiments/)
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -130,13 +131,36 @@ def expected_vuln(binary: str, paths: list[Path] | None = None) -> str | None:
     return _GROUND_TRUTH_FALLBACK.get(binary)
 
 
+#: Prolog fact lines, tolerant of the shapes the models actually emit
+#: (run-20261108-mr8-model-v3 audit): quoted or bare atom values, the
+#: final period optional, trailing whitespace tolerated by stripping.
+#: The model-only metric reads only the ``vuln`` fact, so value-domain
+#: checks stay in the evaluator - a wrong value is a scored failure,
+#: not parser noise to drop.
+_PROLOG_RE = re.compile(r"^([a-z_][a-z0-9_]*)\(\s*(.*?)\s*\)\.?$")
+
+#: GRPO lab-loop wrapper heads (run-20261030 lesson: semantics correct,
+#: shape is a wrapper of the fact grammar). Both ``predicate(...)`` and
+#: ``value(...)`` heads appear in live probes; first argument is the
+#: fact name, second the value. The trailing Prolog period is tolerated
+#: (``predicate("win_function").``) so the wrapper branch fires before
+#: _PROLOG_RE and a single-argument wrapper stays a dropped degenerate
+#: marker instead of leaking a {predicate, ...} fact.
+_WRAPPER_HEAD_RE = re.compile(r"^(?:predicate|value)\((.*)\)\.?$")
+
+
 def _extract_facts(text: str) -> list[dict[str, str]]:
     """Parse facts from the model's response.
 
     Accepts either the JSON facts shape the student was trained on
-    (``{"facts": [{"name": ..., "value": ...}]}``) or the Prolog lines
-    FACT_PROMPT asks for (``name("value").``). Returns a list of
-    ``{"name": ..., "value": ...}`` dicts.
+    (``{"facts": [{"name": ..., "value": ...}]}``) or Prolog lines in
+    every shape live models emit: FACT_PROMPT's canonical ``vuln("sof").``,
+    its punctation-free variant ``vuln(sof)`` (trained-mr8 skips the final
+    period), and the GRPO wrapper ``value("vuln", "uaf")`` / ``predicate(...)``
+    wrapping two arguments (base emits both variants).
+
+    Returns deduplicated dicts capped at MAX_SUGGESTED_FACTS with keys
+    ``name`` and ``value``; empty values are dropped (the prompt bans them).
     """
     facts: list[dict[str, str]] = []
     text = text.strip()
@@ -149,13 +173,38 @@ def _extract_facts(text: str) -> list[dict[str, str]]:
             if isinstance(fact, dict) and fact.get("name") and fact.get("value") is not None:
                 facts.append({"name": str(fact["name"]), "value": str(fact["value"])})
         return facts
-    # Fall back to Prolog lines (FACT_PROMPT's requested shape).
-    for line in clean_facts(text):
-        match = re.match(r"^([a-z_][a-z0-9_]*)\((.*)\)\.$", line)
-        if match:
-            value = match.group(2).strip('"')
-            facts.append({"name": match.group(1), "value": value})
-    return facts
+
+    seen: set[tuple[str, str]] = set()
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        wrapper_match = _WRAPPER_HEAD_RE.match(line)
+        prolog_match = _PROLOG_RE.match(line)
+        if wrapper_match:
+            # Two-argument wrapper: predicate("vuln", "uaf") or
+            # value(function_pointer_on_heap, true). csv.reader splits
+            # the comma while respecting quoted values in every
+            # combination the probes show (both args quoted, only one
+            # quoted, neither quoted).
+            try:
+                cols = next(csv.reader([wrapper_match.group(1)]))
+            except (csv.Error, StopIteration):
+                continue
+            if len(cols) != 2:
+                continue
+            name, value = cols[0].strip(), cols[1].strip()
+        elif prolog_match:
+            name = prolog_match.group(1)
+            value = prolog_match.group(2).strip()
+        else:
+            continue
+        name, value = name.strip('"'), value.strip('"')
+        if not name or not value:
+            continue
+        if (name, value) in seen:
+            continue
+        seen.add((name, value))
+        facts.append({"name": name, "value": value})
+    return facts[:MAX_SUGGESTED_FACTS]
 
 
 def _evaluate_response(

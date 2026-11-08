@@ -114,6 +114,114 @@ class TestFactExtraction:
         assert m._extract_facts("") == []
 
 
+class TestFactExtractionTolerance:
+    """Regression tests for the run-20261108-mr8-model-v3-10rep audit.
+
+    The probe of the live models (base-qwen3-1.7b on 9932, trained-mr8
+    on 9933) proved the models emit the facts in several shapes the old
+    parser rejected for punctuation, so the metric scored every
+    well-formed answer as a miss:
+
+    - trained-mr8 emits bare atoms without the final Prolog period:
+      ``vuln(sof)`` (the trained model's answer is CORRECT and the
+      metric scored 1/120).
+    - trained-mr8 also emits the trailing-two-space chat template
+      artifact: ``vuln(sof)  \nfmtstr_read(true)  \\n...``.
+    - base emits the quoted shape without the period too:
+      ``vuln("fmtstr")``.
+    - base emits the GRPO lab-loop wrapper under the ``value`` name
+      (the lesson from run-20261030 calls this shape ``predicate``):
+      ``value("vuln", "uaf")``.
+    - the trained model's refusal prose (``% The source code does not
+      show...``) must stay empty: no facts, no accidental match.
+
+    The metric measures the classification, not the punctuation: the
+    Prolog fallback must accept a missing period, a bare atom value and
+    the wrapper shapes, while a wrong vuln value (``vuln(true)``,
+    ``vuln("fmtstr")`` on a uaf target) still counts as a failure.
+    """
+
+    def test_parses_prolog_line_without_period_quoted(self) -> None:
+        facts = m._extract_facts('vuln("sof")')
+        assert {"name": "vuln", "value": "sof"} in facts
+
+    def test_parses_prolog_line_without_period_bare_atom(self) -> None:
+        # trained-mr8's exact shape: vuln(sof)
+        facts = m._extract_facts("vuln(sof)")
+        assert {"name": "vuln", "value": "sof"} in facts
+
+    def test_parses_prolog_line_with_period_still_works(self) -> None:
+        # the canonical grammar keeps working after the tolerance change
+        facts = m._extract_facts('vuln("sof").')
+        assert {"name": "vuln", "value": "sof"} in facts
+
+    def test_parses_multi_line_block_with_trailing_spaces(self) -> None:
+        # trained-mr8's exact shape: two trailing spaces per line
+        facts = m._extract_facts(
+            "vuln(sof)  \nfmtstr_read(true)  \nseccomp(false)  \nfunction_pointer_on_heap(true)"
+        )
+        assert {"name": "vuln", "value": "sof"} in facts
+        assert {"name": "fmtstr_read", "value": "true"} in facts
+        assert {"name": "seccomp", "value": "false"} in facts
+        assert {"name": "function_pointer_on_heap", "value": "true"} in facts
+
+    def test_parses_value_wrapper_shape_from_base(self) -> None:
+        # base emits value("vuln", "uaf") - the GRPO lab-loop wrapper
+        # under the ``value`` name, the vuln fact is the second arg
+        facts = m._extract_facts(
+            'value("function_pointer_on_heap", true)\n'
+            'value("allocator", "tcache")\n'
+            'value("glibc_minor", 36)\n'
+            'value("vuln", "uaf")'
+        )
+        assert {"name": "vuln", "value": "uaf"} in facts
+
+    def test_parses_predicate_wrapper_shape_without_period(self) -> None:
+        facts = m._extract_facts('predicate("vuln", "uaf")')
+        assert {"name": "vuln", "value": "uaf"} in facts
+
+    def test_degenerate_single_arg_wrapper_is_dropped_without_period(self) -> None:
+        # predicate(win_function): the argument itself is the fact
+        # name slot, not a wrapped tuple - a degenerate marker line,
+        # dropped silently, never parsed as a {predicate, ...} fact.
+        assert m._extract_facts("predicate(win_function)") == []
+
+    def test_degenerate_single_arg_wrapper_is_dropped_with_period(self) -> None:
+        # predicate("win_function").: same degenerate marker, but the
+        # trailing Prolog period must not push it into the Prolog
+        # branch as a {name: predicate, value: win_function} fact.
+        assert m._extract_facts('predicate("win_function").') == []
+
+    def test_refusal_prose_yields_no_facts(self) -> None:
+        # trained-mr8's refusal on callme-002: the Prolog comment line
+        # must not be parsed as facts
+        prose = (
+            "% The source code does not show any of the allowed predicates "
+            "(vuln, fmtstr_read, seccomp, allocator, glibc_minor, "
+            "function_pointer_on_heap) as per the challenge material. "
+            "No facts are emitted."
+        )
+        assert m._extract_facts(prose) == []
+
+    def test_wrong_vuln_value_is_a_failure_not_a_parse_error(self) -> None:
+        # vuln(true): the value is outside the vuln domain, but the
+        # metric must count it as a wrong answer (a failure), not as
+        # "model did not return valid facts" - the attempt is real
+        facts = m._extract_facts("vuln(true)")
+        assert facts == [{"name": "vuln", "value": "true"}]
+        result = m._evaluate_response("vuln(true)", "uaf_heap")
+        assert result["valid"] is True
+        assert result["success"] is False
+
+    def test_wrong_vuln_class_is_a_failure(self) -> None:
+        # the poisoned uaf_heap answer: vuln("fmtstr") on a uaf target
+        result = m._evaluate_response('vuln("fmtstr")', "uaf_heap")
+        assert result["valid"] is True
+        assert result["vuln_type"] == "fmtstr"
+        assert result["expected_vuln"] == "uaf"
+        assert result["success"] is False
+
+
 class TestEvaluation:
     def test_correct_vuln_is_a_success(self, tmp_path: Path) -> None:
         paths = _stage_datasets(tmp_path, {"callme-002": "sof"})
