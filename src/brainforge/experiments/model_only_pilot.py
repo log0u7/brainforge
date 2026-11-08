@@ -35,14 +35,14 @@ MODEL_ONLY_PROMPT = """You are an expert CTF solver. Analyze the following CTF c
 and identify the vulnerability and exploitation approach.
 
 Respond in JSON format only:
-{
+{{
   "vuln_type": "sof|fmtstr|uaf|ret2libc|ret2plt|ret2func|shellcode|orw|other",
   "vuln_location": "description of where the bug is in the source",
   "technique": "the exploitation technique to use",
   "reasoning": "step-by-step explanation of why this technique applies",
-  "key_addresses": {"name": "address_or_description", ...},
+  "key_addresses": {{"name": "address_or_description", ...}},
   "confidence": 0.0-1.0
-}
+}}
 
 Only emit facts you can justify from the source. Do not guess addresses
 or offsets that are not visible in the source code.
