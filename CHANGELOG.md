@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   normalizes facts-dataset training ids (``sft-*-facts-<binary>``) into the
   eval namespace, so leaked training targets (uaf_train_a/b) are caught
   instead of passing for free.
+- Bench protocol: ``scripts/run_final_bench.sh`` now includes
+  ``datasets/sft-mr8-facts/train.jsonl`` in the contamination training IDs so
+  the trained-mr8 model (trained on the MR8 facts dataset) is audited against
+  the eval set - leaked training targets such as ``uaf_train_a``/``uaf_train_b``
+  are caught instead of certifying a contaminated eval as clean.
 - Recipes: new ``scripts/assemble_sft_mr8.py`` assembles the MR8
   single-turn fact-classification dataset (mr7-58 recipe ported to main)
   with the three printf-family training twins as counter-examples

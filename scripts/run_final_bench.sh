@@ -70,6 +70,7 @@ CASES_DIR="examples/cases"
 TRAIN_IDS=(
 	"datasets/sft-mr6/train.jsonl"
 	"datasets/sft-mr6-v2/train.jsonl"
+	"datasets/sft-mr8-facts/train.jsonl"
 	"datasets/eval/grpo-translated.jsonl"
 )
 BASE_URL="${BASE_URL:-http://192.168.1.26:9932/v1}"
