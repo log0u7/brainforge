@@ -52,11 +52,20 @@ while [[ $# -gt 0 ]]; do
 		MODE="$2"
 		shift 2
 		;;
-	*) shift ;;
+	*)
+		shift
+		;;
 	esac
 done
+
+if [[ "$MODE" != "full" && "$MODE" != "model" ]]; then
+	echo "PROTOCOL ERROR: invalid mode '$MODE'. Must be 'full' or 'model'." >&2
+	exit 2
+fi
+
 MANIFEST="experiments/ctf_ingest/manifest.jsonl"
 export REPS
+export MODE
 CASES_DIR="examples/cases"
 TRAIN_IDS=(
 	"datasets/sft-mr6/train.jsonl"
@@ -96,14 +105,15 @@ clean = [c[0] for c in challenges if c[0] not in train]
 print(json.dumps({"clean": clean, "n_challenges": len(challenges), "n_clean": len(clean)}))
 PY
 )"
+
 python3 - "$CLEAN_IDS" <<'PY'
 import json, os, sys
 d = json.loads(sys.argv[1])
 print(f"PROTOCOL: {d['n_challenges']} lab challenges in manifest, {d['n_clean']} CLEAN for the verdict:")
 for c in d["clean"]:
-	print(f"  - {c}")
-print(f"expected totals: {d['n_clean']} challenges x 2 models x ${REPS:-10} reps")
-print(f"MODE: ${MODE:-full}")
+    print(f"  - {c}")
+print(f"expected totals: {d['n_clean']} challenges x 2 models x {os.environ.get('REPS', '10')} reps")
+print(f"MODE: {os.environ.get('MODE', 'full')}")
 PY
 
 # --- 2. run the bench ---------------------------------------------------
@@ -142,19 +152,19 @@ print(f"\nVERDICT (clean-only, {len(clean)} challenges):")
 print(f"{'challenge':34} {'base':>7} {'trained':>9} {'delta':>7}")
 regress = []
 for c in clean:
-	b = res["base"]["per_challenge"][c]["successes"]
-	t = res["trained"]["per_challenge"][c]["successes"]
-	mark = "  <-- REGRESSION" if t < b else ("  +GAIN" if t > b else "")
-	if t < b:
-		regress.append((c, b, t))
-	print(f"{c:34} {b:>5}/10 {t:>7}/10 {t-b:>+7}{mark}")
+    b = res["base"]["per_challenge"][c]["successes"]
+    t = res["trained"]["per_challenge"][c]["successes"]
+    mark = "  <-- REGRESSION" if t < b else ("  +GAIN" if t > b else "")
+    if t < b:
+        regress.append((c, b, t))
+    print(f"{c:34} {b:>5}/10 {t:>7}/10 {t-b:>+7}{mark}")
 bt = sum(res["base"]["per_challenge"][c]["successes"] for c in clean)
 tt = sum(res["trained"]["per_challenge"][c]["successes"] for c in clean)
 n = len(clean) * res["repetitions"]
 print(f"{'TOTAL':34} {bt:>4}/{n} {tt:>6}/{n}  ({bt/n:.3f} vs {tt/n:.3f})")
 if regress:
-	print("\nPER-CHALLENGE REGRESSIONS (metric requires none):")
-	for c, b, t in regress:
-		print(f"  {c}: {b}/10 -> {t}/10")
+    print("\nPER-CHALLENGE REGRESSIONS (metric requires none):")
+    for c, b, t in regress:
+        print(f"  {c}: {b}/10 -> {t}/10")
 PY
 echo "PROTOCOL: done. Workdir: $WORKDIR"
