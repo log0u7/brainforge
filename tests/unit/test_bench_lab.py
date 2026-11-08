@@ -314,6 +314,38 @@ class TestContaminationAudit:
         assert result["contamination"]["clean"] is False
         assert result["contamination"]["training_ids_in_eval"] == ["ctf-lictor-fmtstr-001"]
 
+    def test_facts_namespace_training_ids_fail_the_audit(self, tmp_path: Path) -> None:
+        # Facts-dataset training records name the target binary directly
+        # (``sft-mr8-facts-uaf_train_a``) while the eval manifest names the
+        # lictor lab target ``ctf-lictor-uaf_train_a-001``. The audit must
+        # normalize facts-style ids into the eval namespace, otherwise a
+        # contaminated eval set (a training target leaked into eval) is
+        # certified clean and the uaf_train targets become free passes.
+        challenges = [
+            _target("ctf-lictor-uaf_train_a-001", "uaf_train_a", "FLAG{a}"),
+            _target("ctf-lictor-unseen-1", "unseen", "FLAG{b}"),
+        ]
+        pilot, _ = _fake_pilot(
+            [
+                [_record("ctf-lictor-uaf_train_a-001", "base", None)],
+                [_record("ctf-lictor-unseen-1", "base", None)],
+                [_record("ctf-lictor-uaf_train_a-001", "trained", None)],
+                [_record("ctf-lictor-unseen-1", "trained", None)],
+            ]
+        )
+        result = run_bench_lab(
+            challenges=challenges,
+            workdir=tmp_path,
+            provider=None,
+            base_model="base",
+            trained_model="trained",
+            repetitions=1,
+            training_ids={"sft-mr8-facts-uaf_train_a", "sft-mr8-facts-uaf_train_b"},
+            pilot_fn=pilot,
+        )
+        assert result["contamination"]["clean"] is False
+        assert result["contamination"]["training_ids_in_eval"] == ["ctf-lictor-uaf_train_a-001"]
+
     def test_missing_training_ids_fails_fast(self, tmp_path: Path) -> None:
         pilot, calls = _fake_pilot([])
         with pytest.raises(BrainforgeError, match="training_ids"):
