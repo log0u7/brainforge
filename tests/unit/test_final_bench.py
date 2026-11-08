@@ -338,6 +338,22 @@ class TestCleanEvalIds:
         eval_ids = ["ctf-lictor-b", "ctf-lictor-a", "ctf-lictor-c"]
         assert clean_eval_ids(eval_ids, {"sft-mr6-v2-001"}) == eval_ids
 
+    def test_lab_namespace_training_ids_are_excluded(self) -> None:
+        # grpo-translated.jsonl / sft-mr6 carry lab-<technique>-001
+        # records for the same targets the eval manifest names
+        # ctf-lictor-<technique>-001: the lab- prefix normalization
+        # must exclude them from the clean list.
+        eval_ids = ["ctf-lictor-fmtstr-001", "ctf-lictor-orw-001", "ctf-lictor-uaf_heap-001"]
+        train = {"lab-fmtstr-001", "lab-ret2func-001"}
+        assert clean_eval_ids(eval_ids, train) == ["ctf-lictor-orw-001", "ctf-lictor-uaf_heap-001"]
+
+    def test_preserves_duplicate_eval_ids(self) -> None:
+        eval_ids = ["ctf-lictor-x", "ctf-lictor-x", "ctf-lictor-y"]
+        assert clean_eval_ids(eval_ids, {"sft-mr6-v2-001"}) == eval_ids
+
+    def test_empty_eval_ids_returns_empty(self) -> None:
+        assert clean_eval_ids([], {"sft-mr8-facts-uaf_train_a"}) == []
+
 
 class TestLoadTrainingIds:
     def test_collects_ids_from_jsonl_files(self, tmp_path: Path) -> None:
