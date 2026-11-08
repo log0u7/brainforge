@@ -44,6 +44,21 @@ LICTOR_LAB_PORTS: dict[str, int] = {
     # material for the class transfer, never eval challenges
     "uaf_train_a": 19991,
     "uaf_train_b": 19992,
+    # the MR6 eval twins (lictor feat/lab-eval-twins): one clean twin
+    # per capability class (fmtstr, orw, ret2plt, ret2func, shellcode,
+    # ret2libc, callme, srop) plus the two UAF class-transfer targets.
+    # Never in any training dataset: the clean set the verdict is
+    # computed on.
+    "uaf-eval-001": 19996,
+    "uaf-eval-002": 19997,
+    "fmtstr-eval": 19998,
+    "orw-eval": 19999,
+    "ret2plt-eval": 19980,
+    "ret2func-eval": 19981,
+    "shellcode-eval": 19982,
+    "ret2libc-eval": 19983,
+    "callme-eval": 19984,
+    "srop-eval": 19985,
 }
 
 

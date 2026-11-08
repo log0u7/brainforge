@@ -63,3 +63,13 @@
 {"source": "lictor-lab", "id": "ctf-lictor-ret2csu-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
 {"source": "lictor-lab", "id": "ctf-lictor-uaf_train_a-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
 {"source": "lictor-lab", "id": "ctf-lictor-uaf_train_b-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-uaf-eval-001-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-uaf-eval-002-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-fmtstr-eval-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-orw-eval-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-ret2plt-eval-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-ret2func-eval-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-shellcode-eval-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-ret2libc-eval-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-callme-eval-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-srop-eval-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}

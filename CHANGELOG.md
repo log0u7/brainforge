@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Bench: the 10 MR6 eval twins (lictor ``feat/lab-eval-twins``) join the
+  final benchmark as the clean set - one twin per capability class (fmtstr,
+  orw, ret2plt, ret2func, shellcode, ret2libc, callme, srop) plus the two
+  UAF class-transfer targets (uaf-eval-001/002, ports 19996/19997, class
+  twins 19980-19999). New ``LICTOR_LAB_PORTS`` entries, 10 verified case
+  files (``examples/cases/ctf-lictor-*-eval-*.json``) and 10 manifest
+  rows. None of them appears in any training dataset: the clean verdict
+  list grows from 1 challenge (uaf_heap-001) to 11. Port-collision and
+  mapping regression tests included.
+
 ### Fixed
 
 - Bench: model-only mode now shares the FACT_PROMPT + facts-JSON completion
