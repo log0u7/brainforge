@@ -103,6 +103,22 @@ def load_training_ids(*paths: Path) -> set[str]:
     return ids
 
 
+def clean_eval_ids(eval_ids: list[str], training_ids: set[str]) -> list[str]:
+    """The eval IDs that survive the contamination audit.
+
+    Delegates to ``bench_lab._contaminating_ids`` so the launch-time
+    clean list and the post-bench audit share a single normalization:
+    a facts-dataset training record ``sft-mr8-facts-uaf_train_a`` and
+    the eval target ``ctf-lictor-uaf_train_a-001`` denote the same
+    challenge, and a raw intersection alone would certify a
+    contaminated eval set as clean. Input order is preserved.
+    """
+    from brainforge.experiments.bench_lab import _contaminating_ids
+
+    leaked = set(_contaminating_ids(eval_ids, training_ids))
+    return [eval_id for eval_id in eval_ids if eval_id not in leaked]
+
+
 class SplitProvider:
     """Route ``complete`` to the right llama-server by model name.
 

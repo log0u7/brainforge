@@ -97,12 +97,16 @@ CLEAN_IDS="$(
 import json, sys
 from pathlib import Path
 sys.path.insert(0, "src")
-from brainforge.experiments.final_bench import load_verified_challenges, load_training_ids
+from brainforge.experiments.final_bench import (
+    clean_eval_ids,
+    load_verified_challenges,
+    load_training_ids,
+)
 
 manifest, cases_dir = Path(sys.argv[1]), Path(sys.argv[2])
 challenges, skipped = load_verified_challenges(manifest, cases_dir)
 train = load_training_ids(*[Path(p) for p in sys.argv[3:]])
-clean = [c[0] for c in challenges if c[0] not in train]
+clean = clean_eval_ids([c[0] for c in challenges], train)
 print(json.dumps({"clean": clean, "n_challenges": len(challenges), "n_clean": len(clean)}))
 PY
 )"
@@ -144,11 +148,11 @@ uv run python - "$WORKDIR/results.json" "${TRAIN_IDS[@]}" <<'PY'
 import json, sys
 from pathlib import Path
 sys.path.insert(0, "src")
-from brainforge.experiments.final_bench import load_training_ids
+from brainforge.experiments.final_bench import clean_eval_ids, load_training_ids
 
 res = json.loads(Path(sys.argv[1]).read_text())
 train = load_training_ids(*[Path(p) for p in sys.argv[2:]])
-clean = [c for c in res["challenges"] if c not in train]
+clean = clean_eval_ids(res["challenges"], train)
 print(f"\nVERDICT (clean-only, {len(clean)} challenges):")
 print(f"{'challenge':34} {'base':>7} {'trained':>9} {'delta':>7}")
 regress = []
