@@ -16,6 +16,7 @@ import pytest
 from brainforge.experiments.final_bench import (
     LICTOR_LAB_PORTS,
     SplitProvider,
+    clean_eval_ids,
     load_training_ids,
     load_verified_challenges,
 )
@@ -303,6 +304,39 @@ class TestCommittedWiring:
             "ctf-lictor-uaf_train_a-001",
             "ctf-lictor-uaf_train_b-001",
         }
+
+
+class TestCleanEvalIds:
+    def test_facts_training_targets_are_excluded(self) -> None:
+        # The v4 launch-time clean list used a raw intersection, so
+        # ctf-lictor-uaf_train_a-001 stayed "clean" while the
+        # post-bench audit (_contaminating_ids) flagged it LEAKED:
+        # the clean-set verdict and the audit disagreed. The clean
+        # list must reuse the same normalization.
+        eval_ids = [
+            "ctf-lictor-callme-002-001",
+            "ctf-lictor-uaf_train_a-001",
+            "ctf-lictor-uaf_train_b-001",
+        ]
+        train = {
+            "sft-mr8-facts-uaf_train_a",
+            "sft-mr8-facts-uaf_train_b",
+            "sft-mr6-v2-irrelevant",
+        }
+        assert clean_eval_ids(eval_ids, train) == ["ctf-lictor-callme-002-001"]
+
+    def test_exact_name_matches_are_excluded(self) -> None:
+        assert clean_eval_ids(["ctf-lictor-x", "ctf-lictor-y"], {"ctf-lictor-y"}) == [
+            "ctf-lictor-x"
+        ]
+
+    def test_uncontaminated_set_is_unchanged(self) -> None:
+        eval_ids = ["ctf-lictor-a", "ctf-lictor-b"]
+        assert clean_eval_ids(eval_ids, {"sft-mr6-v2-001"}) == eval_ids
+
+    def test_orders_like_the_input_list(self) -> None:
+        eval_ids = ["ctf-lictor-b", "ctf-lictor-a", "ctf-lictor-c"]
+        assert clean_eval_ids(eval_ids, {"sft-mr6-v2-001"}) == eval_ids
 
 
 class TestLoadTrainingIds:

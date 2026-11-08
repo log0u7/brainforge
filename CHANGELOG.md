@@ -36,6 +36,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   trained-mr8 1/120 because the parser rejected the model's correct
   ``vuln(sof)`` answer on a missing trailing period; a wrong value is still
   a scored failure, not a parse error.
+- Bench protocol: the launch-time clean list and the post-bench audit now
+  share one normalization (``clean_eval_ids`` in ``final_bench`` reuses
+  ``bench_lab._contaminating_ids``), so the verdict's clean-only subset
+  matches the audit's LEAKED list instead of a raw string intersection
+  that certified a contaminated eval set as clean (run v4 verdict showed
+  12 challenges while the audit flagged 18: the clean-only verdict
+  included uaf_train_a/b and dropped 7 challenges the audit flagged).
 - Recipes: new ``scripts/assemble_sft_mr8.py`` assembles the MR8
   single-turn fact-classification dataset (mr7-58 recipe ported to main)
   with the three printf-family training twins as counter-examples
