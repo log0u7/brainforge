@@ -67,6 +67,58 @@ def test_assistant_content_not_json():
     assert any("not valid JSON" in error for error in errors)
 
 
+def test_assistant_content_prolog_fact_block_passes():
+    """The verified-facts pipeline trains single-turn Prolog completions:
+    the bench prompt demands one predicate("value") per line, so the
+    validator accepts that shape as the final assistant payload (the
+    bench scorer parses the same grammar)."""
+    record = make_record(
+        messages=[
+            {"role": "user", "content": "analyze"},
+            {"role": "assistant", "content": 'vuln("sof").\nseccomp("false").'},
+        ]
+    )
+    assert validate_record(record) == []
+
+
+def test_assistant_content_prolog_bare_atom_passes():
+    """The scorer accepts the bare-atom variant the models emit
+    (``vuln(sof)``, no quotes, no period); the validator accepts it too."""
+    record = make_record(
+        messages=[
+            {"role": "user", "content": "analyze"},
+            {"role": "assistant", "content": "vuln(sof)"},
+        ]
+    )
+    assert validate_record(record) == []
+
+
+def test_assistant_content_prolog_empty_value_rejected():
+    """The prompt bans empty atoms (no bare ``allocator()``); a fact
+    block carrying one must not slip through the gate."""
+    record = make_record(
+        messages=[
+            {"role": "user", "content": "analyze"},
+            {"role": "assistant", "content": 'vuln("sof").\nallocator("").'},
+        ]
+    )
+    errors = validate_record(record)
+    assert any("not valid JSON" in error for error in errors)
+
+
+def test_assistant_content_prolog_with_prose_rejected():
+    """Prose mixed with facts is not a fact block: the gate stays strict
+    so malformed assistant content still fails."""
+    record = make_record(
+        messages=[
+            {"role": "user", "content": "analyze"},
+            {"role": "assistant", "content": 'vuln("sof").\nLet me explain the bug.'},
+        ]
+    )
+    errors = validate_record(record)
+    assert any("not valid JSON" in error for error in errors)
+
+
 def test_missing_metadata_keys():
     record = make_record(metadata={"source": {}, "teachers": []})
     errors = validate_record(record)

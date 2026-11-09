@@ -48,7 +48,11 @@ TEXT_SUFFIXES = {
     ".py",
     ".conf",
 }
-EXCERPT_CHARS = 1500
+# Full service.c exposure: the UAF twins' free() call sits past the
+# 1500-char mark, so the eval material must show the whole source.
+# The largest lab target is ~3.7KB; 12000 covers every source and the
+# CTF-archive dumps (which are bounded by _archive_material anyway).
+EXCERPT_CHARS = 12000
 DISASM_LINES = 60
 
 # ROP Emporium launched its challenge set before every teacher cutoff used
