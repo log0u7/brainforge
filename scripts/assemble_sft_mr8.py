@@ -49,7 +49,11 @@ from brainforge.experiments.pilot import LLM_ALLOWED
 # regression.
 VULN_TRUTH: dict[str, str] = {
     "fmtstr": "fmtstr",
-    "orw": "fmtstr",
+    # orw: the entry point is an unbounded strcpy/memcpy on char small[8]
+    # (stack overflow). The earlier "fmtstr" label was wrong: the source
+    # prints the banner/leak with printf on a FIXED string, no format
+    # string bug anywhere. Both orw targets are sof with seccomp.
+    "orw": "sof",
     "ret2func": "sof",
     "ret2plt": "sof",
     "shellcode": "sof",
@@ -60,7 +64,7 @@ VULN_TRUTH: dict[str, str] = {
     # base target (the challenge source shows the same primitive).
     "callme-002": "sof",
     "fmtstr-002": "fmtstr",
-    "orw-002": "fmtstr",
+    "orw-002": "sof",
     "ret2func-002": "sof",
     "ret2libc-001": "sof",
     "ret2libc-002": "sof",
@@ -80,7 +84,8 @@ FACT_OVERRIDES: dict[str, dict[str, str]] = {
     # seccomp must be false, the single true vote was drift.
     "fmtstr": {"seccomp": "false"},
     # orw reads the flag with open/read/write under a seccomp filter:
-    # 24/24 votes say true, that one is real.
+    # 24/24 votes say true, that one is real. vuln class is sof (the
+    # VULN_TRUTH fix), seccomp stays true.
     "orw": {"seccomp": "true"},
     # the overflow twins call system() or execve: no seccomp filter.
     "ret2func": {"seccomp": "false"},

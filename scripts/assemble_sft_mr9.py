@@ -39,6 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import assemble_sft_mr8 as mr8
+
 from brainforge.experiments.pilot import FACT_PROMPT as BENCH_PROMPT
 
 # How many duplicate copies of the same prompt+completion per target.
@@ -61,6 +62,8 @@ def build_records(
     votes: dict[str, dict[str, str]],
     cases_dir: Path,
     facts_dataset: dict[str, str] | None = None,
+    id_prefix: str = "sft-mr9-facts",
+    date: str = "2026-11-09",
 ) -> tuple[list[dict], list[str]]:
     """One single-turn record per training target, class-minority over-sampled."""
     records: list[dict] = []
@@ -71,12 +74,16 @@ def build_records(
             skipped.append(target)
             continue
         facts = {"vuln": vuln_class}
-        facts.update(votes.get(target, {}))
+        # VULN_TRUTH is authoritative for the vuln fact: the majority
+        # vote over the MR6 trajectories carried the wrong orw label
+        # (fmtstr) and would override the fix. The votes only fill the
+        # non-vuln facts (seccomp, fmtstr_read, allocator, ...).
+        facts.update({k: v for k, v in votes.get(target, {}).items() if k != "vuln"})
         facts.update(mr8.FACT_OVERRIDES.get(target, {}))
         facts = {name: value for name, value in facts.items() if name in mr8.LLM_ALLOWED}
         completion = _prolog_completion(facts)
         record = {
-            "id": f"sft-mr9-facts-{target}",
+            "id": f"{id_prefix}-{target}",
             "domain": "agentic",
             "messages": [
                 {"role": "user", "content": BENCH_PROMPT.format(material=material)},
@@ -92,7 +99,7 @@ def build_records(
                     "type": "lictor-lab",
                     "repository": "log0u7/lictor lab",
                     "path": f"lab/targets/{target}",
-                    "date": "2026-11-09",
+                    "date": date,
                 },
                 "teachers": [
                     {
@@ -130,14 +137,22 @@ def main() -> int:
         help="agent-loop dataset to union with the facts records",
     )
     parser.add_argument("--out", default="datasets/sft-mr9-facts/train.jsonl")
+    parser.add_argument(
+        "--id-prefix", default="sft-mr9-facts", help="record id prefix (mr10 uses sft-mr10-facts)"
+    )
+    parser.add_argument(
+        "--date", default="2026-11-09", help="provenance date written into the record metadata"
+    )
     args = parser.parse_args()
 
     paths = [Path(p) for p in args.source]
     votes = mr8.majority_facts(paths)
-    records, skipped = build_records(votes, Path(args.cases_dir))
+    records, skipped = build_records(
+        votes, Path(args.cases_dir), id_prefix=args.id_prefix, date=args.date
+    )
 
     agent_loop = [
-        json.loads(l) for l in Path(args.agent_loop).read_text().splitlines() if l.strip()
+        json.loads(line) for line in Path(args.agent_loop).read_text().splitlines() if line.strip()
     ]
     merged = agent_loop + records
     out = Path(args.out)

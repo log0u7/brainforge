@@ -271,9 +271,10 @@ class TestCommittedWiring:
             assert entry[4]
             assert case_id not in skipped
 
-    def test_committed_eval_set_has_seventeen_live_targets(self) -> None:
-        """The live lictor lab holds 19 targets: the 17 clean-protocol
-        eval challenges plus the 2 MR6 training twins (training
+    def test_committed_eval_set_live_targets(self) -> None:
+        """The live lictor lab holds 29 targets: the 17 clean-protocol
+        eval challenges, the 10 MR6 eval twins (clean by construction,
+        commit 1028b7c), and the 2 MR6 training twins (training
         material, never eval)."""
         repo = Path(__file__).resolve().parents[2]
         challenges, _skipped = load_verified_challenges(
@@ -299,6 +300,18 @@ class TestCommittedWiring:
             "ctf-lictor-srop-001-001",
             "ctf-lictor-uaf_heap-001",
             "ctf-lictor-uaf_heap-002-001",
+            # the MR6 eval twins: clean by construction, one per
+            # capability class plus the two UAF class-transfer targets
+            "ctf-lictor-callme-eval-001",
+            "ctf-lictor-fmtstr-eval-001",
+            "ctf-lictor-orw-eval-001",
+            "ctf-lictor-ret2func-eval-001",
+            "ctf-lictor-ret2libc-eval-001",
+            "ctf-lictor-ret2plt-eval-001",
+            "ctf-lictor-shellcode-eval-001",
+            "ctf-lictor-srop-eval-001",
+            "ctf-lictor-uaf-eval-001-001",
+            "ctf-lictor-uaf-eval-002-001",
             # the MR6 training twins: live lab targets, training-eligible,
             # NOT eval challenges (they never enter the eval set)
             "ctf-lictor-uaf_train_a-001",

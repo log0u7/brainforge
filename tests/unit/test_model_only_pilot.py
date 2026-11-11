@@ -24,17 +24,22 @@ from pathlib import Path
 from brainforge.experiments import model_only_pilot as m
 
 
-def _write_facts_record(path: Path, binary: str, vuln: str) -> None:
-    """Append one facts-dataset record (the shape the fact pipeline writes)."""
+def _write_facts_record(path: Path, binary: str, vuln: str, *, prolog: bool = False) -> None:
+    """Append one facts-dataset record (the shape the fact pipeline writes).
+
+    ``prolog=True`` writes the MR9/MR10 completion format: plain Prolog
+    facts one per line (``vuln("sof").``), no JSON envelope.
+    """
+    if prolog:
+        completion = f'vuln("{vuln}").'
+    else:
+        completion = json.dumps({"facts": [{"name": "vuln", "value": vuln}]})
     record = {
         "id": f"sft-mr8-facts-{binary}",
         "domain": "agentic",
         "messages": [
             {"role": "user", "content": "FACT_PROMPT ... Challenge material:\nint vuln(){}"},
-            {
-                "role": "assistant",
-                "content": json.dumps({"facts": [{"name": "vuln", "value": vuln}]}),
-            },
+            {"role": "assistant", "content": completion},
         ],
         "metadata": {
             "pipeline": "verified-facts",
@@ -49,13 +54,15 @@ def _write_facts_record(path: Path, binary: str, vuln: str) -> None:
         fh.write(json.dumps(record) + "\n")
 
 
-def _stage_datasets(tmp_path: Path, binaries: dict[str, str]) -> list[Path]:
+def _stage_datasets(
+    tmp_path: Path, binaries: dict[str, str], *, prolog: bool = False
+) -> list[Path]:
     """Write a tmp sft-mr8-facts train.jsonl and return its path."""
     datasets = tmp_path / "datasets" / "sft-mr8-facts"
     datasets.mkdir(parents=True)
     train = datasets / "train.jsonl"
     for binary, vuln in binaries.items():
-        _write_facts_record(train, binary, vuln)
+        _write_facts_record(train, binary, vuln, prolog=prolog)
     return [train]
 
 
@@ -82,6 +89,27 @@ class TestGroundTruthDerivation:
     def test_unknown_binary_has_no_ground_truth(self, tmp_path: Path) -> None:
         paths = _stage_datasets(tmp_path, {"callme-002": "sof"})
         assert m.expected_vuln("does-not-exist", paths=paths) is None
+
+    def test_prolog_completions_are_parsed(self, tmp_path: Path) -> None:
+        # MR9/MR10 facts records use plain Prolog completions (vuln("sof").),
+        # no JSON envelope. The loader must still derive the vuln class from
+        # them - otherwise the ground truth goes stale on the old MR8 data.
+        paths = _stage_datasets(
+            tmp_path,
+            {"orw": "sof", "orw-002": "sof", "fmtstr-002": "fmtstr"},
+            prolog=True,
+        )
+        assert m.expected_vuln("orw", paths=paths) == "sof"
+        assert m.expected_vuln("orw-002", paths=paths) == "sof"
+        assert m.expected_vuln("fmtstr-002", paths=paths) == "fmtstr"
+
+    def test_live_mr10_dataset_provides_orw_ground_truth(self) -> None:
+        # The real regression: with the live datasets, MR10 (Prolog, orw=sof)
+        # must win over MR8 (JSON envelope, orw=fmtstr) for the orw labels.
+        from brainforge.experiments.model_only_pilot import _facts_dataset_paths
+
+        assert m.expected_vuln("orw", _facts_dataset_paths()) == "sof"
+        assert m.expected_vuln("orw-002", _facts_dataset_paths()) == "sof"
 
     def test_uaf_heap_preserved_by_document_fallback(self) -> None:
         # uaf_heap has no facts record in any dataset; the fallback keeps
