@@ -440,6 +440,21 @@ class TestLictorLabPortsEvalTwins:
         for binary, port in expected.items():
             assert LICTOR_LAB_PORTS.get(binary) == port, binary
 
+        expected2 = {
+            "uaf-eval2-001": 20000,
+            "uaf-eval2-002": 20001,
+            "orw-eval2": 20002,
+            "ret2plt-eval2": 20003,
+            "ret2func-eval2": 20004,
+            "shellcode-eval2": 20005,
+            "ret2libc-eval2": 20006,
+            "callme-eval2": 20007,
+            "srop-eval2": 20008,
+            "fmtstr-eval2": 20009,
+        }
+        for binary, port in expected2.items():
+            assert LICTOR_LAB_PORTS.get(binary) == port, binary
+
     def test_no_port_collisions(self) -> None:
         """Two challenges on one port would cross-contaminate results."""
         ports = list(LICTOR_LAB_PORTS.values())

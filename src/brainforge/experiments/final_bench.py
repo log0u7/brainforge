@@ -59,6 +59,19 @@ LICTOR_LAB_PORTS: dict[str, int] = {
     "ret2libc-eval": 19983,
     "callme-eval": 19984,
     "srop-eval": 19985,
+    # the MR6 eval2 (harder) twins (lictor feat/lab-eval-twins): a
+    # second unseen set, harder (no banner leaks, PIE where a leak
+    # primitive exists). Ports 20000-20009.
+    "uaf-eval2-001": 20000,
+    "uaf-eval2-002": 20001,
+    "orw-eval2": 20002,
+    "ret2plt-eval2": 20003,
+    "ret2func-eval2": 20004,
+    "shellcode-eval2": 20005,
+    "ret2libc-eval2": 20006,
+    "callme-eval2": 20007,
+    "srop-eval2": 20008,
+    "fmtstr-eval2": 20009,
 }
 
 
