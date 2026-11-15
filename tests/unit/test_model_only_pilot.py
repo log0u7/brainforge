@@ -19,9 +19,9 @@ format with the full arm (model + augure + lictor): the hybrid format.
 """
 
 import json
+from pathlib import Path
 
 import pytest
-from pathlib import Path
 
 from brainforge.experiments import model_only_pilot as m
 
