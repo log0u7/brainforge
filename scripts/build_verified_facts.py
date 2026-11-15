@@ -43,6 +43,7 @@ import json
 import os
 import re
 import sys
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -52,17 +53,38 @@ from build_sft_facts import FACT_PROMPT, LICTOR_LAB, material_for
 # The training-eligible lab originals (the GRPO lab-loop targets that
 # actually run). ``ret2csu`` is excluded: Emporium multi-file target,
 # the single-binary acquire 404s on it, zero records in every run.
-TRAINING_TARGETS = ["fmtstr", "orw", "ret2func", "ret2plt", "shellcode"]
+TRAINING_TARGETS = [
+    "fmtstr",
+    "orw",
+    "ret2func",
+    "ret2plt",
+    "shellcode",
+    # The MR8 counter-examples: printf-family material (printf/snprintf
+    # in the source) with NO format string bug - the mr7 bench failure
+    # mode. Their measured baseline route is ret2libc (2026-11-07 fresh
+    # acquire+harvest+plan), so any vuln("fmtstr") candidate poisons the
+    # route and the decision gate rejects it: the completion teaches
+    # emitting nothing on printf-family material.
+    "ret2libc_train",
+    "srop_train",
+    "callme_train",
+]
 
 # The correct augure technique per target: the routes the MEASURED
 # WINNING runs used (the 2026-11-03 trails with success: true), not
 # guessed names. A candidate fact is verified AGAINST this selection.
+# The MR8 twins have no winning trail yet (never rolled out): their
+# labels are the measured fresh-baseline routes (2026-11-07), the same
+# measurement the gate will re-run at build time.
 CORRECT_TECHNIQUE: dict[str, str] = {
     "fmtstr": "fmtstr_leak",
     "orw": "orw",
     "ret2func": "ret2func",
     "ret2plt": "ret2plt",
     "shellcode": "shellcode",
+    "ret2libc_train": "ret2libc",
+    "srop_train": "ret2libc",
+    "callme_train": "ret2libc",
 }
 
 PACKS_DIR = "/home/logout/projets/github/logout/augure/packs"
@@ -100,38 +122,162 @@ def plan_technique(outcome: Any) -> str | None:
     return match.group(1).strip('"') if match else None
 
 
+_FACT_RE = re.compile(r'\s*(\w+)\("([^"]*)"\)\.\s*')
+
+
+def _fact_values(text: str) -> dict[str, set[str]]:
+    """predicate -> the set of values the fact lines in ``text`` assert."""
+    values: dict[str, set[str]] = {}
+    for line in text.splitlines():
+        m = _FACT_RE.fullmatch(line)
+        if m:
+            values.setdefault(m.group(1), set()).add(m.group(2))
+    return values
+
+
+def accumulated_facts(base: str, kept_lines: Iterable[str] = ()) -> str:
+    """The merged fact file: the baseline lines plus every candidate line
+    kept so far, normalized (no blank lines, one trailing newline).
+
+    Later samples must verify against this accumulated state: the mr8 v2
+    build verified each sample against the pristine baseline, so samples
+    never saw each other's kept lines and the fmtstr completion carried
+    function_pointer_on_heap("false") AND ("true") - two different samples
+    each passed the gate against a baseline that lacked the other's line.
+    """
+    lines = [
+        stripped
+        for stripped in (
+            line.strip() for line in (base + "\n" + "\n".join(kept_lines)).splitlines()
+        )
+        if stripped
+    ]
+    return "\n".join(lines) + "\n" if lines else ""
+
+
+def _flips_committed(
+    candidate: str, base_values: dict[str, set[str]], completion_values: dict[str, set[str]]
+) -> bool:
+    """True when the candidate asserts a value that contradicts what is
+    already committed: the pristine baseline (a flip) or the completion
+    lines kept so far (a flip-back after an earlier keep). A candidate
+    repeating a committed value is a confirming duplicate; new predicates
+    and non-fact lines never flip."""
+    for line in candidate.splitlines():
+        m = _FACT_RE.fullmatch(line)
+        if not m:
+            continue
+        pred, value = m.group(1), m.group(2)
+        if base_values.get(pred) and value not in base_values[pred]:
+            return True
+        if completion_values.get(pred) and value not in completion_values[pred]:
+            return True
+    return False
+
+
 def verify_candidates(
     baseline_facts: str,
     correct_technique: str,
     candidates: list[str],
     workdir: Path,
     runner: Any,
+    kept_so_far: Sequence[str] = (),
 ) -> tuple[list[str], list[str]]:
     """Keep the candidates that confirm (or repair) the augure route.
+
+    The trials plan against the production rule universe: the workdir
+    carries a lictor.yml pointing at the augure packs. Without it the
+    plan sees built-in techniques only and pack-only techniques (orw)
+    are never applicable - the 2026-11-07 mr8 build rejected every orw
+    repair candidate for that config reason, not for poison reasons.
+
+    A candidate that flips a committed fact (the pristine baseline or a
+    line already kept for the completion) is kept only when it MOVES the
+    current merged route onto the correct technique (a repair). A flip
+    that leaves an already-correct route intact would teach the student
+    to emit both values: the mr8 fmtstr completion carried
+    fmtstr_read("true") AND fmtstr_read("false"), and the v2 rebuild
+    still carried function_pointer_on_heap("false") AND ("true") - two
+    samples, each gated against a baseline that lacked the other's line.
+
+    ``kept_so_far`` carries the previous samples' kept lines forward so
+    every sample gates against the same accumulated completion.
 
     Returns ``(kept, rejected)``: kept candidate lines in order,
     rejected lines with their observed selection appended for the log.
     """
     workdir.mkdir(parents=True, exist_ok=True)
+    (workdir / "lictor.yml").write_text(
+        f"trail: trail.jsonl\npacks: {PACKS_DIR}\n", encoding="utf-8"
+    )
     kept: list[str] = []
     rejected: list[str] = []
-    merged = baseline_facts
+    base_values = _fact_values(baseline_facts)
+    completion_values = _fact_values("\n".join(kept_so_far))
+    merged = accumulated_facts(baseline_facts, kept_so_far)
+    (workdir / "target.facts").write_text(merged, encoding="utf-8")
+    merged_selected = plan_technique(runner(workdir, ["plan", "target.facts"]))
     for candidate in candidates:
-        trial = (merged + "\n" + candidate).strip() + "\n"
+        trial = accumulated_facts(merged, [candidate])
         (workdir / "target.facts").write_text(trial, encoding="utf-8")
-        plan = runner(workdir, ["plan", "target.facts"])
-        selected = plan_technique(plan)
-        if selected == correct_technique:
+        selected = plan_technique(runner(workdir, ["plan", "target.facts"]))
+        flip = _flips_committed(candidate, base_values, completion_values)
+        wrong_now = merged_selected != correct_technique
+        if selected == correct_technique and (not flip or wrong_now):
             kept.append(candidate)
             merged = trial
+            merged_selected = selected
+            for line in candidate.splitlines():
+                m = _FACT_RE.fullmatch(line)
+                if m:
+                    completion_values.setdefault(m.group(1), set()).add(m.group(2))
         else:
             rejected.append(f"{candidate} -> {selected}")
     return kept, rejected
 
 
-def build_record(target: str, material: str, completion: str, verified_by: str) -> dict:
+def teacher_family(model: str) -> str:
+    """The model family for provenance (the assembler's enrichment
+    uses family values like 'qwen', 'deepseek'; mirror that vocabulary)."""
+    head = model.split("/")[-1].lower()
+    for family in ("qwen", "deepseek", "glm", "gemma", "mistral", "llama"):
+        if head.startswith(family) or family in head:
+            return family
+    return "other"
+
+
+def build_record(
+    target: str,
+    material: str,
+    completion: str,
+    verified_by: str,
+    teacher_model: str | None = None,
+) -> dict:
     """One SFT record in the chat shape the trainer consumes, with the
-    decision-verification provenance in the metadata."""
+    decision-verification provenance in the metadata.
+
+    ``teacher_model``: the model that PROPOSED the candidates (the
+    builder's --model). Writing it keeps the assembler's hardcoded
+    fallback (deepseek-v4-pro, a guess about past runs) from standing
+    in for the real teacher - provenance must be measured, not guessed."""
+    metadata: dict[str, Any] = {
+        "pipeline": "verified-facts",
+        "domain": "agentic",
+        "training_target": target,
+        "verified_by": verified_by,
+        "correct_technique": CORRECT_TECHNIQUE.get(target),
+        "n_facts": len([x for x in completion.splitlines() if x.strip()]),
+    }
+    if teacher_model:
+        metadata["teachers"] = [
+            {
+                "role": "fact_teacher",
+                "kind": "teacher",
+                "provider": "openrouter",
+                "model": teacher_model,
+                "family": teacher_family(teacher_model),
+            }
+        ]
     return {
         "id": f"sft-verified-facts-{target}",
         "domain": "agentic",
@@ -139,15 +285,43 @@ def build_record(target: str, material: str, completion: str, verified_by: str) 
             {"role": "user", "content": FACT_PROMPT.format(material=material)},
             {"role": "assistant", "content": completion},
         ],
-        "metadata": {
-            "pipeline": "verified-facts",
-            "domain": "agentic",
-            "training_target": target,
-            "verified_by": verified_by,
-            "correct_technique": CORRECT_TECHNIQUE.get(target),
-            "n_facts": len([x for x in completion.splitlines() if x.strip()]),
-        },
+        "metadata": metadata,
     }
+
+
+def sample_facts(provider: Any, model: str, material: str) -> list[str]:
+    """One teacher call, network-failure tolerant.
+
+    The 2026-11-07 run measured the failure mode: a single hung teacher
+    call (the provider's wall-clock deadline) crashed the whole build at
+    target 2/8 after target 1 had produced verified records. A teacher
+    sample is a hint, not ground truth - the decision gate owns the
+    verdict. A failed call yields no candidates: the sample is skipped,
+    the build continues."""
+    from brainforge.experiments.pilot import ask_facts
+
+    try:
+        return ask_facts(provider, model, material)
+    except (TimeoutError, ConnectionError) as exc:
+        print(f"[facts] teacher call failed ({exc}); skipping sample")
+        return []
+
+
+def provider_from_args(args: argparse.Namespace) -> Any:
+    """The OpenAI-compatible teacher provider with the CLI knobs."""
+    from brainforge.config.models import ProviderConfig
+    from brainforge.providers.openai_compat import OpenAICompatProvider
+
+    return OpenAICompatProvider(
+        "verified-facts",
+        ProviderConfig(
+            type="openai",
+            base_url=args.provider_url,
+            api_key=os.environ.get(args.provider_api_key_env),
+            timeout=args.timeout,
+            max_retries=args.max_retries,
+        ),
+    )
 
 
 def main() -> int:
@@ -157,22 +331,25 @@ def main() -> int:
     parser.add_argument("--model", required=True)
     parser.add_argument("--samples", type=int, default=8)
     parser.add_argument("--temperature", type=float, default=0.7)
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=300.0,
+        help="per-call wall-clock budget in seconds (a slow reasoning teacher needs more)",
+    )
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=3,
+        help="provider retries on transient failures (keep low: the gate owns quality)",
+    )
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--workdir", type=Path, default=Path("/tmp/opencode/verified-facts"))
     args = parser.parse_args()
 
-    from brainforge.config.models import ProviderConfig
-    from brainforge.experiments.pilot import ask_facts, run_lictor
-    from brainforge.providers.openai_compat import OpenAICompatProvider
+    from brainforge.experiments.pilot import run_lictor
 
-    provider = OpenAICompatProvider(
-        "verified-facts",
-        ProviderConfig(
-            type="openai",
-            base_url=args.provider_url,
-            api_key=os.environ.get(args.provider_api_key_env),
-        ),
-    )
+    provider = provider_from_args(args)
 
     records: list[dict] = []
     for target in TRAINING_TARGETS:
@@ -188,7 +365,7 @@ def main() -> int:
         kept_total: list[str] = []
         rejected_total: list[str] = []
         for sample in range(args.samples):
-            candidates = ask_facts(provider, args.model, material)
+            candidates = sample_facts(provider, args.model, material)
             if not candidates:
                 continue
             kept, rejected = verify_candidates(
@@ -197,6 +374,7 @@ def main() -> int:
                 candidates=candidates,
                 workdir=workdir / f"sample-{sample}",
                 runner=lambda wd, a: run_lictor(wd, a),
+                kept_so_far=kept_total,
             )
             kept_total.extend(kept)
             rejected_total.extend(rejected)
@@ -209,6 +387,7 @@ def main() -> int:
                 material=material,
                 completion="\n".join(completion_lines),
                 verified_by="decision",
+                teacher_model=args.model,
             )
         )
         print(

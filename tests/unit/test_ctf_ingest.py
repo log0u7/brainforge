@@ -119,7 +119,15 @@ def test_committed_manifest_matches_committed_cases():
     disk = {p.stem for p in (repo / "examples" / "cases").glob("ctf-*.json")}
     # the three hand-written pack examples pre-date the corpus and stay
     # outside the manifest; everything else must be manifest-covered
-    legacy = {"ctf-crypto-xor-001", "ctf-pwn-gets-001", "ctf-web-sqli-001"}
+    legacy = {
+        "ctf-crypto-xor-001",
+        "ctf-pwn-gets-001",
+        "ctf-web-sqli-001",
+    }
+    # the MR8 training twins (callme_train, ret2libc_train, srop_train)
+    # entered the manifest with commit f5a4676 (MR9 material_for_target
+    # reads their case files); they are training-only targets, not eval
+    # challenges, but they ARE manifest-covered now.
     assert manifest == disk - legacy, sorted(manifest ^ (disk - legacy))
     assert not (manifest - disk), sorted(manifest - disk)
 

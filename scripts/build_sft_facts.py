@@ -81,6 +81,17 @@ GROUND_TRUTH: dict[str, list[str]] = {
     "shellcode": [],
     # callme: ROP Emporium - no source text the profiler lacks.
     "callme": [],
+    # MR8 counter-examples (the 2026-11-07 mr7 bench lesson): these
+    # twins show printf/snprintf in their material with NO format
+    # string bug (vuln=sof, the sink is a bounded copy). The profiler
+    # already carries every fact they route on (measured: all three
+    # plan ret2libc on the fresh baseline), so the LLM must emit
+    # NOTHING - printf-family in the PLT is not a format string. This
+    # is the discrimination the fact emitter lacked when it asserted
+    # vuln("fmtstr") on shellcode-002 (strcpy sink, printf@plt).
+    "ret2libc_train": [],
+    "srop_train": [],
+    "callme_train": [],
     # uaf_heap is deliberately ABSENT: its material is the eval challenge
     # ctf-lictor-uaf_heap-001 - training on it would contaminate the eval
     # set (see the module docstring).

@@ -46,6 +46,34 @@ LICTOR_LAB_PORTS: dict[str, int] = {
     # material for the class transfer, never eval challenges
     "uaf_train_a": 19991,
     "uaf_train_b": 19992,
+    # the MR6 eval twins (lictor feat/lab-eval-twins): one clean twin
+    # per capability class (fmtstr, orw, ret2plt, ret2func, shellcode,
+    # ret2libc, callme, srop) plus the two UAF class-transfer targets.
+    # Never in any training dataset: the clean set the verdict is
+    # computed on.
+    "uaf-eval-001": 19996,
+    "uaf-eval-002": 19997,
+    "fmtstr-eval": 19998,
+    "orw-eval": 19999,
+    "ret2plt-eval": 19980,
+    "ret2func-eval": 19981,
+    "shellcode-eval": 19982,
+    "ret2libc-eval": 19983,
+    "callme-eval": 19984,
+    "srop-eval": 19985,
+    # the MR6 eval2 (harder) twins (lictor feat/lab-eval-twins): a
+    # second unseen set, harder (no banner leaks, PIE where a leak
+    # primitive exists). Ports 20000-20009.
+    "uaf-eval2-001": 20000,
+    "uaf-eval2-002": 20001,
+    "orw-eval2": 20002,
+    "ret2plt-eval2": 20003,
+    "ret2func-eval2": 20004,
+    "shellcode-eval2": 20005,
+    "ret2libc-eval2": 20006,
+    "callme-eval2": 20007,
+    "srop-eval2": 20008,
+    "fmtstr-eval2": 20009,
 }
 
 
@@ -105,6 +133,22 @@ def load_training_ids(*paths: Path) -> set[str]:
     return ids
 
 
+def clean_eval_ids(eval_ids: list[str], training_ids: set[str]) -> list[str]:
+    """The eval IDs that survive the contamination audit.
+
+    Delegates to ``bench_lab._contaminating_ids`` so the launch-time
+    clean list and the post-bench audit share a single normalization:
+    a facts-dataset training record ``sft-mr8-facts-uaf_train_a`` and
+    the eval target ``ctf-lictor-uaf_train_a-001`` denote the same
+    challenge, and a raw intersection alone would certify a
+    contaminated eval set as clean. Input order is preserved.
+    """
+    from brainforge.experiments.bench_lab import _contaminating_ids
+
+    leaked = set(_contaminating_ids(eval_ids, training_ids))
+    return [eval_id for eval_id in eval_ids if eval_id not in leaked]
+
+
 class SplitProvider:
     """Route ``complete`` to the right llama-server by model name.
 
@@ -161,6 +205,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--trained-api-key", default=None)
     parser.add_argument("--trained-model", required=True, help="Model name for the trained server")
     parser.add_argument("--repetitions", type=int, default=1, help="Runs per (model, challenge)")
+    parser.add_argument(
+        "--mode",
+        type=str,
+        default="full",
+        choices=["full", "model"],
+        help="full: model + augure + lictor (production system); model: model alone, "
+        "no augure/lictor - the model must solve from source code alone",
+    )
     parser.add_argument(
         "--workdir",
         type=Path,
@@ -227,6 +279,7 @@ def main(argv: list[str] | None = None) -> int:
         repetitions=args.repetitions,
         training_ids=training_ids,
         output=args.workdir,
+        mode=args.mode,
         attempt_cap=args.attempt_cap,
         seed_base=args.seed_base,
     )

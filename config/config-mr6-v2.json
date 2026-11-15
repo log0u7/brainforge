@@ -1,0 +1,186 @@
+{
+ "providers": {
+  "openrouter": {
+   "type": "openrouter",
+   "base_url": "https://openrouter.ai/api/v1",
+   "api_key": "${OPENROUTER_API_KEY:}"
+  },
+  "zen": {
+   "type": "zen",
+   "base_url": "${ZENCODE_BASE_URL:https://opencode.ai/zen/v1}",
+   "api_key": "${ZENCODE_API_KEY:}",
+   "api_style": "chat_completions"
+  },
+  "mlgw": {
+   "type": "mlgw",
+   "base_url": "${MLGW_BASE_URL:http://localhost:8080/v1}",
+   "api_key": "${MLGW_API_KEY:}"
+  },
+  "mock": {
+   "type": "mock"
+  }
+ },
+ "models": {
+  "security": {
+   "provider": "openrouter",
+   "model": "deepseek-v4-pro",
+   "family": "deepseek",
+   "knowledge_cutoff": "2026-06"
+  },
+  "coding": {
+   "provider": "openrouter",
+   "model": "qwen/qwen3-coder-next",
+   "family": "qwen",
+   "knowledge_cutoff": "2026-05"
+  },
+  "general": {
+   "provider": "mlgw",
+   "model": "qwen3.5-9b",
+   "family": "qwen"
+  },
+  "ticket": {
+   "provider": "openrouter",
+   "model": "qwen3.5-9b",
+   "family": "qwen",
+   "knowledge_cutoff": "2026-05"
+  },
+  "ticket2": {
+   "provider": "mlgw",
+   "model": "qwen3.5-9b",
+   "family": "qwen"
+  },
+  "ctf": {
+   "provider": "openrouter",
+   "model": "qwen3.5-9b",
+   "family": "qwen",
+   "knowledge_cutoff": "2026-05"
+  },
+  "review": {
+   "provider": "mlgw",
+   "model": "qwen3-coder-480b",
+   "family": "qwen"
+  },
+  "audit": {
+   "provider": "openrouter",
+   "model": "qwen3.5-9b",
+   "family": "qwen",
+   "knowledge_cutoff": "2026-05"
+  },
+  "agent": {
+   "provider": "mlgw",
+   "model": "qwen3.5-9b",
+   "family": "qwen"
+  },
+  "judge": {
+   "provider": "zen",
+   "model": "glm-5.2",
+   "family": "glm",
+   "knowledge_cutoff": "2026-07"
+  }
+ },
+ "roles": {
+  "security_teacher": {
+   "model": "security",
+   "temperature": 0.2
+  },
+  "coding_teacher": {
+   "model": "coding",
+   "temperature": 0.3
+  },
+  "general_teacher": {
+   "model": "general",
+   "temperature": 0.4
+  },
+  "ticket_teacher": {
+   "model": "ticket",
+   "temperature": 0.2
+  },
+  "ticket_teacher_2": {
+   "model": "ticket2",
+   "temperature": 0.3
+  },
+  "ctf_teacher": {
+   "model": "ctf",
+   "temperature": 0.3
+  },
+  "review_teacher": {
+   "model": "review",
+   "temperature": 0.2
+  },
+  "audit_teacher": {
+   "model": "audit",
+   "temperature": 0.2
+  },
+  "agent_teacher": {
+   "model": "agent",
+   "temperature": 0.2
+  },
+  "judge": {
+   "model": "judge",
+   "temperature": 0.0
+  }
+ },
+ "pipelines": {
+  "security_dataset": {
+   "domain": "security",
+   "mode": "standard",
+   "min_confidence": 0.5,
+   "fallback_examples": false,
+   "retry_with_critic": null
+  },
+  "security_dataset_maximum": {
+   "domain": "security",
+   "mode": "maximum"
+  },
+  "coding_dataset": {
+   "domain": "coding",
+   "steps": [
+    "coding_teacher",
+    "security_teacher",
+    "judge"
+   ]
+  },
+  "ticket_triage": {
+   "domain": "ticket_triage",
+   "mode": "standard",
+   "min_confidence": 0.5
+  },
+  "ticket_triage_maximum": {
+   "domain": "ticket_triage",
+   "mode": "maximum"
+  },
+  "ctf": {
+   "domain": "ctf",
+   "mode": "standard",
+   "min_confidence": 0.5
+  },
+  "code_review": {
+   "domain": "code_review",
+   "mode": "standard",
+   "min_confidence": 0.5
+  },
+  "security_audit": {
+   "domain": "security_audit",
+   "mode": "standard",
+   "min_confidence": 0.5
+  },
+  "agentic": {
+   "domain": "agentic",
+   "mode": "standard",
+   "min_confidence": 0.5
+  }
+ },
+ "judge_independence": "enforced",
+ "training": {
+  "base_model": "Qwen/Qwen3-1.7B",
+  "lora_rank": 16,
+  "lora_alpha": 32,
+  "device": "auto",
+  "quantization": "auto",
+  "backend": "auto",
+  "output_dir": "experiments",
+  "epochs": 3,
+  "save_steps": 5,
+  "save_total_limit": 6
+ }
+}

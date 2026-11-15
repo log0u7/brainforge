@@ -1,19 +1,35 @@
 {"source": "lictor-lab", "id": "ctf-lictor-callme-002-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-callme-eval-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-callme_train-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
 {"source": "lictor-lab", "id": "ctf-lictor-fmtstr-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
 {"source": "lictor-lab", "id": "ctf-lictor-fmtstr-002-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-fmtstr-eval-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
 {"source": "lictor-lab", "id": "ctf-lictor-orw-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
 {"source": "lictor-lab", "id": "ctf-lictor-orw-002-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-orw-eval-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-ret2csu-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
 {"source": "lictor-lab", "id": "ctf-lictor-ret2func-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
 {"source": "lictor-lab", "id": "ctf-lictor-ret2func-002-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-ret2func-eval-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
 {"source": "lictor-lab", "id": "ctf-lictor-ret2libc-001-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
 {"source": "lictor-lab", "id": "ctf-lictor-ret2libc-002-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-ret2libc-eval-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-ret2libc_train-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
 {"source": "lictor-lab", "id": "ctf-lictor-ret2plt-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
 {"source": "lictor-lab", "id": "ctf-lictor-ret2plt-002-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-ret2plt-eval-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
 {"source": "lictor-lab", "id": "ctf-lictor-shellcode-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
 {"source": "lictor-lab", "id": "ctf-lictor-shellcode-002-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-shellcode-eval-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
 {"source": "lictor-lab", "id": "ctf-lictor-srop-001-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-srop-eval-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-srop_train-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-uaf-eval-001-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-uaf-eval-002-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
 {"source": "lictor-lab", "id": "ctf-lictor-uaf_heap-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
 {"source": "lictor-lab", "id": "ctf-lictor-uaf_heap-002-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-uaf_train_a-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-uaf_train_b-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
 {"source": "rop-emporium", "id": "ctf-rop-badchars-001", "tier": "verified", "expected_flag": true, "expected_technique": "badchars", "url": "https://ropemporium.com/challenge/badchars.html"}
 {"source": "rop-emporium", "id": "ctf-rop-fluff-001", "tier": "verified", "expected_flag": true, "expected_technique": "fluff", "url": "https://ropemporium.com/challenge/fluff.html"}
 {"source": "rop-emporium", "id": "ctf-rop-pivot-001", "tier": "verified", "expected_flag": true, "expected_technique": "pivot", "url": "https://ropemporium.com/challenge/pivot.html"}
@@ -60,6 +76,13 @@
 {"source": "ctf-archives", "id": "ctf-ccb-aegistrace_d54df99734d94177f56e1979c2cde-001", "tier": "unverified", "expected_flag": false, "url": "https://github.com/CTF-Archives/CCB2026-Quals/releases/tag/attachments"}
 {"source": "ctf-archives", "id": "ctf-ccb-ghostpatch_59b347d7ba71f9e26493a87161f9b-001", "tier": "unverified", "expected_flag": false, "url": "https://github.com/CTF-Archives/CCB2026-Quals/releases/tag/attachments"}
 {"source": "ctf-archives", "id": "ctf-ccb-ticketsage_18da7d3bc6cf4d67926a6f6e79777-001", "tier": "unverified", "expected_flag": false, "url": "https://github.com/CTF-Archives/CCB2026-Quals/releases/tag/attachments"}
-{"source": "lictor-lab", "id": "ctf-lictor-ret2csu-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
-{"source": "lictor-lab", "id": "ctf-lictor-uaf_train_a-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
-{"source": "lictor-lab", "id": "ctf-lictor-uaf_train_b-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"id": "ctf-lictor-uaf-eval2-001-001", "tier": "verified", "source": "lictor-lab", "metadata": {"expected_flag": "FLAG{uaf_eval2_reuse_paints_sketch}"}}
+{"id": "ctf-lictor-uaf-eval2-002-001", "tier": "verified", "source": "lictor-lab", "metadata": {"expected_flag": "FLAG{uaf_eval2_reuse_paints_board}"}}
+{"id": "ctf-lictor-fmtstr-eval2-001", "tier": "verified", "source": "lictor-lab", "metadata": {"expected_flag": "FLAG{fmtstr_eval2_leakandsprint}"}}
+{"id": "ctf-lictor-orw-eval2-001", "tier": "verified", "source": "lictor-lab", "metadata": {"expected_flag": "FLAG{orw_eval2_shellcode_chain}"}}
+{"id": "ctf-lictor-ret2plt-eval2-001", "tier": "verified", "source": "lictor-lab", "metadata": {"expected_flag": "FLAG{mr6_ret2plt_eval2_system}"}}
+{"id": "ctf-lictor-ret2func-eval2-001", "tier": "verified", "source": "lictor-lab", "metadata": {"expected_flag": "FLAG{mr6_ret2func_eval2_win}"}}
+{"id": "ctf-lictor-shellcode-eval2-001", "tier": "verified", "source": "lictor-lab", "metadata": {"expected_flag": "FLAG{mr6_shellcode_eval2_exec}"}}
+{"id": "ctf-lictor-ret2libc-eval2-001", "tier": "verified", "source": "lictor-lab", "metadata": {"expected_flag": "FLAG{mr6_ret2libc_eval2_two_stage}"}}
+{"id": "ctf-lictor-callme-eval2-001", "tier": "verified", "source": "lictor-lab", "metadata": {"expected_flag": "FLAG{mr6_callme_eval2_three_gates}"}}
+{"id": "ctf-lictor-srop-eval2-001", "tier": "verified", "source": "lictor-lab", "metadata": {"expected_flag": "FLAG{mr6_srop_eval2_sigreturn}"}}

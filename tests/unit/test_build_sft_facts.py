@@ -42,6 +42,22 @@ def test_uaf_heap_is_excluded_from_training_targets() -> None:
     assert "uaf_heap" not in module.TRAINING_TARGETS
 
 
+def test_mr8_counterexample_twins_have_empty_ground_truth() -> None:
+    """The MR8 counter-examples: the three printf-family training twins
+    carry a format-string-SHAPED PLT (printf/snprintf) with NO format
+    string bug - vuln=sof is the whole truth and the LLM must emit
+    NOTHING there. The mr7 bench measured the failure mode: the fact
+    emitter asserted vuln("fmtstr") on a strcpy target whose PLT shows
+    printf/snprintf (shellcode-002), and the suggested-only poison
+    flipped the route (3 lost reps). These twins teach the exact
+    discrimination: printf-family in the PLT is not a format string."""
+    module = _load_script()
+    for twin in ("ret2libc_train", "srop_train", "callme_train"):
+        assert twin in module.GROUND_TRUTH
+        assert module.GROUND_TRUTH[twin] == []
+        assert twin in module.TRAINING_TARGETS
+
+
 def test_fmtstr_ground_truth_is_intact() -> None:
     module = _load_script()
     assert module.GROUND_TRUTH["fmtstr"] == [

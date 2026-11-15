@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # PROTOCOL: the single entry point for final MR benches (ADR-0021).
 #
+# Two arms:
+#   full   - model + augure + lictor (the production system)
+#   model  - model alone, no augure/lictor: the model must solve the
+#            challenge from source code alone
+#
 # WHY THIS SCRIPT EXISTS (lesson from run-20261104-mr6-10rep, 2026-11-04):
 #   the re-bench was launched by hand WITHOUT the committed protocol
 #   inputs and the /tmp working files the earlier runs had used. The
@@ -23,11 +28,11 @@
 #      confuse exit 1 with a failed run.
 #
 # Usage:
-#   scripts/run_final_bench.sh <tag> [repetitions]
+#   scripts/run_final_bench.sh <tag> [repetitions] [--mode full|model]
 #   tag examples: mr6-3ep, mr6-uafwin, mr5-final
 #
 # Env overrides (defaults keep the MR5/MR6 reference setup):
-#   TRAINED_URL / TRAINED_MODEL   (default 9933 / trained-mr6)
+#   TRAINED_URL / TRAINED_MODEL   (default 9933 / trained-mr8)
 #   BASE_URL / BASE_MODEL         (default 9932 / base-qwen3-1.7b)
 #
 # Outputs:
@@ -37,21 +42,44 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-TAG="${1:?usage: run_final_bench.sh <tag> [repetitions]}"
+TAG="${1:?usage: run_final_bench.sh <tag> [repetitions] [--mode full|model]}"
 REPS="${2:-10}"
 ATTEMPT_CAP="${ATTEMPT_CAP:-600}"
+shift 2 2>/dev/null || true
+MODE="full"
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+	--mode)
+		MODE="$2"
+		shift 2
+		;;
+	*)
+		shift
+		;;
+	esac
+done
+
+if [[ "$MODE" != "full" && "$MODE" != "model" ]]; then
+	echo "PROTOCOL ERROR: invalid mode '$MODE'. Must be 'full' or 'model'." >&2
+	exit 2
+fi
+
 MANIFEST="experiments/ctf_ingest/manifest.jsonl"
 export REPS
+export MODE
 CASES_DIR="examples/cases"
 TRAIN_IDS=(
 	"datasets/sft-mr6/train.jsonl"
 	"datasets/sft-mr6-v2/train.jsonl"
+	"datasets/sft-mr8-facts/train.jsonl"
+	"datasets/sft-mr9-facts/train.jsonl"
+	"datasets/sft-mr10-facts/train.jsonl"
 	"datasets/eval/grpo-translated.jsonl"
 )
 BASE_URL="${BASE_URL:-http://192.168.1.26:9932/v1}"
 BASE_MODEL="${BASE_MODEL:-base-qwen3-1.7b}"
 TRAINED_URL="${TRAINED_URL:-http://192.168.1.26:9933/v1}"
-TRAINED_MODEL="${TRAINED_MODEL:-trained-mr6}"
+TRAINED_MODEL="${TRAINED_MODEL:-trained-mr9}"
 
 for f in "$MANIFEST" "${TRAIN_IDS[@]}"; do
 	if [ ! -f "$f" ]; then
@@ -72,22 +100,28 @@ CLEAN_IDS="$(
 import json, sys
 from pathlib import Path
 sys.path.insert(0, "src")
-from brainforge.experiments.final_bench import load_verified_challenges, load_training_ids
+from brainforge.experiments.final_bench import (
+    clean_eval_ids,
+    load_verified_challenges,
+    load_training_ids,
+)
 
 manifest, cases_dir = Path(sys.argv[1]), Path(sys.argv[2])
 challenges, skipped = load_verified_challenges(manifest, cases_dir)
 train = load_training_ids(*[Path(p) for p in sys.argv[3:]])
-clean = [c[0] for c in challenges if c[0] not in train]
+clean = clean_eval_ids([c[0] for c in challenges], train)
 print(json.dumps({"clean": clean, "n_challenges": len(challenges), "n_clean": len(clean)}))
 PY
 )"
+
 python3 - "$CLEAN_IDS" <<'PY'
 import json, os, sys
 d = json.loads(sys.argv[1])
 print(f"PROTOCOL: {d['n_challenges']} lab challenges in manifest, {d['n_clean']} CLEAN for the verdict:")
 for c in d["clean"]:
     print(f"  - {c}")
-print(f"expected totals: {d['n_clean']} challenges x 2 models x {os.environ.get('REPS', '?')} reps")
+print(f"expected totals: {d['n_clean']} challenges x 2 models x {os.environ.get('REPS', '10')} reps")
+print(f"MODE: {os.environ.get('MODE', 'full')}")
 PY
 
 # --- 1b. preflight -------------------------------------------------------
@@ -100,7 +134,7 @@ uv run python -m brainforge.experiments.preflight \
 }
 
 # --- 2. run the bench ---------------------------------------------------
-echo "PROTOCOL: launching bench -> $WORKDIR"
+echo "PROTOCOL: launching bench -> $WORKDIR (mode: $MODE)"
 set +e
 REPEATED_IDS=()
 for id in "${TRAIN_IDS[@]}"; do
@@ -112,6 +146,7 @@ uv run python -m brainforge.experiments.final_bench \
 	--base-url "$BASE_URL" --base-model "$BASE_MODEL" \
 	--trained-url "$TRAINED_URL" --trained-model "$TRAINED_MODEL" \
 	--repetitions "$REPS" \
+	--mode "$MODE" \
 	--workdir "$WORKDIR" \
 	--attempt-cap "$ATTEMPT_CAP"
 BENCH_RC=$?
@@ -126,11 +161,11 @@ uv run python - "$WORKDIR/results.json" "${TRAIN_IDS[@]}" <<'PY'
 import json, sys
 from pathlib import Path
 sys.path.insert(0, "src")
-from brainforge.experiments.final_bench import load_training_ids
+from brainforge.experiments.final_bench import clean_eval_ids, load_training_ids
 
 res = json.loads(Path(sys.argv[1]).read_text())
 train = load_training_ids(*[Path(p) for p in sys.argv[2:]])
-clean = [c for c in res["challenges"] if c not in train]
+clean = clean_eval_ids(res["challenges"], train)
 print(f"\nVERDICT (clean-only, {len(clean)} challenges):")
 print(f"{'challenge':34} {'base':>7} {'trained':>9} {'delta':>7}")
 regress = []

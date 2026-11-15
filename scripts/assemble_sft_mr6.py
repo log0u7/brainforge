@@ -107,6 +107,14 @@ def _verdict_flag(record: dict) -> str | None:
     return verdict.get("flag") or None
 
 
+def _is_decision_verified(record: dict) -> bool:
+    """True when the record's ground truth is the augure decision that
+    verified its completion (the builder stamps ``verified_by:
+    "decision"``). Such records carry Prolog fact lines, not a JSON
+    verdict - the execution-verdict gate must not apply to them."""
+    return (record.get("metadata") or {}).get("verified_by") == "decision"
+
+
 def _target_of(record: dict) -> str:
     """The lab target name from the record ID (``lab-fmtstr-001``,
     ``ctf-lictor-orw-001``, ``sft-verified-facts-ret2plt``); unknown IDs
@@ -261,6 +269,17 @@ def assemble(
                 # IDs sit outside the rollout namespace: the replay
                 # records flow around the failed gate and the cap
                 replay_records.append(_enrich_metadata(_fill_empty_messages(record)))
+                continue
+            if _is_decision_verified(record):
+                # the decision-verified fact records (sft-verified-facts-*,
+                # the builder's emission signal): their ground truth IS the
+                # augure decision that verified the completion - there is
+                # no execution verdict to parse, and the verdict gate would
+                # parse the Prolog fact lines as a JSON verdict, fail, and
+                # silently drop the whole corpus (measured: the mr6-v2
+                # assembly shipped 0 of the 5 fact records; the mr8 assembly
+                # dropped all 8, twins included).
+                records.append(_enrich_metadata(_fill_empty_messages(record)))
                 continue
             if not keep_failed and _verdict_flag(record) is None:
                 # a failed trajectory is not SFT material: cloning it

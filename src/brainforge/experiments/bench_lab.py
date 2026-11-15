@@ -118,10 +118,18 @@ def _run_over_targets(
                 # the record's id is the launched challenge; fall back to the
                 # entry the harness itself launched if the pilot dropped it
                 challenge_id = record.get("id") or entry[0]
+                # model-only mode returns a "success" boolean directly;
+                # full mode (pilot) returns a flag in the verdict message
                 flag = _record_flag(record)
-                is_success = bool(
-                    challenge_id in expected_flags and flag == expected_flags[challenge_id]
-                )
+                record_success = record.get("success")
+                if record_success is not None:
+                    # model-only mode: success is already computed
+                    is_success = bool(record_success)
+                else:
+                    # full mode: check the flag from the verdict
+                    is_success = bool(
+                        challenge_id in expected_flags and flag == expected_flags[challenge_id]
+                    )
                 stats["attempts"] += 1
                 if not (record.get("metadata") or {}).get("pilot", {}).get("facts"):
                     # a flag found with zero LLM facts measures lictor's
@@ -152,17 +160,41 @@ def _contaminating_ids(eval_ids: list[str], training_ids: set[str]) -> list[str]
     certifies a contaminated eval set as clean. Every ``lab-`` record
     is therefore evaluated under the eval-namespace spellings it can
     denote; everything else compares literally.
+
+    Facts-dataset training records (``sft-*-facts-<binary>``) name the
+    target binary directly; they normalize to ``ctf-lictor-<binary>`` and
+    ``ctf-lictor-<binary>-001`` so a training target that leaked into the
+    eval set (e.g. ``uaf_train_a`` / ``uaf_train_b``) is caught.
     """
     eval_set = set(eval_ids)
     contaminated: set[str] = set()
+
+    # ID prefixes used by training datasets, stripped to reveal the
+    # challenge/binary name they denote. Ordered longest-first so a more
+    # specific prefix wins.
+    _TRAINING_PREFIXES = (
+        "sft-mr8-facts-",
+        "sft-verified-facts-mr8-",
+        "sft-verified-facts-",
+        "sft-facts-",
+        "lab-",
+    )
+
+    def eval_candidates(tid: str) -> list[str]:
+        """Eval-namespace spellings a single training ID can denote."""
+        out: list[str] = []
+        for prefix in _TRAINING_PREFIXES:
+            if tid.startswith(prefix):
+                suffix = tid[len(prefix) :]
+                out = [f"ctf-lictor-{suffix}", f"ctf-lictor-{suffix}-001"]
+                break
+        return out
+
     for tid in training_ids:
         if tid in eval_set:
             contaminated.add(tid)
             continue
-        if not tid.startswith("lab-"):
-            continue
-        rest = tid[len("lab-") :]
-        for candidate in (f"ctf-lictor-{rest}", f"ctf-lictor-{rest}-001"):
+        for candidate in eval_candidates(tid):
             if candidate in eval_set:
                 contaminated.add(candidate)
     return sorted(contaminated)
@@ -178,6 +210,7 @@ def run_bench_lab(
     training_ids: set[str] | None = None,
     output: Path | None = None,
     pilot_fn: Any = None,
+    mode: str = "full",
     attempt_cap: float | None = None,
     seed_base: int = 7,
 ) -> dict:
@@ -196,6 +229,10 @@ def run_bench_lab(
     ``seed_base``: the repetition ``rep`` runs with seed ``seed_base + rep``
     (lictors bandit draws and the payload build). Repetitions must be
     independent samples, not replays of one trajectory.
+
+    ``mode``: "full" = model + augure + lictor (production system);
+    "model" = model alone, no augure/lictor - the model must solve from
+    source code alone.
     """
     if training_ids is None:
         raise BrainforgeError(
@@ -207,7 +244,12 @@ def run_bench_lab(
 
     targets = list(challenges)
     expected_flags = {entry[0]: entry[4] for entry in targets if len(entry) > 4}
-    pilot = pilot_fn or run_pilot
+    if mode == "model":
+        from brainforge.experiments.model_only_pilot import run_model_only
+
+        pilot = pilot_fn or run_model_only
+    else:
+        pilot = pilot_fn or run_pilot
 
     results: dict = {
         "repetitions": repetitions,

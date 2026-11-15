@@ -102,12 +102,216 @@ def test_wrong_baseline_candidate_must_move_toward_correct(tmp_path: Path) -> No
     assert kept == ['fmtstr_read("true").']
 
 
+def test_gate_plans_with_the_production_packs_config(tmp_path: Path) -> None:
+    """The 2026-11-07 mr8 build: the gate's ``lictor plan`` trials ran
+    without a lictor.yml, so the augure packs never loaded and pack-only
+    techniques (orw) were unreachable - every orw candidate was rejected
+    and the orw record stayed empty for a config reason, not a poison
+    reason. The gate must plan against the same rule universe as
+    production."""
+    module = _load_script()
+    runner = _fake_runner_factory({'seccomp("true").\n': "orw"})
+    module.verify_candidates(
+        baseline_facts="",
+        correct_technique="orw",
+        candidates=['seccomp("true").'],
+        workdir=tmp_path,
+        runner=runner,
+    )
+    yml = (tmp_path / "lictor.yml").read_text(encoding="utf-8")
+    assert f"packs: {module.PACKS_DIR}" in yml
+
+
+def test_route_preserving_contradiction_is_rejected(tmp_path: Path) -> None:
+    """The mr8 fmtstr completion carried fmtstr_read("true") AND
+    fmtstr_read("false"): the gate kept a candidate that contradicts the
+    merged fact base as long as the route survived, so the student would
+    learn to emit both values. A contradiction that preserves an already
+    correct route is a poison, not a suggestion."""
+    module = _load_script()
+    plans = {
+        'vuln("fmtstr").\nfmtstr_read("true").\n': "fmtstr_leak",
+        'vuln("fmtstr").\nfmtstr_read("true").\nfmtstr_read("false").\n': "fmtstr_leak",
+    }
+    runner = _fake_runner_factory(plans)
+    kept, rejected = module.verify_candidates(
+        baseline_facts='vuln("fmtstr").\nfmtstr_read("true").',
+        correct_technique="fmtstr_leak",
+        candidates=['fmtstr_read("false").'],
+        workdir=tmp_path,
+        runner=runner,
+    )
+    assert kept == []
+    assert rejected and rejected[0].startswith('fmtstr_read("false")')
+
+
+def test_conflicting_repair_of_a_wrong_baseline_is_kept(tmp_path: Path) -> None:
+    """A candidate contradicting the merged facts is still the most
+    valuable record there is when it MOVES a wrong baseline onto the
+    correct technique."""
+    module = _load_script()
+    plans = {
+        'seccomp("false").\n': "ret2vdso",  # baseline: wrong
+        'seccomp("false").\nseccomp("true").\n': "orw",  # repaired
+    }
+    runner = _fake_runner_factory(plans)
+    kept, _rejected = module.verify_candidates(
+        baseline_facts='seccomp("false").',
+        correct_technique="orw",
+        candidates=['seccomp("true").'],
+        workdir=tmp_path,
+        runner=runner,
+    )
+    assert kept == ['seccomp("true").']
+
+
+def test_accumulated_facts_carries_kept_candidates_forward() -> None:
+    """The gate merges the baseline with every line kept so far: later
+    samples verify against that accumulated state, not the pristine
+    baseline (the mr8 v2 bug - see the next test)."""
+    module = _load_script()
+    base = 'vuln("fmtstr").\nfmtstr_read("true").'
+    merged = module.accumulated_facts(base, ['function_pointer_on_heap("false").'])
+    assert merged == ('vuln("fmtstr").\nfmtstr_read("true").\nfunction_pointer_on_heap("false").\n')
+
+
+def test_second_sample_contradicting_a_kept_value_is_rejected(tmp_path: Path) -> None:
+    """The mr8 v2 fmtstr completion carried function_pointer_on_heap("false")
+    AND ("true"): each sample verified against the PRISTINE baseline, so
+    samples never saw each other's kept lines and both flips survived.
+    A later sample must reject a candidate that contradicts a value the
+    completion already keeps."""
+    module = _load_script()
+    baseline = 'vuln("fmtstr").\nfmtstr_read("true").'
+    plans = {
+        'vuln("fmtstr").\nfmtstr_read("true").\n'
+        'function_pointer_on_heap("false").\n': "fmtstr_leak",
+        'vuln("fmtstr").\nfmtstr_read("true").\n'
+        'function_pointer_on_heap("false").\n'
+        'function_pointer_on_heap("true").\n': "fmtstr_leak",
+    }
+    runner = _fake_runner_factory(plans)
+    first, _ = module.verify_candidates(
+        baseline_facts=baseline,
+        correct_technique="fmtstr_leak",
+        candidates=['function_pointer_on_heap("false").'],
+        workdir=tmp_path / "sample-0",
+        runner=runner,
+    )
+    assert first == ['function_pointer_on_heap("false").']
+    second, rejected = module.verify_candidates(
+        baseline_facts=baseline,
+        correct_technique="fmtstr_leak",
+        candidates=['function_pointer_on_heap("true").'],
+        workdir=tmp_path / "sample-1",
+        runner=runner,
+        kept_so_far=first,
+    )
+    assert second == []
+    assert rejected and rejected[0].startswith('function_pointer_on_heap("true")')
+
+
+def test_flip_back_after_a_repair_is_rejected(tmp_path: Path) -> None:
+    """After a repair flip the completion commits to the new value: a
+    later candidate restoring the baseline value is not a contradiction
+    anymore (the merged file now asserts BOTH values), so the old gate
+    kept it as a "confirming duplicate" and the completion taught both
+    seccomp values. A flip-back is poison unless it repairs again."""
+    module = _load_script()
+    plans = {
+        'seccomp("false").\n': "ret2vdso",  # baseline: wrong
+        'seccomp("false").\nseccomp("true").\n': "orw",  # repair kept
+        'seccomp("false").\nseccomp("true").\nseccomp("false").\n': "orw",  # route survives
+    }
+    runner = _fake_runner_factory(plans)
+    kept, rejected = module.verify_candidates(
+        baseline_facts='seccomp("false").',
+        correct_technique="orw",
+        candidates=['seccomp("true").', 'seccomp("false").'],
+        workdir=tmp_path,
+        runner=runner,
+    )
+    assert kept == ['seccomp("true").']
+    assert rejected and rejected[0].startswith('seccomp("false")')
+
+
 def test_eval_targets_are_excluded() -> None:
     """uaf_heap's material is the eval challenge: never a training
     target, whatever the caller passes."""
     module = _load_script()
     assert "uaf_heap" not in module.TRAINING_TARGETS
     assert "uaf_heap" not in module.CORRECT_TECHNIQUE
+
+
+def test_record_carries_the_real_teacher_provenance() -> None:
+    """The builder knows its teacher (the --model that proposed the
+    candidates) and must stamp it: the assembler's fallback teacher
+    (deepseek-v4-pro, hardcoded) is provenance-guessing for any run
+    that used another model. MR8 runs the teacher z-ai/glm-5.3-flash;
+    the dataset must say so."""
+    module = _load_script()
+    record = module.build_record(
+        target="fmtstr",
+        material="int main(){}",
+        completion='vuln("fmtstr").',
+        verified_by="decision",
+        teacher_model="z-ai/glm-5.3-flash",
+    )
+    assert record["metadata"]["teachers"] == [
+        {
+            "role": "fact_teacher",
+            "kind": "teacher",
+            "provider": "openrouter",
+            "model": "z-ai/glm-5.3-flash",
+            "family": "glm",
+        }
+    ]
+
+
+def test_record_without_teacher_keeps_the_legacy_shape() -> None:
+    """No teacher_model argument: no teachers key written. The assembler
+    then applies its own provenance rule (records without teachers get
+    the legacy fallback) - the builder must not guess."""
+    module = _load_script()
+    record = module.build_record(
+        target="fmtstr",
+        material="int main(){}",
+        completion='vuln("fmtstr").',
+        verified_by="decision",
+    )
+    assert "teachers" not in record["metadata"]
+
+
+def test_teacher_failure_skips_the_sample() -> None:
+    """The 2026-11-07 crash: one hung teacher call (provider wall-clock
+    deadline) killed the whole build at target 2/8. A sample is a hint,
+    not ground truth - a failed teacher call must skip the sample and
+    let the build continue."""
+    module = _load_script()
+    from brainforge.providers.base import ChatRequest
+
+    class DeadTeacher:
+        def complete(self, request: ChatRequest, model: str):
+            raise TimeoutError("provider call exceeded the wall-clock deadline")
+
+    provider = DeadTeacher()
+    assert module.sample_facts(provider, "z-ai/glm-5.3-flash", "int main(){}") == []
+
+
+def test_provider_from_args_carries_the_timeout_knobs() -> None:
+    """--timeout / --max-retries reach the ProviderConfig: a slow
+    reasoning teacher on OpenRouter needs more than the 120s default,
+    and the retry policy is the operator's choice."""
+    module = _load_script()
+    args = module.argparse.Namespace(
+        provider_url="https://openrouter.ai/api/v1",
+        provider_api_key_env="NO_SUCH_KEY",
+        timeout=300.0,
+        max_retries=2,
+    )
+    provider = module.provider_from_args(args)
+    assert provider.config.timeout == 300.0
+    assert provider.config.max_retries == 2
 
 
 def test_record_shape_carries_provenance() -> None:

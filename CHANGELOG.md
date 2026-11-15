@@ -7,8 +7,119 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Dataset: new ``scripts/assemble_sft_mr10-facts`` dataset (``datasets/sft-mr10-facts/train.jsonl``,
+  247 records) - the MR9 recipe rebuilt after the orw label fix. The
+  assembler is parametrized (``--id-prefix``, ``--date``) so MR10 reuses
+  the MR9 assembly code path instead of a forked script. The majority
+  votes no longer fill the ``vuln`` fact: ``VULN_TRUTH`` is authoritative
+  for the vuln class (the MR6 vote carried the wrong orw label, fmtstr),
+  and the vote values only fill the non-vuln facts (seccomp, fmtstr_read,
+  allocator, glibc_minor). orw-002 also gets the ``seccomp=true`` override
+  (no MR6 votes exist for it).
+- Bench: the 10 MR6 eval twins (lictor ``feat/lab-eval-twins``) join the
+  final benchmark as the clean set - one twin per capability class (fmtstr,
+  orw, ret2plt, ret2func, shellcode, ret2libc, callme, srop) plus the two
+  UAF class-transfer targets (uaf-eval-001/002, ports 19996/19997, class
+  twins 19980-19999). New ``LICTOR_LAB_PORTS`` entries, 10 verified case
+  files (``examples/cases/ctf-lictor-*-eval-*.json``) and 10 manifest
+  rows. None of them appears in any training dataset: the clean verdict
+  list grows from 1 challenge (uaf_heap-001) to 11. Port-collision and
+  mapping regression tests included.
+
 ### Fixed
 
+- Bench ground truth: ``_load_ground_truth`` now parses plain-Prolog
+  completions (``vuln("sof").``, the MR9/MR10 facts format) in addition to
+  the MR8 JSON envelope. Before the fix the Prolog records were silently
+  dropped (``json.loads`` failed), so the ground truth came only from the
+  stale MR8 dataset and kept ``expected_vuln("orw-002") == "fmtstr"`` even
+  after the MR10 label fix. The loader keeps first-wins (``setdefault``)
+  over the sorted dataset scan, which puts MR10 (the corrected labels)
+  ahead of MR8/MR9. Tests: the Prolog-format unit test and the live
+  MR10 dataset regression test.
+- Bench: model-only mode now shares the FACT_PROMPT + facts-JSON completion
+  format with the full arm (model + augure + lictor) - the hybrid format.
+  The ``vuln`` fact value is compared to ground truth derived from the
+  verified facts datasets instead of a hand-maintained ``_binary_to_vuln_type``
+  map that went stale each MR cycle. Fixes: srop-001 was impossible to pass
+  (the old vocabulary excluded ``srop``), callme-002 was judged against
+  ``ret2func`` instead of ``sof``, uaf_train_a/b were free passes (absent
+  from the map). ``expected_technique`` is no longer measured in model-only
+  mode (technique is augure's job, full arm only). uaf_heap is preserved as a
+  real UAF check via a documented fallback. The contamination audit now
+  normalizes facts-dataset training ids (``sft-*-facts-<binary>``) into the
+  eval namespace, so leaked training targets (uaf_train_a/b) are caught
+  instead of passing for free.
+- Bench protocol: ``scripts/run_final_bench.sh`` now includes
+  ``datasets/sft-mr8-facts/train.jsonl`` in the contamination training IDs so
+  the trained-mr8 model (trained on the MR8 facts dataset) is audited against
+  the eval set - leaked training targets such as ``uaf_train_a``/``uaf_train_b``
+  are caught instead of certifying a contaminated eval as clean.
+- Bench parser: the fact extractor now tolerates the shapes live models
+  actually emit (run-20261108-mr8-model-v3 audit): quoted or bare atom values
+  with the final Prolog period optional (``vuln(sof)``), the GRPO wrapper
+  heads ``predicate(...)`/``value(...)`` wrapping two arguments, and
+  degenerate single-argument wrappers (``predicate("win_function").``) are
+  dropped silently instead of leaking a bogus fact. The v3 run had scored
+  trained-mr8 1/120 because the parser rejected the model's correct
+  ``vuln(sof)`` answer on a missing trailing period; a wrong value is still
+  a scored failure, not a parse error.
+- Bench protocol: the launch-time clean list and the post-bench audit now
+  share one normalization (``clean_eval_ids`` in ``final_bench`` reuses
+  ``bench_lab._contaminating_ids``), so the verdict's clean-only subset
+  matches the audit's LEAKED list instead of a raw string intersection
+  that certified a contaminated eval set as clean (run v4 verdict showed
+  12 challenges while the audit flagged 18: the clean-only verdict
+  included uaf_train_a/b and dropped 7 challenges the audit flagged).
+- Recipes: new ``scripts/assemble_sft_mr8.py`` assembles the MR8
+  single-turn fact-classification dataset (mr7-58 recipe ported to main)
+  with the three printf-family training twins as counter-examples
+  (ret2libc_train, srop_train, callme_train: vuln=sof, seccomp=false,
+  printf-family PLT with no format string bug). The twins teach the
+  discrimination the fact emitter lacked: printf-family in the PLT is
+  not a format string (shellcode-002 regression, mr7 bench).
+- Assembler: decision-verified fact records (``verified_by: decision``,
+  ``sft-verified-facts-*``) survive the assembly. The failed-trajectory
+  gate parsed their Prolog fact completions as JSON verdicts and silently
+  dropped the whole corpus - the mr6-v2 dataset shipped ZERO of the 5
+  fact records, the mr8 assembly dropped all 8 (twins included): the
+  MR6 emission signal never reached a training file. The decision is
+  the ground truth for these records; the execution-verdict gate does
+  not apply.
+- Recipes: new ``scripts/assemble_sft_mr8.py`` assembles the MR8
+  single-turn fact-classification dataset (mr7-58 recipe ported to main)
+  with the three printf-family training twins as counter-examples
+  (ret2libc_train, srop_train, callme_train: vuln=sof, seccomp=false,
+  printf-family PLT with no format string bug). The twins teach the
+  discrimination the fact emitter lacked: printf-family in the PLT is
+  not a format string (shellcode-002 regression, mr7 bench). The
+  complementary extractor ``scripts/expand_sft_mr8.py`` mines majority
+  facts from the rollout trajectories.
+- Verified-facts builder: the gate now verifies every sample against the
+  ACCUMULATED completion (baseline + lines kept by earlier samples) instead
+  of the pristine baseline. The v2 mr8 rebuild verified each sample in
+  isolation, so the fmtstr completion still carried
+  `function_pointer_on_heap("false")` AND `("true")` - two different
+  samples each passed the gate against a baseline that lacked the other's
+  line. The flip window is also re-evaluated per candidate against the
+  current merged route (before: a wrong baseline unlocked flips for the
+  whole sample, so a route-preserving flip-back after a repair survived;
+  the trial files also carried a stray blank line that made real lictor
+  plans diverge from the tests' plans keys). Merged trials are now
+  normalized through one helper (`accumulated_facts`).
+- Verified-facts builder: the decision gate plans its trials with the
+  production packs config and rejects route-preserving contradictions.
+  The 2026-11-07 mr8 build measured two gate defects: the trials ran
+  without a lictor.yml so the augure packs never loaded (pack-only
+  techniques like `orw` were unreachable - every orw candidate was
+  rejected and the orw record stayed empty since mr6, while the same
+  facts plan `orw` fine with the packs loaded), and a candidate that
+  flips an asserted fact was kept while the route survived
+  (`fmtstr_read("true")` and `fmtstr_read("false")` both landed in the
+  fmtstr completion). A flip is now kept only when it repairs a wrong
+  baseline.
 - Bench measurement validity: each repetition now runs with its own lictor
   seed (`seed_base + rep`, default base 7, same seed across both models for
   a paired comparison). The bench never passed a seed to the pilot, so every
