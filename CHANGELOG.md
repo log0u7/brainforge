@@ -7,8 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Dataset: new ``scripts/assemble_sft_mr10-facts`` dataset (``datasets/sft-mr10-facts/train.jsonl``,
+  247 records) - the MR9 recipe rebuilt after the orw label fix. The
+  assembler is parametrized (``--id-prefix``, ``--date``) so MR10 reuses
+  the MR9 assembly code path instead of a forked script. The majority
+  votes no longer fill the ``vuln`` fact: ``VULN_TRUTH`` is authoritative
+  for the vuln class (the MR6 vote carried the wrong orw label, fmtstr),
+  and the vote values only fill the non-vuln facts (seccomp, fmtstr_read,
+  allocator, glibc_minor). orw-002 also gets the ``seccomp=true`` override
+  (no MR6 votes exist for it).
+- Bench: the 10 MR6 eval twins (lictor ``feat/lab-eval-twins``) join the
+  final benchmark as the clean set - one twin per capability class (fmtstr,
+  orw, ret2plt, ret2func, shellcode, ret2libc, callme, srop) plus the two
+  UAF class-transfer targets (uaf-eval-001/002, ports 19996/19997, class
+  twins 19980-19999). New ``LICTOR_LAB_PORTS`` entries, 10 verified case
+  files (``examples/cases/ctf-lictor-*-eval-*.json``) and 10 manifest
+  rows. None of them appears in any training dataset: the clean verdict
+  list grows from 1 challenge (uaf_heap-001) to 11. Port-collision and
+  mapping regression tests included.
+
 ### Fixed
 
+- Bench ground truth: ``_load_ground_truth`` now parses plain-Prolog
+  completions (``vuln("sof").``, the MR9/MR10 facts format) in addition to
+  the MR8 JSON envelope. Before the fix the Prolog records were silently
+  dropped (``json.loads`` failed), so the ground truth came only from the
+  stale MR8 dataset and kept ``expected_vuln("orw-002") == "fmtstr"`` even
+  after the MR10 label fix. The loader keeps first-wins (``setdefault``)
+  over the sorted dataset scan, which puts MR10 (the corrected labels)
+  ahead of MR8/MR9. Tests: the Prolog-format unit test and the live
+  MR10 dataset regression test.
 - Bench: model-only mode now shares the FACT_PROMPT + facts-JSON completion
   format with the full arm (model + augure + lictor) - the hybrid format.
   The ``vuln`` fact value is compared to ground truth derived from the

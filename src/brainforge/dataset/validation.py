@@ -1,8 +1,27 @@
 import json
+import re
 
 from brainforge.dataset.writer import DatasetRecord
 
 _ALLOWED_ROLES = {"user", "assistant", "system", "tool"}
+
+# Prolog fact lines: one predicate("value") per line. Mirrors the bench
+# scorer's _PROLOG_RE grammar (experiments/model_only_pilot.py): quoted
+# or bare atom values, the final period optional. A dataset completion
+# passes the gate exactly when the scorer can parse it as facts.
+_PROLOG_FACT_RE = re.compile(r"^([a-z_][a-z0-9_]*)\(\s*(.*?)\s*\)\.?$")
+
+
+def _is_prolog_fact_block(text: str) -> bool:
+    """Every non-empty line is a Prolog fact line with a non-empty value."""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return False
+    for line in lines:
+        match = _PROLOG_FACT_RE.match(line)
+        if match is None or not match.group(2).strip().strip('"'):
+            return False
+    return True
 
 
 def validate_record(record: dict) -> list[str]:
@@ -28,7 +47,12 @@ def validate_record(record: dict) -> list[str]:
     try:
         json.loads(messages[-1].content)
     except json.JSONDecodeError as exc:
-        errors.append(f"assistant content is not valid JSON: {exc}")
+        # The verified-facts pipeline trains single-turn Prolog completions
+        # (the bench prompt demands one predicate("value") per line): accept
+        # that shape as a valid final assistant payload, anything else is
+        # malformed.
+        if not _is_prolog_fact_block(messages[-1].content):
+            errors.append(f"assistant content is not valid JSON or a Prolog fact block: {exc}")
     metadata = parsed.metadata
     for key in ("source", "teachers", "quality", "recitation_risk"):
         if key not in metadata:

@@ -31,6 +31,9 @@ from typing import Any
 
 from brainforge.experiments.pilot import FACT_PROMPT, MAX_SUGGESTED_FACTS
 
+#: one Prolog vuln fact line in an MR9/MR10 facts completion
+_VULN_FACT_RE = re.compile(r'vuln\("([^"]+)"\)')
+
 #: repo root, computed from this file's location (src/brainforge/experiments/)
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -71,8 +74,10 @@ def _load_ground_truth(paths: list[Path] | None = None) -> dict[str, str]:
     """Build binary -> vuln class from the verified facts datasets.
 
     Each facts record carries ``metadata.source.path`` = ``lab/targets/<binary>``
-    and a completion ``{"facts": [{"name": "vuln", "value": "sof"}]}``. The
-    ``vuln`` fact value is the ground-truth class for that binary.
+    and a completion that states the vuln fact either as the MR8 JSON
+    envelope (``{"facts": [{"name": "vuln", "value": "sof"}]}``) or as the
+    MR9/MR10 plain-Prolog form (``vuln("sof").``). The ``vuln`` fact value
+    is the ground-truth class for that binary.
 
     ``paths`` overrides the auto-discovered dataset files (used by tests
     and by callers that stage a specific facts snapshot).
@@ -110,10 +115,16 @@ def _load_ground_truth(paths: list[Path] | None = None) -> dict[str, str]:
             try:
                 obj = json.loads(completion)
             except json.JSONDecodeError:
+                obj = None
+            if obj is not None:
+                for fact in obj.get("facts", []) or []:
+                    if fact.get("name") == "vuln" and fact.get("value"):
+                        truth.setdefault(binary, fact["value"])
                 continue
-            for fact in obj.get("facts", []) or []:
-                if fact.get("name") == "vuln" and fact.get("value"):
-                    truth.setdefault(binary, fact["value"])
+            # Prolog completions (MR9/MR10): plain ``vuln("sof").`` lines.
+            match = _VULN_FACT_RE.search(completion)
+            if match:
+                truth.setdefault(binary, match.group(1))
     if paths is None:
         _ground_truth = truth
     return truth

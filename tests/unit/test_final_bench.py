@@ -271,9 +271,10 @@ class TestCommittedWiring:
             assert entry[4]
             assert case_id not in skipped
 
-    def test_committed_eval_set_has_seventeen_live_targets(self) -> None:
-        """The live lictor lab holds 19 targets: the 17 clean-protocol
-        eval challenges plus the 2 MR6 training twins (training
+    def test_committed_eval_set_live_targets(self) -> None:
+        """The live lictor lab holds 29 targets: the 17 clean-protocol
+        eval challenges, the 10 MR6 eval twins (clean by construction,
+        commit 1028b7c), and the 2 MR6 training twins (training
         material, never eval)."""
         repo = Path(__file__).resolve().parents[2]
         challenges, _skipped = load_verified_challenges(
@@ -299,6 +300,18 @@ class TestCommittedWiring:
             "ctf-lictor-srop-001-001",
             "ctf-lictor-uaf_heap-001",
             "ctf-lictor-uaf_heap-002-001",
+            # the MR6 eval twins: clean by construction, one per
+            # capability class plus the two UAF class-transfer targets
+            "ctf-lictor-callme-eval-001",
+            "ctf-lictor-fmtstr-eval-001",
+            "ctf-lictor-orw-eval-001",
+            "ctf-lictor-ret2func-eval-001",
+            "ctf-lictor-ret2libc-eval-001",
+            "ctf-lictor-ret2plt-eval-001",
+            "ctf-lictor-shellcode-eval-001",
+            "ctf-lictor-srop-eval-001",
+            "ctf-lictor-uaf-eval-001-001",
+            "ctf-lictor-uaf-eval-002-001",
             # the MR6 training twins: live lab targets, training-eligible,
             # NOT eval challenges (they never enter the eval set)
             "ctf-lictor-uaf_train_a-001",
@@ -399,3 +412,50 @@ class TestSplitProvider:
         provider = SplitProvider(providers={"base": _FakeProvider()})
         with pytest.raises(KeyError):
             provider.complete(object(), "not-a-known-model")
+
+
+class TestLictorLabPortsEvalTwins:
+    def test_the_mr6_eval_twins_are_mapped(self) -> None:
+        """The 10 eval twins map to their lab socat listeners.
+
+        The clean set (lictor feat/lab-eval-twins): one twin per
+        capability class (fmtstr, orw, ret2plt, ret2func, shellcode,
+        ret2libc, callme, srop) plus the two UAF class-transfer
+        targets, ports 19980-19999. A missing or mistyped entry here
+        silently skips the twin in ``load_verified_challenges`` and
+        shrinks the clean verdict without any error.
+        """
+        expected = {
+            "uaf-eval-001": 19996,
+            "uaf-eval-002": 19997,
+            "fmtstr-eval": 19998,
+            "orw-eval": 19999,
+            "ret2plt-eval": 19980,
+            "ret2func-eval": 19981,
+            "shellcode-eval": 19982,
+            "ret2libc-eval": 19983,
+            "callme-eval": 19984,
+            "srop-eval": 19985,
+        }
+        for binary, port in expected.items():
+            assert LICTOR_LAB_PORTS.get(binary) == port, binary
+
+        expected2 = {
+            "uaf-eval2-001": 20000,
+            "uaf-eval2-002": 20001,
+            "orw-eval2": 20002,
+            "ret2plt-eval2": 20003,
+            "ret2func-eval2": 20004,
+            "shellcode-eval2": 20005,
+            "ret2libc-eval2": 20006,
+            "callme-eval2": 20007,
+            "srop-eval2": 20008,
+            "fmtstr-eval2": 20009,
+        }
+        for binary, port in expected2.items():
+            assert LICTOR_LAB_PORTS.get(binary) == port, binary
+
+    def test_no_port_collisions(self) -> None:
+        """Two challenges on one port would cross-contaminate results."""
+        ports = list(LICTOR_LAB_PORTS.values())
+        assert len(ports) == len(set(ports))

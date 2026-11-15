@@ -71,12 +71,14 @@ TRAIN_IDS=(
 	"datasets/sft-mr6/train.jsonl"
 	"datasets/sft-mr6-v2/train.jsonl"
 	"datasets/sft-mr8-facts/train.jsonl"
+	"datasets/sft-mr9-facts/train.jsonl"
+	"datasets/sft-mr10-facts/train.jsonl"
 	"datasets/eval/grpo-translated.jsonl"
 )
 BASE_URL="${BASE_URL:-http://192.168.1.26:9932/v1}"
 BASE_MODEL="${BASE_MODEL:-base-qwen3-1.7b}"
 TRAINED_URL="${TRAINED_URL:-http://192.168.1.26:9933/v1}"
-TRAINED_MODEL="${TRAINED_MODEL:-trained-mr8}"
+TRAINED_MODEL="${TRAINED_MODEL:-trained-mr9}"
 
 for f in "$MANIFEST" "${TRAIN_IDS[@]}"; do
 	if [ ! -f "$f" ]; then
