@@ -319,9 +319,10 @@ class TestEvaluation:
 class TestHybridFormat:
     def test_uses_fact_prompt_not_the_old_model_only_prompt(self) -> None:
         # The prompt is FACT_PROMPT (shared with the full arm): it asks for
-        # fact predicates, not the old free-form JSON with vuln_type enum.
+        # one JSON object of name/value facts, not the old free-form JSON
+        # with vuln_type enum.
         out = m.FACT_PROMPT.format(material="int vuln(){}")
-        assert "fact predicates" in out
+        assert "ONE JSON object" in out
         assert "vuln" in out
         assert "vuln_type" not in out
         assert "sof|fmtstr|uaf|ret2libc|ret2plt|ret2func|shellcode|orw|other" not in out

@@ -680,3 +680,127 @@ def test_run_executes_the_built_technique(tmp_path: Any):
     assert run_args[run_args.index("--technique") + 1] == "shellcode"
     verdict = json.loads(records[0]["messages"][-1]["content"])
     assert verdict["flag"] == "FLAG{run_pinned}"
+
+
+def test_ask_facts_disables_thinking_generation():
+    """Qwen3 in thinking mode returns the text in ``reasoning_content`` and
+    leaves ``content`` empty: every bench attempt logged 'the LLM emitted
+    no usable facts' while the flag still came from lictor's deterministic
+    harvest. The fact request must disable thinking so the answer lands in
+    ``content``."""
+    from brainforge.experiments.pilot import ask_facts
+    from brainforge.providers.base import ChatResponse
+
+    class FakeProvider:
+        def __init__(self) -> None:
+            self.requests = []
+
+        def complete(self, request, model):
+            self.requests.append(request)
+            return ChatResponse(content='vuln("fmtstr").', provider="fake", model=model)
+
+    provider = FakeProvider()
+    facts = ask_facts(provider, "base-qwen3-1.7b", "material")
+
+    assert facts == ['vuln("fmtstr").']
+    request = provider.requests[0]
+    assert request.extra_body == {"chat_template_kwargs": {"enable_thinking": False}}
+    assert request.max_tokens == 512
+
+
+def test_trajectory_metadata_records_the_llm_fact_count():
+    """The bench must be able to flag attempts where the model contributed
+    nothing: the record carries the number of facts the LLM supplied."""
+    from brainforge.experiments.pilot import build_trajectory
+
+    empty = build_trajectory(
+        challenge_id="chal-1",
+        student_input="solve",
+        facts_steps=[],
+        decision={"technique": "ret2plt"},
+        outcome={"status": "flagged", "flag": "FLAG{x}"},
+        model="m",
+    )
+    fed = build_trajectory(
+        challenge_id="chal-1",
+        student_input="solve",
+        facts_steps=['vuln("fmtstr").', 'seccomp("false").'],
+        decision={"technique": "ret2plt"},
+        outcome={"status": "flagged", "flag": "FLAG{x}"},
+        model="m",
+    )
+
+    assert empty["metadata"]["pilot"]["facts"] == 0
+    assert fed["metadata"]["pilot"]["facts"] == 2
+
+
+def test_ask_facts_requests_a_constrained_json_schema():
+    """Free-form fact lines are not reproducible across models: the base
+    emitted value(...) shapes, the trained student emitted valueless
+    predicate("name") lines. The request must constrain the output with a
+    json_schema so both arms answer in one parseable shape."""
+    from brainforge.experiments.pilot import ask_facts
+    from brainforge.providers.base import ChatResponse
+
+    class FakeProvider:
+        def __init__(self) -> None:
+            self.requests = []
+
+        def complete(self, request, model):
+            self.requests.append(request)
+            return ChatResponse(content='{"facts": []}', provider="fake", model=model)
+
+    provider = FakeProvider()
+    ask_facts(provider, "base-qwen3-1.7b", "material")
+
+    response_format = provider.requests[0].response_format
+    assert response_format is not None
+    assert response_format["type"] == "json_schema"
+    schema = response_format["json_schema"]["schema"]
+    assert schema["properties"]["facts"]["items"]["required"] == ["name", "value"]
+    # a degenerate model that repeats one fact must still close the array
+    # before max_tokens: the grammar caps the list, the parser dedupes it
+    assert schema["properties"]["facts"]["maxItems"] == 16
+
+
+def test_ask_facts_parses_constrained_json_into_predicates():
+    from brainforge.experiments.pilot import ask_facts
+    from brainforge.providers.base import ChatResponse
+
+    content = json.dumps(
+        {
+            "facts": [
+                {"name": "vuln", "value": "fmtstr"},
+                {"name": "seccomp", "value": "false"},
+                {"name": "glibc_minor", "value": "36"},
+            ]
+        }
+    )
+
+    class FakeProvider:
+        def complete(self, request, model):
+            return ChatResponse(content=content, provider="fake", model=model)
+
+    facts = ask_facts(FakeProvider(), "m", "material")
+    assert facts == ['vuln("fmtstr").', 'seccomp("false").', "glibc_minor(36)."]
+
+
+def test_ask_facts_drops_json_facts_outside_the_value_domains():
+    from brainforge.experiments.pilot import ask_facts
+    from brainforge.providers.base import ChatResponse
+
+    content = json.dumps(
+        {
+            "facts": [
+                {"name": "vuln", "value": "bogus"},
+                {"name": "not_a_predicate", "value": "true"},
+                {"name": "fmtstr_read", "value": "true"},
+            ]
+        }
+    )
+
+    class FakeProvider:
+        def complete(self, request, model):
+            return ChatResponse(content=content, provider="fake", model=model)
+
+    assert ask_facts(FakeProvider(), "m", "material") == ['fmtstr_read("true").']
