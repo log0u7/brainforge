@@ -1,0 +1,40 @@
+nx("true").
+pie("false").
+canary("false").
+relro("partial").
+plt("__libc_start_main").
+plt("puts").
+plt("system").
+plt("snprintf").
+plt("read").
+plt("memcpy").
+plt("setvbuf").
+plt("fwrite").
+gadget("ret_align", 4198422).
+gadget("ret_align", 4198592).
+gadget("ret_align", 4198640).
+gadget("ret_align", 4198704).
+gadget("ret_align", 4198750).
+gadget("ret_align", 4198752).
+gadget("pop_rdi_ret", 4198778).
+gadget("ret_align", 4198779).
+gadget("ret_align", 4198782).
+gadget("ret_align", 4198827).
+gadget("ret_align", 4199105).
+gadget("ret_align", 4199116).
+vuln("sof").
+vuln_function("vuln_copy").
+sink("memcpy").
+plt_addr("puts", 4198448).
+plt_addr("snprintf", 4198464).
+plt_addr("read", 4198480).
+plt_addr("memcpy", 4198496).
+plt_addr("setvbuf", 4198512).
+plt_addr("fwrite", 4198528).
+got_addr("puts", 4210688).
+got_addr("snprintf", 4210696).
+got_addr("read", 4210704).
+got_addr("memcpy", 4210712).
+got_addr("setvbuf", 4210720).
+got_addr("fwrite", 4210728).
+leaked_address("system", 138116878337168).

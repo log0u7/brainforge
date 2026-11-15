@@ -32,6 +32,7 @@ datasets/*
 experiments/*
 !experiments/.gitkeep
 !experiments/ctf_ingest/
+!experiments/final-bench-results/
 
 # Secrets and env
 .env
