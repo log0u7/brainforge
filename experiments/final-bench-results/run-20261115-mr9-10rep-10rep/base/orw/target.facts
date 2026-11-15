@@ -1,0 +1,73 @@
+nx("false").
+pie("false").
+canary("false").
+relro("partial").
+plt("__libc_start_main").
+plt("strcpy").
+plt("puts").
+plt("strlen").
+plt("printf").
+plt("read").
+plt("prctl").
+plt("setvbuf").
+plt("fwrite").
+gadget("ret_align", 4198422).
+gadget("ret_align", 4198624).
+gadget("ret_align", 4198672).
+gadget("ret_align", 4198736).
+gadget("ret_align", 4198782).
+gadget("ret_align", 4198784).
+gadget("ret_align", 4198952).
+gadget("ret_align", 4199187).
+gadget("ret_align", 4199232).
+gadget("ret_align", 4199474).
+gadget("ret_align", 4199484).
+vuln_hint("unsafe_func:strcpy").
+vuln("sof").
+vuln("fmtstr"). // suggested
+vuln_function("vuln_copy").
+sink("strcpy").
+leaked_address("input", 140737488349840).
+plt_addr("strcpy", 4198448).
+plt_addr("puts", 4198464).
+plt_addr("strlen", 4198480).
+plt_addr("printf", 4198496).
+plt_addr("read", 4198512).
+plt_addr("prctl", 4198528).
+plt_addr("setvbuf", 4198544).
+plt_addr("fwrite", 4198560).
+got_addr("strcpy", 4210688).
+got_addr("puts", 4210696).
+got_addr("strlen", 4210704).
+got_addr("printf", 4210712).
+got_addr("read", 4210720).
+got_addr("prctl", 4210728).
+got_addr("setvbuf", 4210736).
+got_addr("fwrite", 4210744).
+sym_addr("stdout", 4210768).
+sym_addr("__abi_tag", 4195196).
+sym_addr("deregister_tm_clones", 4198640).
+sym_addr("register_tm_clones", 4198688).
+sym_addr("__do_global_dtors_aux", 4198752).
+sym_addr("__do_global_dtors_aux_fini_array_entry", 4210176).
+sym_addr("frame_dummy", 4198800).
+sym_addr("__frame_dummy_init_array_entry", 4210168).
+sym_addr("__FRAME_END__", 4202880).
+sym_addr("_DYNAMIC", 4210184).
+sym_addr("__GNU_EH_FRAME_HDR", 4202596).
+sym_addr("_GLOBAL_OFFSET_TABLE_", 4210664).
+sym_addr("data_start", 4210752).
+sym_addr("_edata", 4210768).
+sym_addr("_fini", 4199476).
+sym_addr("install_filter", 4198806).
+sym_addr("__data_start", 4210752).
+sym_addr("__dso_handle", 4210760).
+sym_addr("_IO_stdin_used", 4202496).
+sym_addr("_end", 4210784).
+sym_addr("_dl_relocate_static_pie", 4198624).
+sym_addr("_start", 4198576).
+sym_addr("__bss_start", 4210768).
+sym_addr("main", 4199233).
+sym_addr("vuln_copy", 4199188).
+sym_addr("__TMC_END__", 4210768).
+sym_addr("_init", 4198400).
