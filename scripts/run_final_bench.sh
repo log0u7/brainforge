@@ -26,6 +26,10 @@
 #      mined (leaked) challenges: the contamination audit fails the run
 #      on purpose. The verdict below is the clean-only readout; do not
 #      confuse exit 1 with a failed run.
+#   5. A completed run is COMMITTED before the next one starts: the
+#      results are data, not scratch. (2026-11-15 lesson: the mr9/mr10
+#      raw results were destroyed by a worktree cleanup because they
+#      were never committed.)
 #
 # Usage:
 #   scripts/run_final_bench.sh <tag> [repetitions] [--mode full|model]

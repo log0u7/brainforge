@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Bench: the canonical bench runs are now committed
+  (``experiments/final-bench-results/``, 12 runs, 2026-11-03 to 2026-11-08,
+  21 MB) with a README indexing each run against its claim. Convention
+  added to the bench protocol: a completed run is committed before the
+  next one starts. Lesson: the MR9/MR10 raw results were destroyed by a
+  worktree cleanup because they were never committed - results are data,
+  not scratch. The deleted iteration runs (20261105 debug/rebench series,
+  mr8-model-v4, sft-facts, v2-3ep) were uncited anywhere: removed.
+
 - Dataset: new ``scripts/assemble_sft_mr10-facts`` dataset (``datasets/sft-mr10-facts/train.jsonl``,
   247 records) - the MR9 recipe rebuilt after the orw label fix. The
   assembler is parametrized (``--id-prefix``, ``--date``) so MR10 reuses
