@@ -19,6 +19,8 @@ format with the full arm (model + augure + lictor): the hybrid format.
 """
 
 import json
+
+import pytest
 from pathlib import Path
 
 from brainforge.experiments import model_only_pilot as m
@@ -108,8 +110,11 @@ class TestGroundTruthDerivation:
         # must win over MR8 (JSON envelope, orw=fmtstr) for the orw labels.
         from brainforge.experiments.model_only_pilot import _facts_dataset_paths
 
-        assert m.expected_vuln("orw", _facts_dataset_paths()) == "sof"
-        assert m.expected_vuln("orw-002", _facts_dataset_paths()) == "sof"
+        paths = _facts_dataset_paths()
+        if not paths:
+            pytest.skip("live facts datasets absent (gitignored artifact, CI)")
+        assert m.expected_vuln("orw", paths) == "sof"
+        assert m.expected_vuln("orw-002", paths) == "sof"
 
     def test_uaf_heap_preserved_by_document_fallback(self) -> None:
         # uaf_heap has no facts record in any dataset; the fallback keeps
