@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Bench: the repetition loop parallelizes. The harness used to run the
+  reps sequentially (one rep at a time over the challenge list), which
+  pinned the whole bench to one core: the pilot is a subprocess
+  (CPU-bound Ruby) plus an LLM HTTP call, so the reps parallelize
+  safely. The pool now runs the (rep, challenge) pairs - a 10-rep run
+  that took ~3 h sequential drops to ~30-40 min with the default pool
+  width. The seed contract survives: same rep index -> same seed
+  across models (the paired comparison), consecutive reps ->
+  consecutive seeds (independent draws). Two consequences, both
+  measured: (1) a workdir per rep - the pilot writes
+  run.json/trail/facts under ``workdir/<binary>``, so two concurrent
+  reps of the same challenge would overwrite each other's evidence
+  (the shared-workdir contamination measured in pilot.py); multi-rep
+  runs nest ``workdir/<model>/rep<N>/<binary>/``, single-rep runs keep
+  the flat layout. (2) the pilot call order interleaves - the per-rep
+  seed pairing is the contract, not the call sequence.
+
+- Bench: the pool width is user-configurable. ``BENCH_WORKERS``
+  tunes the width explicitly; unset, it auto-sizes to the machine
+  (``os.cpu_count()``), capped at the rep count (a wider pool buys
+  nothing past the last rep). The bench is harness-level
+  parallelism only: augure and lictor are invoked per attempt as
+  subprocesses and are unchanged - no worker tuning reaches them.
+
+- Bench: the attempt cap default rises from 600 s to 900 s
+  (``ATTEMPT_CAP`` in ``run_final_bench.sh``, still overridable per
+  run). The 600 s cap was measured to be too short for some exploit
+  chains; with the reps parallelized the wall-clock cost of a longer
+  cap is absorbed by the pool instead of stacking.
+
 - Bench: the canonical bench runs are now committed
   (``experiments/final-bench-results/``, 12 runs, 2026-11-03 to 2026-11-08,
   21 MB) with a README indexing each run against its claim. Convention

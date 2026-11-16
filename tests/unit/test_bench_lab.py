@@ -537,7 +537,9 @@ class TestBenchRepetitionSeed:
             pilot_fn=pilot,
         )
         # same rep index -> same seed across models (paired comparison),
-        # consecutive reps -> consecutive seeds (independent draws)
+        # consecutive reps -> consecutive seeds (independent draws). The
+        # reps run concurrently, so the pilot calls interleave: the
+        # assertion is set-based, the (model, seed) pairs are the contract.
         assert seen == [
             ("base", "7"),
             ("base", "8"),
@@ -545,7 +547,16 @@ class TestBenchRepetitionSeed:
             ("trained", "7"),
             ("trained", "8"),
             ("trained", "9"),
-        ]
+        ] or sorted(seen) == sorted(
+            [
+                ("base", "7"),
+                ("base", "8"),
+                ("base", "9"),
+                ("trained", "7"),
+                ("trained", "8"),
+                ("trained", "9"),
+            ]
+        )
 
     def test_seed_base_is_configurable(self, tmp_path: Path) -> None:
         seen: list[str | None] = []
@@ -565,7 +576,9 @@ class TestBenchRepetitionSeed:
             pilot_fn=pilot,
             seed_base=100,
         )
-        assert seen == ["100", "101", "100", "101"]
+        # the reps run concurrently: the call order interleaves, the
+        # (model, seed) pairing is the contract, not the sequence
+        assert sorted(seen) == ["100", "100", "101", "101"]
 
 
 class TestBenchAttemptWatchdog:
@@ -662,3 +675,123 @@ class TestEvidenceSeparation:
 
         assert result["base"]["attempts_without_llm_facts"] == 2
         assert result["trained"]["attempts_without_llm_facts"] == 0
+
+
+class TestParallelRepetitions:
+    """The sequential rep loop pinned the whole bench to one core: the
+    pilot is a subprocess (CPU-bound Ruby) plus an LLM HTTP call, so the
+    reps parallelize safely. The seed contract must survive: same rep
+    index -> same seed across models, consecutive reps -> consecutive
+    seeds (the paired comparison and the independent draws both depend
+    on it)."""
+
+    def test_reps_run_concurrently_within_one_model(self, tmp_path: Path) -> None:
+        started = threading.Event()
+        release = threading.Event()
+        active: list[int] = []
+        peak = [0]
+        lock = threading.Lock()
+
+        def blocking_pilot(targets, workdir, provider, model, **kwargs):
+            with lock:
+                active.append(1)
+                peak[0] = max(peak[0], len(active))
+            if len(active) >= 2:
+                started.set()
+            # every rep blocks until a second rep has entered: only a
+            # concurrent rep loop can reach this line
+            release.wait(timeout=5)
+            with lock:
+                active.pop()
+            return [_pilot_record(targets[0][0], model, None)]
+
+        run_bench_lab(
+            challenges=[_target("chal-unseen-1", "chall1", "FLAG{secreta}")],
+            workdir=tmp_path,
+            provider=None,
+            base_model="base",
+            trained_model="trained",
+            repetitions=3,
+            training_ids=set(),
+            pilot_fn=blocking_pilot,
+        )
+        release.set()
+        assert started.is_set(), "reps ran sequentially: no two pilots overlapped"
+        assert peak[0] >= 2
+
+    def test_seed_contract_survives_parallel_reps(self, tmp_path: Path) -> None:
+        seen: dict[str, set[str]] = {}
+
+        def pilot(targets, workdir, provider, model, **kwargs):
+            seen.setdefault(model, set()).add(kwargs.get("seed"))
+            return [_pilot_record(targets[0][0], model, None)]
+
+        run_bench_lab(
+            challenges=[_target("chal-unseen-1", "chall1", "FLAG{secreta}")],
+            workdir=tmp_path,
+            provider=None,
+            base_model="base",
+            trained_model="trained",
+            repetitions=5,
+            training_ids=set(),
+            pilot_fn=pilot,
+        )
+        # every rep index got its own seed, and both models saw them all
+        assert seen == {"base": {"7", "8", "9", "10", "11"}, "trained": {"7", "8", "9", "10", "11"}}
+
+    def test_worker_count_is_configurable_and_auto(self, tmp_path: Path, monkeypatch) -> None:
+        """BENCH_WORKERS tunes the width; unset, it auto-sizes to the
+        machine (cpu_count, capped at the rep count)."""
+        import os
+
+        observed: list[int] = []
+        real_cpu = os.cpu_count()
+
+        def pilot(targets, workdir, provider, model, **kwargs):
+            observed.append(1)
+            return [_pilot_record(targets[0][0], model, None)]
+
+        # auto: unset env -> the pool still runs (smoke)
+        monkeypatch.delenv("BENCH_WORKERS", raising=False)
+        run_bench_lab(
+            challenges=[_target("chal-unseen-1", "chall1", "FLAG{secreta}")],
+            workdir=tmp_path,
+            provider=None,
+            base_model="base",
+            trained_model="trained",
+            repetitions=2,
+            training_ids=set(),
+            pilot_fn=pilot,
+        )
+        assert len(observed) == 4
+        assert real_cpu >= 1
+
+    def test_all_attempts_counted_with_parallel_reps(self, tmp_path: Path) -> None:
+        """The stats update stays sequential in the main thread: parallel
+        reps must not drop or double-count attempts."""
+        pilot, _calls = _fake_pilot(
+            [
+                [_record("chal-unseen-1", "base", "FLAG{secreta}")],
+                [_record("chal-unseen-2", "base", None)],
+                [_record("chal-unseen-1", "base", "FLAG{secreta}")],
+                [_record("chal-unseen-2", "base", None)],
+                [_record("chal-unseen-1", "trained", "FLAG{secreta}")],
+                [_record("chal-unseen-2", "trained", None)],
+                [_record("chal-unseen-1", "trained", "FLAG{secreta}")],
+                [_record("chal-unseen-2", "trained", None)],
+            ]
+        )
+        result = run_bench_lab(
+            challenges=_challenges(),
+            workdir=tmp_path,
+            provider=None,
+            base_model="base",
+            trained_model="trained",
+            repetitions=2,
+            training_ids=set(),
+            pilot_fn=pilot,
+        )
+        assert result["base"]["attempts"] == 4
+        assert result["trained"]["attempts"] == 4
+        assert result["base"]["successes"] == 2
+        assert result["trained"]["successes"] == 2
