@@ -48,7 +48,7 @@ cd "$(dirname "$0")/.."
 
 TAG="${1:?usage: run_final_bench.sh <tag> [repetitions] [--mode full|model]}"
 REPS="${2:-10}"
-ATTEMPT_CAP="${ATTEMPT_CAP:-600}"
+ATTEMPT_CAP="${ATTEMPT_CAP:-900}"
 shift 2 2>/dev/null || true
 MODE="full"
 while [[ $# -gt 0 ]]; do

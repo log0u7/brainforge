@@ -200,21 +200,19 @@ class TestLoadVerifiedChallenges:
 
 
 class TestCommittedWiring:
-    def test_committed_ret2csu_challenge_is_runnable(self) -> None:
-        """The 7th lictor lab target is wired: the committed manifest line
-        plus case file map onto the live ret2csu listener (9992) instead
-        of landing in the skipped list."""
+    def test_committed_ret2csu_challenge_is_not_runnable(self) -> None:
+        """The 7th lictor lab target left the eval set: its corpus
+        material carries an encrypted_flag.dat, which ingest skips (the
+        plaintext flag is not locally verifiable from that material).
+        The stale case file is gone and no manifest line maps onto the
+        live ret2csu listener (9992) anymore."""
         repo = Path(__file__).resolve().parents[2]
         challenges, skipped = load_verified_challenges(
             repo / "experiments" / "ctf_ingest" / "manifest.jsonl",
             repo / "examples" / "cases",
         )
         by_id = {c[0]: c for c in challenges}
-        assert "ctf-lictor-ret2csu-001" in by_id
-        entry = by_id["ctf-lictor-ret2csu-001"]
-        assert entry[1] == "127.0.0.1:9992"
-        assert entry[2] == "ret2csu"
-        assert entry[4]
+        assert "ctf-lictor-ret2csu-001" not in by_id
         assert "ctf-lictor-ret2csu-001" not in skipped
 
     @pytest.mark.parametrize(
@@ -272,10 +270,12 @@ class TestCommittedWiring:
             assert case_id not in skipped
 
     def test_committed_eval_set_live_targets(self) -> None:
-        """The live lictor lab holds 29 targets: the 17 clean-protocol
-        eval challenges, the 10 MR6 eval twins (clean by construction,
-        commit 1028b7c), and the 2 MR6 training twins (training
-        material, never eval)."""
+        """The live lictor lab holds 45 wired targets: the 16
+        clean-protocol eval challenges (ret2csu left the set when its
+        corpus material became locally unverifiable), the 10 MR6 eval
+        twins plus the 10 MR6 eval2 twins (clean by construction,
+        commit 1028b7c), the 2 MR6 training twins (training material,
+        never eval), and the 7 MR7 technique targets."""
         repo = Path(__file__).resolve().parents[2]
         challenges, _skipped = load_verified_challenges(
             repo / "experiments" / "ctf_ingest" / "manifest.jsonl",
@@ -288,7 +288,6 @@ class TestCommittedWiring:
             "ctf-lictor-fmtstr-002-001",
             "ctf-lictor-orw-001",
             "ctf-lictor-orw-002-001",
-            "ctf-lictor-ret2csu-001",
             "ctf-lictor-ret2func-001",
             "ctf-lictor-ret2func-002-001",
             "ctf-lictor-ret2libc-001-001",
@@ -312,10 +311,30 @@ class TestCommittedWiring:
             "ctf-lictor-srop-eval-001",
             "ctf-lictor-uaf-eval-001-001",
             "ctf-lictor-uaf-eval-002-001",
+            # the MR6 eval2 (harder) twins: a second unseen set per class
+            "ctf-lictor-callme-eval2-001",
+            "ctf-lictor-fmtstr-eval2-001",
+            "ctf-lictor-orw-eval2-001",
+            "ctf-lictor-ret2func-eval2-001",
+            "ctf-lictor-ret2libc-eval2-001",
+            "ctf-lictor-ret2plt-eval2-001",
+            "ctf-lictor-shellcode-eval2-001",
+            "ctf-lictor-srop-eval2-001",
+            "ctf-lictor-uaf-eval2-001-001",
+            "ctf-lictor-uaf-eval2-002-001",
             # the MR6 training twins: live lab targets, training-eligible,
             # NOT eval challenges (they never enter the eval set)
             "ctf-lictor-uaf_train_a-001",
             "ctf-lictor-uaf_train_b-001",
+            # the MR7 technique targets: one clean challenge per NEW
+            # capability class (lictor feat/builder-nul-channel)
+            "ctf-lictor-brop-001",
+            "ctf-lictor-got_partial_overwrite-001",
+            "ctf-lictor-jop-001",
+            "ctf-lictor-one_gadget-001",
+            "ctf-lictor-ret2partial_overwrite-001",
+            "ctf-lictor-ret2vdso-001",
+            "ctf-lictor-setcontext_srop-001",
         }
 
 
