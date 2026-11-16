@@ -1,0 +1,6 @@
+{"run":"18770f5f-2bcd-4753-b024-5692bd3d9da7","type":"acquire","target":"127.0.0.1:9995","source":"http://127.0.0.1:8000/uaf_heap","binary":"./uaf_heap","companions":[],"timestamp":"2026-11-16T18:01:26Z"}
+{"run":"efb1467e-5826-4afb-875d-3bad4248c119","type":"plan","mode":"handoff (prints a recipe; executes nothing)","facts_file":"target.facts","profiled":null,"selected":"uaf_tcache","applicable":["uaf_tcache"],"explain":{"provenance":{"uaf_tcache":[{"rule":"app_uaf_tcache_static","evidence":[["plt","free"],["plt","malloc"]],"origin":"uaf_tcache","evidence_sources":["measured"]}]}},"priors_adapted":false,"timestamp":"2026-11-16T18:01:29Z"}
+{"run":"2e634ade-3e9e-4852-9d29-6015cc6b44c1","type":"outcome","technique":"uaf_tcache","success":false,"executed":true,"target":"127.0.0.1:9995","timestamp":"2026-11-16T18:01:32Z"}
+{"run":"2e634ade-3e9e-4852-9d29-6015cc6b44c1","type":"outcome","technique":"uaf_tcache","success":false,"executed":true,"target":"127.0.0.1:9995","timestamp":"2026-11-16T18:01:34Z"}
+{"run":"2e634ade-3e9e-4852-9d29-6015cc6b44c1","type":"outcome","technique":"uaf_tcache","success":false,"executed":true,"target":"127.0.0.1:9995","timestamp":"2026-11-16T18:01:36Z"}
+{"run":"2e634ade-3e9e-4852-9d29-6015cc6b44c1","type":"outcome","technique":"uaf_tcache","success":false,"executed":true,"target":"127.0.0.1:9995","timestamp":"2026-11-16T18:01:42Z"}

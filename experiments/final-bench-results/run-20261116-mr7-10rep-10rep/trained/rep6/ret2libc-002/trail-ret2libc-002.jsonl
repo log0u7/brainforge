@@ -1,0 +1,2 @@
+{"run":"a1c3c767-2890-4ce7-a22b-e8235b77c346","type":"harvest","target":"127.0.0.1:9983","addresses":{"system":"0x40a270","sh":"0x4a70d0","gadget":"0x401685"},"timestamp":"2026-11-16T18:01:35Z"}
+{"run":"38d9c91e-ba78-4c94-b6aa-992cb76b8a73","type":"plan","mode":"handoff (prints a recipe; executes nothing)","facts_file":"target.facts","profiled":null,"selected":null,"applicable":[],"explain":{"provenance":{}},"priors_adapted":false,"timestamp":"2026-11-16T18:01:36Z"}

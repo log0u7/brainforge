@@ -1,0 +1,1 @@
+{"id":"3531e349-cc39-4728-b4f0-1a24d7990ad3","target":"127.0.0.1:9983","status":"budget-exhausted","attempts":[],"facts":"fmtstr_read(\"true\"). // suggested\nleaked_address(\"system\", 4235888).\nleaked_address(\"sh\", 4878544).\nleaked_address(\"gadget\", 4200069).\n"}

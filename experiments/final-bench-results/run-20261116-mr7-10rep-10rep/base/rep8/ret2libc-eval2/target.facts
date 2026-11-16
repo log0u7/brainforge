@@ -1,0 +1,33 @@
+nx("true").
+pie("true").
+canary("false").
+relro("partial").
+plt("__libc_start_main").
+plt("puts").
+plt("read").
+plt("memcpy").
+plt("setvbuf").
+plt("__cxa_finalize").
+gadget("ret_align", 4118).
+gadget("ret_align", 4312).
+gadget("ret_align", 4376).
+gadget("ret_align", 4436).
+gadget("ret_align", 4440).
+gadget("pop_rdi_ret", 4461).
+gadget("ret_align", 4462).
+gadget("ret_align", 4465).
+gadget("ret_align", 4510).
+gadget("ret_align", 4666).
+gadget("ret_align", 4676).
+vuln("sof").
+vuln("fmtstr"). // suggested
+vuln_function("vuln_copy").
+sink("memcpy").
+plt_addr("puts", 4144).
+plt_addr("read", 4160).
+plt_addr("memcpy", 4176).
+plt_addr("setvbuf", 4192).
+got_addr("puts", 16384).
+got_addr("read", 16392).
+got_addr("memcpy", 16400).
+got_addr("setvbuf", 16408).
