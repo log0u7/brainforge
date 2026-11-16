@@ -7,8 +7,10 @@ the eval set, or the whole benchmark is void.
 """
 
 import json
+import os
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -92,7 +94,8 @@ def _run_over_targets(
     stats = {"attempts": 0, "successes": 0, "attempts_without_llm_facts": 0, "per_challenge": {}}  # type: dict
     for rep in range(repetitions):
         seed = str(seed_base + rep)
-        for entry in targets:
+
+        def _attempt_one(entry):
             challenge_id = entry[0]
             # the progress lines: the MR6-v2 hang made a stuck challenge
             # invisible for hours (the protocol pipes the output through
@@ -114,6 +117,17 @@ def _run_over_targets(
                 f"{outcome} (elapsed {elapsed:.0f}s)",
                 flush=True,
             )
+            return entry, records
+
+        # the pilot work is one Ruby process per challenge (CPU-bound on a
+        # single core) plus an LLM HTTP call: a thread pool spreads the
+        # subprocess waits across cores (the pilot is a subprocess, the
+        # GIL is not the bottleneck). BENCH_WORKERS tunes the width.
+        workers = int(os.environ.get("BENCH_WORKERS", "4"))
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            results = list(executor.map(_attempt_one, targets))
+
+        for entry, records in results:
             for record in records:
                 # the record's id is the launched challenge; fall back to the
                 # entry the harness itself launched if the pilot dropped it
