@@ -301,12 +301,17 @@ def ask_facts(provider: Any, model: str, material: str) -> list[str]:
     """
     from brainforge.providers.base import ChatMessage, ChatRequest
 
+    base_url = getattr(getattr(provider, "config", None), "base_url", "") or ""
+    if "openrouter" in base_url:
+        extra_body = {"reasoning": {"effort": "low"}}
+    else:
+        extra_body = {"chat_template_kwargs": {"enable_thinking": False}}
     response = provider.complete(
         ChatRequest(
             messages=[ChatMessage(role="user", content=FACT_PROMPT.format(material=material))],
             temperature=0.2,
-            max_tokens=512,
-            extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+            max_tokens=2048,
+            extra_body=extra_body,
             response_format=FACT_RESPONSE_FORMAT,
         ),
         model,
@@ -402,6 +407,14 @@ def _run_one_target(
     # it into the facts (the demo harvests; the pilot skipped it and
     # the orw build failed on "no leaked_address(input) fact")
     runner(tgt, ["harvest", target, "--facts", "target.facts"])
+    # The target-context facts: every pilot target is the lab's socat
+    # service (host:port) whose smoke test verified the oracle. The
+    # engine schema carries both; the remote-class packs (brop) gate on
+    # them and neither the profiler nor the LLM owns this knowledge.
+    tgt_facts = tgt / "target.facts"
+    if tgt_facts.exists():
+        with tgt_facts.open("a", encoding="utf-8") as fh:
+            fh.write('remote("true").\nverified("remote").\n')
     facts = ask_facts(provider, model, material)
     if facts:
         merged = runner(tgt, ["suggest", "target.facts", "\n".join(facts), "-o", "target.facts"])
