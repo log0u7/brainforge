@@ -78,6 +78,7 @@ TRAIN_IDS=(
 	"datasets/sft-mr8-facts/train.jsonl"
 	"datasets/sft-mr9-facts/train.jsonl"
 	"datasets/sft-mr10-facts/train.jsonl"
+	"datasets/sft-mr11-facts/train.jsonl"
 	"datasets/eval/grpo-translated.jsonl"
 )
 BASE_URL="${BASE_URL:-http://192.168.1.26:9932/v1}"

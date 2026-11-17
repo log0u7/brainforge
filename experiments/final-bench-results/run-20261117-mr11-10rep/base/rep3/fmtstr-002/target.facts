@@ -1,0 +1,52 @@
+nx("true").
+pie("true").
+canary("false").
+relro("partial").
+plt("__libc_start_main").
+plt("puts").
+plt("printf").
+plt("fputs").
+plt("fputc").
+plt("read").
+plt("fgets").
+plt("fflush").
+plt("setvbuf").
+plt("fopen").
+plt("exit").
+plt("fwrite").
+plt("__cxa_finalize").
+gadget("ret_align", 4118).
+gadget("ret_align", 4424).
+gadget("ret_align", 4488).
+gadget("ret_align", 4548).
+gadget("ret_align", 4552).
+gadget("ret_align", 4992).
+gadget("ret_align", 5004).
+vuln("fmtstr").
+libc_present("true").
+fmtstr_read("true").
+fmt_offset("6").
+remote("true").
+verified("remote").
+plt_addr("puts", 4144).
+plt_addr("printf", 4160).
+plt_addr("fputs", 4176).
+plt_addr("fputc", 4192).
+plt_addr("read", 4208).
+plt_addr("fgets", 4224).
+plt_addr("fflush", 4240).
+plt_addr("setvbuf", 4256).
+plt_addr("fopen", 4272).
+plt_addr("exit", 4288).
+plt_addr("fwrite", 4304).
+got_addr("puts", 16384).
+got_addr("printf", 16392).
+got_addr("fputs", 16400).
+got_addr("fputc", 16408).
+got_addr("read", 16416).
+got_addr("fgets", 16424).
+got_addr("fflush", 16432).
+got_addr("setvbuf", 16440).
+got_addr("fopen", 16448).
+got_addr("exit", 16456).
+got_addr("fwrite", 16464).

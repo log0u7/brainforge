@@ -1,0 +1,70 @@
+nx("false").
+pie("false").
+canary("false").
+relro("partial").
+plt("__libc_start_main").
+plt("strcpy").
+plt("puts").
+plt("strlen").
+plt("snprintf").
+plt("read").
+plt("setvbuf").
+plt("fwrite").
+gadget("ret_align", 4198422).
+gadget("ret_align", 4198608).
+gadget("ret_align", 4198656).
+gadget("ret_align", 4198720).
+gadget("ret_align", 4198766).
+gadget("ret_align", 4198768).
+gadget("ret_align", 4198834).
+gadget("ret_align", 4199048).
+gadget("ret_align", 4199060).
+vuln_hint("unsafe_func:strcpy").
+vuln("sof").
+vuln("fmtstr"). // suggested
+libc_present("true").
+remote("true").
+verified("remote").
+vuln_function("vuln_copy").
+sink("strcpy").
+leaked_address("buf", 140727632792576).
+plt_addr("strcpy", 4198448).
+plt_addr("puts", 4198464).
+plt_addr("strlen", 4198480).
+plt_addr("snprintf", 4198496).
+plt_addr("read", 4198512).
+plt_addr("setvbuf", 4198528).
+plt_addr("fwrite", 4198544).
+got_addr("strcpy", 4210688).
+got_addr("puts", 4210696).
+got_addr("strlen", 4210704).
+got_addr("snprintf", 4210712).
+got_addr("read", 4210720).
+got_addr("setvbuf", 4210728).
+got_addr("fwrite", 4210736).
+sym_addr("stdout", 4210760).
+sym_addr("__abi_tag", 4195196).
+sym_addr("deregister_tm_clones", 4198624).
+sym_addr("register_tm_clones", 4198672).
+sym_addr("__do_global_dtors_aux", 4198736).
+sym_addr("__do_global_dtors_aux_fini_array_entry", 4210176).
+sym_addr("frame_dummy", 4198784).
+sym_addr("__frame_dummy_init_array_entry", 4210168).
+sym_addr("__FRAME_END__", 4202792).
+sym_addr("_DYNAMIC", 4210184).
+sym_addr("__GNU_EH_FRAME_HDR", 4202548).
+sym_addr("_GLOBAL_OFFSET_TABLE_", 4210664).
+sym_addr("data_start", 4210744).
+sym_addr("_edata", 4210760).
+sym_addr("_fini", 4199052).
+sym_addr("__data_start", 4210744).
+sym_addr("__dso_handle", 4210752).
+sym_addr("_IO_stdin_used", 4202496).
+sym_addr("_end", 4210776).
+sym_addr("_dl_relocate_static_pie", 4198608).
+sym_addr("_start", 4198560).
+sym_addr("__bss_start", 4210760).
+sym_addr("main", 4198835).
+sym_addr("vuln_copy", 4198790).
+sym_addr("__TMC_END__", 4210760).
+sym_addr("_init", 4198400).

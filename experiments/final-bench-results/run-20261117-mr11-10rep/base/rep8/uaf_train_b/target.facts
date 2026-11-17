@@ -1,0 +1,63 @@
+nx("true").
+pie("true").
+canary("false").
+relro("partial").
+plt("free").
+plt("__libc_start_main").
+plt("puts").
+plt("printf").
+plt("fputs").
+plt("strcspn").
+plt("fgets").
+plt("strtoull").
+plt("malloc").
+plt("fflush").
+plt("setvbuf").
+plt("fopen").
+plt("atoi").
+plt("exit").
+plt("fwrite").
+plt("__cxa_finalize").
+gadget("ret_align", 4118).
+gadget("ret_align", 4472).
+gadget("ret_align", 4536).
+gadget("ret_align", 4596).
+gadget("ret_align", 4600).
+gadget("ret_align", 4829).
+gadget("ret_align", 4927).
+gadget("ret_align", 5242).
+gadget("ret_align", 5795).
+gadget("ret_align", 5804).
+vuln("sof"). // suggested
+libc_present("true").
+remote("true").
+verified("remote").
+leaked_address("win", 94165153747465).
+plt_addr("free", 4144).
+plt_addr("puts", 4160).
+plt_addr("printf", 4176).
+plt_addr("fputs", 4192).
+plt_addr("strcspn", 4208).
+plt_addr("fgets", 4224).
+plt_addr("strtoull", 4240).
+plt_addr("malloc", 4256).
+plt_addr("fflush", 4272).
+plt_addr("setvbuf", 4288).
+plt_addr("fopen", 4304).
+plt_addr("atoi", 4320).
+plt_addr("exit", 4336).
+plt_addr("fwrite", 4352).
+got_addr("free", 16384).
+got_addr("puts", 16392).
+got_addr("printf", 16400).
+got_addr("fputs", 16408).
+got_addr("strcspn", 16416).
+got_addr("fgets", 16424).
+got_addr("strtoull", 16432).
+got_addr("malloc", 16440).
+got_addr("fflush", 16448).
+got_addr("setvbuf", 16456).
+got_addr("fopen", 16464).
+got_addr("atoi", 16472).
+got_addr("exit", 16480).
+got_addr("fwrite", 16488).
