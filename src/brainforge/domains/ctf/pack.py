@@ -202,6 +202,53 @@ class CtfPack(DomainPack):
             reasons.append("missing reasoning")
         return reasons
 
+    def eval_shape(self, data: dict) -> dict:
+        """CTF eval shape: the judge verdict kept verbatim
+        (solved / partial / insufficient_information) with the flag."""
+        return {
+            "verdict": data.get("verdict"),
+            "abstain": data.get("verdict") == "insufficient_information",
+            "flag": data.get("flag"),
+        }
+
+    def eval_unparseable(self) -> dict:
+        return {"verdict": None, "abstain": False, "flag": None}
+
+    def eval_score(self, prediction: dict, expected: dict) -> dict | None:
+        """CTF keeps the verdict classes verbatim (solved / partial / abstain /
+        unparseable) so a partial solve does not pass as a full one; a miss
+        on a solved case is a false negative."""
+        predicted = self._eval_answer_class(prediction)
+        actual = self._eval_answer_class(expected)
+        if predicted == actual:
+            outcome = "correct"
+        elif actual == "solved":
+            outcome = "false_negative"
+        else:
+            outcome = "false_positive"
+        return {"predicted": predicted, "actual": actual, "outcome": outcome}
+
+    def eval_secondary_metrics(self, pairs: list[tuple[dict, dict]]) -> dict:
+        """flag_accuracy compares predicted flags wherever both sides carry
+        one; the judge flag is the gate-checked ground truth on verified-tier
+        records."""
+        flag_correct = 0
+        flag_compared = 0
+        for prediction, expected in pairs:
+            expected_flag = expected.get("flag")
+            predicted_flag = prediction.get("flag")
+            if expected_flag is not None and predicted_flag is not None:
+                flag_compared += 1
+                if predicted_flag == expected_flag:
+                    flag_correct += 1
+        return {"flag_accuracy": (flag_correct / flag_compared) if flag_compared else None}
+
+    def _eval_answer_class(self, side: dict) -> str:
+        if side.get("abstain"):
+            return "abstain"
+        verdict = side.get("verdict")
+        return "unparseable" if verdict is None else str(verdict)
+
     def student_input(self, case: "Case") -> str:
         task = case.input.question or "Solve the following CTF challenge."
         description = f"\n\nChallenge:\n{case.input.description}" if case.input.description else ""

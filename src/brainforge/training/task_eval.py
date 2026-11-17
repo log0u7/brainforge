@@ -2,7 +2,9 @@
 
 Unlike ``qlora.evaluate`` (loss + perplexity), this harness scores the model's
 actual task output (verdict + CWE classification) against the judge-verified
-ground truth stored in each dataset record's assistant message.
+ground truth stored in each dataset record's assistant message. The domain's
+scoring semantics live in its pack (``DomainPack.eval_score`` hook, ADR-0022):
+a domain is evaluable when its pack implements the hook.
 """
 
 import json
@@ -11,12 +13,29 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from brainforge.domains.base import DomainPack
+from brainforge.domains.registry import get_or_generic
 from brainforge.errors import BrainforgeError, ProviderError
 from brainforge.providers.base import extract_json
 
+_EVAL_SCORE_ERROR = (
+    "domain pack '{domain}' does not implement eval_score; "
+    "task evaluation is not supported for this domain"
+)
+
+
+def _eval_pack(domain: str) -> DomainPack:
+    """Resolve the domain pack for a task evaluation, rejecting domains
+    whose pack does not implement the eval_score hook (ADR-0022)."""
+    pack = get_or_generic(domain)
+    if type(pack).eval_score is DomainPack.eval_score:
+        raise BrainforgeError(_EVAL_SCORE_ERROR.format(domain=domain))
+    return pack
+
 
 def expected_from_record(record: dict) -> dict:
-    """Extract the judge-verified ground truth from the record's assistant answer.
+    """Extract the judge-verified ground truth from the record's assistant
+    answer, mapped to the domain pack's eval shape.
 
     Security records yield {vulnerability_found, abstain, cwe}; CTF records
     yield {verdict, abstain, flag} with the judge verdict kept verbatim
@@ -32,61 +51,24 @@ def expected_from_record(record: dict) -> dict:
         raise BrainforgeError(
             f"record '{record.get('id')}' has unparseable assistant JSON: {exc}"
         ) from exc
-    if record.get("domain") == "ctf":
-        return {
-            "verdict": data.get("verdict"),
-            "abstain": data.get("verdict") == "insufficient_information",
-            "flag": data.get("flag"),
-        }
-    return {
-        "vulnerability_found": data.get("verdict") == "confirmed",
-        "abstain": data.get("verdict") == "insufficient_information",
-        "cwe": data.get("cwe"),
-    }
+    pack = get_or_generic(str(record.get("domain") or "security"))
+    return pack.eval_shape(data)
 
 
 def prediction_from_text(text: str, domain: str = "security") -> dict:
-    """Map a raw model answer to the domain's prediction shape; None = unparseable miss."""
+    """Map a raw model answer to the domain pack's eval shape; None = unparseable miss."""
+    pack = get_or_generic(domain)
     try:
         data = extract_json(text)
     except ProviderError:
-        if domain == "ctf":
-            return {"verdict": None, "abstain": False, "flag": None}
-        return {"vulnerability_found": None, "abstain": False, "cwe": None}
-    if domain == "ctf":
-        return {
-            "verdict": data.get("verdict"),
-            "abstain": data.get("verdict") == "insufficient_information",
-            "flag": data.get("flag"),
-        }
-    return {
-        "vulnerability_found": data.get("verdict") == "confirmed",
-        "abstain": data.get("verdict") == "insufficient_information",
-        "cwe": data.get("cwe"),
-    }
-
-
-def _answer_class(side: dict, domain: str = "security") -> str:
-    """Security: confirmed / rejected / abstain / unparseable.
-
-    CTF keeps the verdict verbatim (solved / partial / abstain /
-    unparseable) so a partial solve does not pass as a full one.
-    """
-    if side.get("abstain"):
-        return "abstain"
-    if domain == "ctf":
-        verdict = side.get("verdict")
-        return "unparseable" if verdict is None else str(verdict)
-    found = side.get("vulnerability_found")
-    if found is True:
-        return "confirmed"
-    if found is None:
-        return "unparseable"
-    return "rejected"
+        return pack.eval_unparseable()
+    return pack.eval_shape(data)
 
 
 def score_task(pairs: list[tuple[dict, dict]], domain: str = "security") -> dict:
-    """Compute accuracy, FP/FN rates, CWE/flag accuracy and abstention metrics.
+    """Compute accuracy, FP/FN rates, the pack's secondary-metric accuracy
+    (``cwe_accuracy`` for security, ``flag_accuracy`` for CTF) and abstention
+    metrics.
 
     Abstention is a third outcome class (``insufficient_information``): a model
     that abstains where the judge abstained is correct, an abstention on a
@@ -94,65 +76,47 @@ def score_task(pairs: list[tuple[dict, dict]], domain: str = "security") -> dict
     false positive. ``abstain_recall`` is the graceful-failure metric: of the
     records the judge could not resolve, how many did the model refuse too.
 
-    For the CTF domain the verdict classes stay verbatim (solved / partial /
-    abstain / unparseable) and ``flag_accuracy`` compares predicted flags
-    wherever both sides carry one; the judge flag is the gate-checked ground
-    truth on verified-tier records.
+    The per-case verdict comes from the domain pack's ``eval_score`` hook
+    (ADR-0022); a domain whose pack does not implement the hook is rejected
+    with an explicit error.
     """
     if not pairs:
         raise BrainforgeError("no evaluation pairs")
+    pack = _eval_pack(domain)
     n = len(pairs)
     correct = 0
     false_positives = 0
     false_negatives = 0
-    cwe_correct = 0
-    cwe_compared = 0
-    flag_correct = 0
-    flag_compared = 0
     abstain_expected = 0
     abstain_predicted = 0
     abstain_correct = 0
     for prediction, expected in pairs:
-        predicted = _answer_class(prediction, domain)
-        actual = _answer_class(expected, domain)
+        view = pack.eval_score(prediction, expected)
+        if view is None:
+            raise BrainforgeError(_EVAL_SCORE_ERROR.format(domain=domain))
+        predicted = view["predicted"]
+        actual = view["actual"]
         if actual == "abstain":
             abstain_expected += 1
         if predicted == "abstain":
             abstain_predicted += 1
-        if predicted == actual:
+        if view["outcome"] == "correct":
             correct += 1
             if actual == "abstain":
                 abstain_correct += 1
-        elif actual == "confirmed" or (domain == "ctf" and actual == "solved"):
-            # a real solve the model did not reproduce: wrong guess, abstention
-            # or unparseable output all count as a miss
+        elif view["outcome"] == "false_negative":
             false_negatives += 1
         else:
-            # claimed more than the judge verified, including a guess on a
-            # case the judge abstained on
             false_positives += 1
-        expected_cwe = expected.get("cwe")
-        if domain != "ctf" and expected.get("vulnerability_found") and expected_cwe:
-            cwe_compared += 1
-            if prediction.get("cwe") == expected_cwe:
-                cwe_correct += 1
-        if domain == "ctf":
-            expected_flag = expected.get("flag")
-            predicted_flag = prediction.get("flag")
-            if expected_flag is not None and predicted_flag is not None:
-                flag_compared += 1
-                if predicted_flag == expected_flag:
-                    flag_correct += 1
     metrics = {
         "n_records": n,
         "accuracy": correct / n,
         "false_positive_rate": false_positives / n,
         "false_negative_rate": false_negatives / n,
-        "cwe_accuracy": (cwe_correct / cwe_compared) if cwe_compared else None,
-        "flag_accuracy": (flag_correct / flag_compared) if flag_compared else None,
         "abstain_rate": abstain_predicted / n,
         "abstain_recall": (abstain_correct / abstain_expected) if abstain_expected else None,
     }
+    metrics.update(pack.eval_secondary_metrics(pairs))
     return metrics
 
 
@@ -196,25 +160,19 @@ def run_task_eval(
     if budget_warning is not None:
         logging.getLogger(__name__).warning(budget_warning)
     domains = {str(record["domain"]) for record in records if record.get("domain") is not None}
-    unexpected = domains - {"security", "ctf"}
-    if unexpected:
-        raise BrainforgeError(
-            "task evaluation only supports the security and ctf domains, "
-            f"found: {sorted(unexpected)}"
-        )
     if len(domains) > 1:
         raise BrainforgeError(
             f"mixed domains not supported: run one domain per evaluation, found: {sorted(domains)}"
         )
-    if "ctf" in domains:
-        domainless = [record for record in records if not record.get("domain")]
-        if domainless:
-            raise BrainforgeError(
-                f"{len(domainless)} record(s) without a domain in a ctf evaluation:"
-                " every record must declare its domain or the CTF scoring would"
-                " silently mis-score it"
-            )
+    domainless = [record for record in records if not record.get("domain")]
+    if domains and domainless:
+        raise BrainforgeError(
+            f"{len(domainless)} record(s) without a domain in a {sorted(domains)[0]} evaluation:"
+            " every record must declare its domain or the scoring would"
+            " silently mis-score it"
+        )
     domain = domains.pop() if domains else "security"
+    _eval_pack(domain)
     prompts = [
         [m["content"] for m in record.get("messages", []) if m["role"] == "user"]
         for record in records

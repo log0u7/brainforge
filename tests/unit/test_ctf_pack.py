@@ -352,3 +352,49 @@ def test_judge_gate_flag_comparison_strips_whitespace(ctf_case):
         RoleKind.JUDGE, _judge_payload(flag=" FLAG{known}\n"), min_confidence=0.5, case=verified
     )
     assert result.passed
+
+def test_ctf_eval_shape_maps_verdict_and_flag():
+    pack = get_pack("ctf")
+    assert pack.eval_shape({"verdict": "solved", "flag": "FLAG{a}"}) == {
+        "verdict": "solved",
+        "abstain": False,
+        "flag": "FLAG{a}",
+    }
+    assert pack.eval_shape({"verdict": "insufficient_information"}) == {
+        "verdict": "insufficient_information",
+        "abstain": True,
+        "flag": None,
+    }
+    assert pack.eval_unparseable() == {"verdict": None, "abstain": False, "flag": None}
+
+
+def test_ctf_eval_score_outcomes():
+    pack = get_pack("ctf")
+    solved = {"verdict": "solved", "abstain": False, "flag": "FLAG{a}"}
+    partial = {"verdict": "partial", "abstain": False, "flag": None}
+    assert pack.eval_score(solved, solved)["outcome"] == "correct"
+    # a partial solve does not pass as a full one: miss on a solved judge
+    assert pack.eval_score(partial, solved)["outcome"] == "false_negative"
+    assert pack.eval_score(solved, partial)["outcome"] == "false_positive"
+    unparseable = pack.eval_score({"verdict": None, "abstain": False, "flag": None}, solved)
+    assert unparseable["predicted"] == "unparseable"
+    assert unparseable["outcome"] == "false_negative"
+
+
+def test_ctf_eval_secondary_metrics_flag_accuracy():
+    pack = get_pack("ctf")
+    pairs = [
+        (
+            {"verdict": "solved", "abstain": False, "flag": "FLAG{bad}"},
+            {"verdict": "solved", "abstain": False, "flag": "FLAG{a}"},
+        ),
+        (
+            {"verdict": "solved", "abstain": False, "flag": "FLAG{a}"},
+            {"verdict": "solved", "abstain": False, "flag": "FLAG{a}"},
+        ),
+        (
+            {"verdict": "solved", "abstain": False, "flag": None},
+            {"verdict": "partial", "abstain": False, "flag": None},
+        ),
+    ]
+    assert pack.eval_secondary_metrics(pairs) == {"flag_accuracy": 0.5}

@@ -198,3 +198,11 @@ def test_student_input(case):
     text = pack.student_input(case)
     assert "Find vulnerabilities" in text
     assert "subprocess.run" in text
+
+
+def test_eval_score_hook_security_and_ctf_only():
+    # ADR-0022: task_eval scoring lives in the pack; only packs that
+    # implement the eval_score hook are evaluable
+    assert get_pack("security").eval_score({}, {}) is not None
+    assert get_pack("ctf").eval_score({}, {}) is not None
+    assert get_or_generic("kubernetes").eval_score({}, {}) is None

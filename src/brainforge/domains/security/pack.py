@@ -168,6 +168,32 @@ class SecurityPack(DomainPack):
             reasons.append("missing reasoning")
         return reasons
 
+    def eval_score(self, prediction: dict, expected: dict) -> dict | None:
+        """Security: confirmed / rejected / abstain / unparseable classes.
+        A miss on a confirmed case is a false negative (a wrong guess, an
+        abstention or an unparseable output all count as a miss); everything
+        else is a false positive (claimed more than the judge verified,
+        including a guess on a case the judge abstained on)."""
+        predicted = self._eval_answer_class(prediction)
+        actual = self._eval_answer_class(expected)
+        if predicted == actual:
+            outcome = "correct"
+        elif actual == "confirmed":
+            outcome = "false_negative"
+        else:
+            outcome = "false_positive"
+        return {"predicted": predicted, "actual": actual, "outcome": outcome}
+
+    def _eval_answer_class(self, side: dict) -> str:
+        if side.get("abstain"):
+            return "abstain"
+        found = side.get("vulnerability_found")
+        if found is True:
+            return "confirmed"
+        if found is None:
+            return "unparseable"
+        return "rejected"
+
     def student_input(self, case: "Case") -> str:
         task = (
             case.input.question
