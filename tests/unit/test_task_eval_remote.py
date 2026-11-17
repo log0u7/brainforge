@@ -108,13 +108,13 @@ def test_evaluate_on_records_with_remote_generator(tmp_path: Any, monkeypatch: A
     provider = _FakeProvider({"case prompt": json.dumps({"verdict": "solved", "flag": "FLAG{a}"})})
     _install(monkeypatch, provider)
     result = te.evaluate_model_on_records(
-        Path("models/export"),
+        tmp_path / "export",
         dataset,
         generator=te.build_remote_generator("http://localhost:9933/v1", "mymodel"),
     )
     assert result["n_records"] == 1
     assert result["accuracy"] == 1.0
-    assert not (Path("models/export") / "task_eval.json").exists()
+    assert not (tmp_path / "export" / "task_eval.json").exists()
 
 
 def test_cli_endpoint_requires_model_name(tmp_path: Any, monkeypatch: Any):
