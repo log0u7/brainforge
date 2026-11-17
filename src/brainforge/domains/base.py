@@ -1,5 +1,6 @@
 import json
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import BaseModel, Field
@@ -112,6 +113,38 @@ class DomainPack(ABC):
         brainforge.training.rewards registry)."""
         return None
 
+    def grpo_dataset_columns(self) -> tuple[str, ...]:
+        """Dataset columns the pack's GRPO reward consumes: they ride the
+        training rows so TRL passes them to the reward function as kwargs
+        (ADR-0022). Default: none - the reward scores completions only."""
+        return ()
+
+    def grpo_sidecar(self, dataset_dir: Path) -> dict[str, dict[str, str]]:
+        """Per-id reward kwargs loaded from the pack's optional sidecar
+        file next to the dataset (ADR-0022). Default: no sidecar - the
+        reward needs no ground truth beyond the dataset columns."""
+        return {}
+
+    def merge_sidecar(self, dataset_dir: Path, entries: list[dict]) -> None:
+        """Merge the consolidation ingest's sidecar rows into the pack's
+        cumulative sidecar file (id-keyed, a re-ingested id replaces its
+        stale row). Default: no sidecar - a no-op."""
+        return None
+
+    def ingest_trajectories(
+        self, records: list[dict], cases: list[dict]
+    ) -> tuple[list[dict], list[dict]]:
+        """Consolidation ingest hook: map the pilot's execution-verified
+        trajectories to dataset rows plus sidecar rows (each sidecar row
+        is an id-keyed dict carrying the pack's ground truth). Default:
+        the records ARE the rows, with no sidecar."""
+        return records, []
+
+    def gate_metrics(self) -> tuple[str, ...]:
+        """Metrics that gate consolidation acceptance (a regression on any
+        of these keeps the previous checkpoint). Default: accuracy only."""
+        return ("accuracy",)
+
     def eval_score(self, prediction: dict, expected: dict) -> dict | None:
         """Task-eval scoring hook: compute the verdict of one attempt on one
         case (ADR-0022). ``prediction`` and ``expected`` are the domain's
@@ -182,7 +215,9 @@ class DomainPack(ABC):
         pass
 
     @abstractmethod
-    def judge_prompt(self, case: "Case", rag_context: list, previous_results: dict) -> str:
+    def judge_prompt(
+        self, case: "Case", rag_context: list, previous_results: dict
+    ) -> str:
         pass
 
     @abstractmethod

@@ -1,5 +1,5 @@
 import json
-
+from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import BaseModel
@@ -15,6 +15,8 @@ from brainforge.domains.base import (
     format_previous_results,
     format_rag_context,
 )
+from brainforge.domains.ctf import flag_ground_truth
+from brainforge.domains.ctf.rewards import flag_reward  # noqa: F401  (registers "ctf_flag")
 from brainforge.domains.ctf.schemas import CtfTeacherAnalysis, CtfVerdict
 from brainforge.types import Mode, RoleKind
 
@@ -64,7 +66,9 @@ both fully supported by the challenge."""
 
 class CtfPack(DomainPack):
     name = "ctf"
-    description = "CTF challenge solving: category, technique, exploit path, flag derivation."
+    description = (
+        "CTF challenge solving: category, technique, exploit path, flag derivation."
+    )
     recommended_steps: ClassVar[dict[Mode, list[str]]] = {
         Mode.CHEAP: ["ctf_teacher", "judge"],
         Mode.STANDARD: ["ctf_teacher", "coding_teacher", "judge"],
@@ -99,7 +103,9 @@ class CtfPack(DomainPack):
             previous=format_previous_results(previous_results),
         )
 
-    def judge_prompt(self, case: "Case", rag_context: list, previous_results: dict) -> str:
+    def judge_prompt(
+        self, case: "Case", rag_context: list, previous_results: dict
+    ) -> str:
         return CTF_JUDGE_PROMPT.format(
             case=format_case(case),
             rag=format_rag_context(rag_context),
@@ -108,6 +114,84 @@ class CtfPack(DomainPack):
 
     def grpo_reward(self) -> str | None:
         return "ctf_flag"
+
+    def grpo_dataset_columns(self) -> tuple[str, ...]:
+        """The reward-server columns (port, flag, facts) ride the row: TRL
+        passes every extra dataset column to the reward function as kwargs."""
+        return ("port", "flag", "facts")
+
+    def grpo_sidecar(self, dataset_dir: Path) -> dict[str, dict[str, str]]:
+        """Optional grpo_flags.jsonl sidecar next to the dataset: id ->
+        the expected flag the SERVICE read (the execution is the ground
+        truth, never the model's guess)."""
+        sidecar = Path(dataset_dir) / "grpo_flags.jsonl"
+        if not sidecar.exists():
+            return {}
+        flags: dict[str, dict[str, str]] = {}
+        for line in sidecar.open(encoding="utf-8"):
+            if not line.strip():
+                continue
+            entry = json.loads(line)
+            if entry.get("id") and entry.get("expected_flag"):
+                flags[entry["id"]] = {"expected_flag": str(entry["expected_flag"])}
+        return flags
+
+    def merge_sidecar(self, dataset_dir: Path, entries: list[dict]) -> None:
+        """Merge the ingest's flags into the cumulative grpo_flags.jsonl
+        sidecar (id-keyed, a re-ingested id replaces its stale row)."""
+        sidecar = Path(dataset_dir) / "grpo_flags.jsonl"
+        known: dict[str, dict] = {}
+        if sidecar.is_file():
+            for line in sidecar.read_text(encoding="utf-8").splitlines():
+                if not line.strip():
+                    continue
+                entry = json.loads(line)
+                if entry.get("id"):
+                    known[entry["id"]] = entry
+        for entry in entries:
+            if entry.get("id"):
+                known[entry["id"]] = entry
+        sidecar.parent.mkdir(parents=True, exist_ok=True)
+        sidecar.write_text(
+            "".join(
+                json.dumps(entry, ensure_ascii=False) + "\n" for entry in known.values()
+            ),
+            encoding="utf-8",
+        )
+
+    def ingest_trajectories(
+        self, records: list[dict], cases: list[dict]
+    ) -> tuple[list[dict], list[dict]]:
+        """The pilot's execution-verified trajectories become GRPO dataset
+        material. Cases from the lab dir take precedence; the pilot's
+        execution-verified flag rides the trajectory's assistant verdict
+        (JSON with a "flag" key) and fills the gap.
+        """
+        cases = [dict(case) for case in cases if isinstance(case, dict)]
+        known_case_ids = {case.get("id") for case in cases}
+        for record in records:
+            if record.get("id") in known_case_ids:
+                continue
+            messages = record.get("messages") or []
+            if not messages or messages[-1].get("role") != "assistant":
+                continue
+            content = messages[-1].get("content", "")
+            try:
+                data = json.loads(content[content.find("{") :])
+            except (ValueError, TypeError):
+                continue
+            flag = data.get("flag")
+            if isinstance(flag, str) and flag.strip():
+                cases.append(
+                    {
+                        "id": record.get("id"),
+                        "metadata": {"expected_flag": flag.strip()},
+                    }
+                )
+        return flag_ground_truth.ingest_trajectories(records, cases)
+
+    def gate_metrics(self) -> tuple[str, ...]:
+        return ("flag_accuracy", "cwe_accuracy", "accuracy")
 
     def arbitrate(self, case: "Case", canonical: dict, teacher_results: dict) -> bool:
         """Resolve a teacher/judge disagreement by verification, not by discard.
@@ -119,10 +203,14 @@ class CtfPack(DomainPack):
         instead of being thrown away. Returns True when arbitration accepts
         the case.
         """
-        expected_flag = str(case.metadata.get("expected_flag") or "").strip() if case else ""
+        expected_flag = (
+            str(case.metadata.get("expected_flag") or "").strip() if case else ""
+        )
         if not expected_flag:
             return False
-        haystack = json.dumps(canonical, default=str) + json.dumps(teacher_results, default=str)
+        haystack = json.dumps(canonical, default=str) + json.dumps(
+            teacher_results, default=str
+        )
         return expected_flag.lower() in haystack.lower()
 
     def quality_gate(
@@ -139,7 +227,9 @@ class CtfPack(DomainPack):
         if kind == RoleKind.TEACHER:
             reasons.extend(self._teacher_checks(data))
         elif kind == RoleKind.JUDGE:
-            expected_flag = str(case.metadata.get("expected_flag") or "").strip() if case else ""
+            expected_flag = (
+                str(case.metadata.get("expected_flag") or "").strip() if case else ""
+            )
             # on verified-tier cases the flag lives outside the challenge
             # material: the known-flag rules replace the generic demand
             reasons.extend(self._judge_checks(data, require_flag=not expected_flag))
@@ -173,7 +263,9 @@ class CtfPack(DomainPack):
                     f"technique does not match expected_technique ({'/'.join(keywords)})"
                 )
         expected_flag_raw = case.metadata.get("expected_flag")
-        expected_flag = expected_flag_raw.strip() if isinstance(expected_flag_raw, str) else ""
+        expected_flag = (
+            expected_flag_raw.strip() if isinstance(expected_flag_raw, str) else ""
+        )
         flag = str(data.get("flag") or "").strip()
         if expected_flag and flag and flag != expected_flag:
             reasons.append(
@@ -241,7 +333,9 @@ class CtfPack(DomainPack):
                 flag_compared += 1
                 if predicted_flag == expected_flag:
                     flag_correct += 1
-        return {"flag_accuracy": (flag_correct / flag_compared) if flag_compared else None}
+        return {
+            "flag_accuracy": (flag_correct / flag_compared) if flag_compared else None
+        }
 
     def _eval_answer_class(self, side: dict) -> str:
         if side.get("abstain"):
@@ -251,6 +345,10 @@ class CtfPack(DomainPack):
 
     def student_input(self, case: "Case") -> str:
         task = case.input.question or "Solve the following CTF challenge."
-        description = f"\n\nChallenge:\n{case.input.description}" if case.input.description else ""
+        description = (
+            f"\n\nChallenge:\n{case.input.description}"
+            if case.input.description
+            else ""
+        )
         code_block = f"\n\n```\n{case.input.code}\n```" if case.input.code else ""
         return f"{task}{description}{code_block}"

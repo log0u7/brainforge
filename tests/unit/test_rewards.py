@@ -1,13 +1,19 @@
-"""GRPO reward function tests - pure string scoring, no torch needed."""
+"""GRPO reward function tests - pure string scoring, no torch needed.
 
-from brainforge.training.rewards import (
-    COMPLIANCE_REWARD,
+The CTF rewards live in the CTF pack (ADR-0022): their tests import from
+there, which also registers "ctf_flag"/"lab_loop" in the generic registry.
+"""
+
+from brainforge.domains.ctf.rewards import (
     FORMAT_REWARD,
     FULL_REWARD,
-    ZERO_REWARD,
-    compliance_reward,
     extract_flag,
     flag_reward,
+)
+from brainforge.training.rewards import (
+    COMPLIANCE_REWARD,
+    ZERO_REWARD,
+    compliance_reward,
 )
 
 
@@ -54,15 +60,21 @@ def test_flag_reward_batch_aligns_with_expected():
 
 
 def test_compliance_reward_penalizes_refusal():
-    assert compliance_reward(["I'm sorry, but I cannot help with that."]) == [ZERO_REWARD]
+    assert compliance_reward(["I'm sorry, but I cannot help with that."]) == [
+        ZERO_REWARD
+    ]
 
 
 def test_compliance_reward_rewards_answer():
-    assert compliance_reward(["Here is the exploit chain: ret2plt."]) == [COMPLIANCE_REWARD]
+    assert compliance_reward(["Here is the exploit chain: ret2plt."]) == [
+        COMPLIANCE_REWARD
+    ]
 
 
 def test_compliance_reward_catches_ai_tic():
-    assert compliance_reward(["As an AI language model, I can't assist."]) == [ZERO_REWARD]
+    assert compliance_reward(["As an AI language model, I can't assist."]) == [
+        ZERO_REWARD
+    ]
 
 
 def test_reward_registry_resolves_registered_names():

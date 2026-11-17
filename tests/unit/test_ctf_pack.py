@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from brainforge.case import Case, CaseInput, CaseSource
@@ -34,7 +36,11 @@ def test_output_schemas():
 def test_recommended_steps():
     pack = get_pack("ctf")
     assert pack.steps_for_mode(Mode.CHEAP) == ["ctf_teacher", "judge"]
-    assert pack.steps_for_mode(Mode.STANDARD) == ["ctf_teacher", "coding_teacher", "judge"]
+    assert pack.steps_for_mode(Mode.STANDARD) == [
+        "ctf_teacher",
+        "coding_teacher",
+        "judge",
+    ]
     assert pack.steps_for_mode(Mode.MAXIMUM) == [
         "ctf_teacher",
         "coding_teacher",
@@ -249,7 +255,9 @@ def test_quality_gate_teacher_missing_reasoning_only():
 
 def test_quality_gate_judge_missing_reasoning():
     pack = get_pack("ctf")
-    result = pack.quality_gate(RoleKind.JUDGE, {"confidence": 0.9, "verdict": "unsolved"})
+    result = pack.quality_gate(
+        RoleKind.JUDGE, {"confidence": 0.9, "verdict": "unsolved"}
+    )
     assert not result.passed
     assert any("missing reasoning" in reason for reason in result.reasons)
 
@@ -267,7 +275,9 @@ def _judge_payload(flag="FLAG{known}"):
     }
 
 
-def _judge_payload(flag="FLAG{known}", verdict="solved", technique="pwn/buffer-overflow ret2win"):
+def _judge_payload(
+    flag="FLAG{known}", verdict="solved", technique="pwn/buffer-overflow ret2win"
+):
     return {
         "verdict": verdict,
         "technique": technique,
@@ -282,8 +292,12 @@ def _judge_payload(flag="FLAG{known}", verdict="solved", technique="pwn/buffer-o
 
 def test_judge_gate_passes_matching_expected_flag(ctf_case):
     pack = get_pack("ctf")
-    verified = ctf_case.model_copy(update={"metadata": {"expected_flag": "FLAG{known}"}})
-    result = pack.quality_gate(RoleKind.JUDGE, _judge_payload(), min_confidence=0.5, case=verified)
+    verified = ctf_case.model_copy(
+        update={"metadata": {"expected_flag": "FLAG{known}"}}
+    )
+    result = pack.quality_gate(
+        RoleKind.JUDGE, _judge_payload(), min_confidence=0.5, case=verified
+    )
     assert result.passed
 
 
@@ -292,7 +306,9 @@ def test_judge_gate_accepts_technique_keyword_inside_prose(ctf_case):
     verified = ctf_case.model_copy(
         update={"metadata": {"expected_technique": ["ret2func", "ret2win"]}}
     )
-    result = pack.quality_gate(RoleKind.JUDGE, _judge_payload(), min_confidence=0.5, case=verified)
+    result = pack.quality_gate(
+        RoleKind.JUDGE, _judge_payload(), min_confidence=0.5, case=verified
+    )
     assert result.passed
 
 
@@ -313,9 +329,14 @@ def test_judge_gate_rejects_wrong_technique(ctf_case):
 
 def test_judge_gate_rejects_hallucinated_flag(ctf_case):
     pack = get_pack("ctf")
-    verified = ctf_case.model_copy(update={"metadata": {"expected_flag": "FLAG{known}"}})
+    verified = ctf_case.model_copy(
+        update={"metadata": {"expected_flag": "FLAG{known}"}}
+    )
     result = pack.quality_gate(
-        RoleKind.JUDGE, _judge_payload(flag="FLAG{invented}"), min_confidence=0.5, case=verified
+        RoleKind.JUDGE,
+        _judge_payload(flag="FLAG{invented}"),
+        min_confidence=0.5,
+        case=verified,
     )
     assert not result.passed
     assert any("expected_flag" in reason for reason in result.reasons)
@@ -323,7 +344,9 @@ def test_judge_gate_rejects_hallucinated_flag(ctf_case):
 
 def test_judge_gate_flag_absence_is_not_an_error(ctf_case):
     pack = get_pack("ctf")
-    verified = ctf_case.model_copy(update={"metadata": {"expected_flag": "FLAG{known}"}})
+    verified = ctf_case.model_copy(
+        update={"metadata": {"expected_flag": "FLAG{known}"}}
+    )
     result = pack.quality_gate(
         RoleKind.JUDGE, _judge_payload(flag=None), min_confidence=0.5, case=verified
     )
@@ -332,7 +355,9 @@ def test_judge_gate_flag_absence_is_not_an_error(ctf_case):
 
 def test_judge_gate_tier_b_unaffected(ctf_case):
     pack = get_pack("ctf")
-    result = pack.quality_gate(RoleKind.JUDGE, _judge_payload(), min_confidence=0.5, case=ctf_case)
+    result = pack.quality_gate(
+        RoleKind.JUDGE, _judge_payload(), min_confidence=0.5, case=ctf_case
+    )
     assert result.passed
 
 
@@ -341,17 +366,25 @@ def test_judge_gate_non_string_expected_metadata_does_not_crash(ctf_case):
     verified = ctf_case.model_copy(
         update={"metadata": {"expected_flag": 12345, "expected_technique": 99}}
     )
-    result = pack.quality_gate(RoleKind.JUDGE, _judge_payload(), min_confidence=0.5, case=verified)
+    result = pack.quality_gate(
+        RoleKind.JUDGE, _judge_payload(), min_confidence=0.5, case=verified
+    )
     assert result.passed
 
 
 def test_judge_gate_flag_comparison_strips_whitespace(ctf_case):
     pack = get_pack("ctf")
-    verified = ctf_case.model_copy(update={"metadata": {"expected_flag": "FLAG{known} "}})
+    verified = ctf_case.model_copy(
+        update={"metadata": {"expected_flag": "FLAG{known} "}}
+    )
     result = pack.quality_gate(
-        RoleKind.JUDGE, _judge_payload(flag=" FLAG{known}\n"), min_confidence=0.5, case=verified
+        RoleKind.JUDGE,
+        _judge_payload(flag=" FLAG{known}\n"),
+        min_confidence=0.5,
+        case=verified,
     )
     assert result.passed
+
 
 def test_ctf_eval_shape_maps_verdict_and_flag():
     pack = get_pack("ctf")
@@ -376,7 +409,9 @@ def test_ctf_eval_score_outcomes():
     # a partial solve does not pass as a full one: miss on a solved judge
     assert pack.eval_score(partial, solved)["outcome"] == "false_negative"
     assert pack.eval_score(solved, partial)["outcome"] == "false_positive"
-    unparseable = pack.eval_score({"verdict": None, "abstain": False, "flag": None}, solved)
+    unparseable = pack.eval_score(
+        {"verdict": None, "abstain": False, "flag": None}, solved
+    )
     assert unparseable["predicted"] == "unparseable"
     assert unparseable["outcome"] == "false_negative"
 
@@ -398,3 +433,67 @@ def test_ctf_eval_secondary_metrics_flag_accuracy():
         ),
     ]
     assert pack.eval_secondary_metrics(pairs) == {"flag_accuracy": 0.5}
+
+
+def test_ctf_pack_declares_the_training_contract():
+    """ADR-0022: the CTF pack owns its GRPO dataset contract - the reward
+    name, the reward-server columns, the sidecar file and the gate metrics."""
+    pack = get_pack("ctf")
+    assert pack.grpo_reward() == "ctf_flag"
+    assert pack.grpo_dataset_columns() == ("port", "flag", "facts")
+    assert pack.gate_metrics() == ("flag_accuracy", "cwe_accuracy", "accuracy")
+    assert pack.grpo_sidecar("/tmp/nowhere") == {}
+
+
+def test_ctf_pack_sidecar_reads_expected_flags(tmp_path):
+    pack = get_pack("ctf")
+    sidecar = tmp_path / "grpo_flags.jsonl"
+    sidecar.write_text(
+        '{"id": "lab-1", "expected_flag": "FLAG{abc}"}\n'
+        '{"id": "lab-2", "expected_flag": ""}\n'
+        '{"id": "lab-3"}\n',
+        encoding="utf-8",
+    )
+    assert pack.grpo_sidecar(tmp_path) == {"lab-1": {"expected_flag": "FLAG{abc}"}}
+
+
+def test_ctf_pack_ingest_extracts_verdict_flags_and_merges_sidecar(tmp_path):
+    pack = get_pack("ctf")
+    records = [
+        {
+            "id": "lab-1",
+            "messages": [
+                {"role": "user", "content": "solve"},
+                {
+                    "role": "assistant",
+                    "content": '{"verdict": "solved", "flag": "FLAG{read}"}',
+                },
+            ],
+        },
+        # a case carries the ground truth: the trajectory is skipped
+        {"id": "lab-2", "messages": [{"role": "user", "content": "solve"}]},
+    ]
+    cases = [{"id": "lab-2", "metadata": {"expected_flag": "FLAG{cased}"}}]
+    rows, sidecar_rows = pack.ingest_trajectories(records, cases)
+    assert [row["id"] for row in rows] == ["lab-1", "lab-2"]
+    assert sidecar_rows == [
+        {"id": "lab-1", "expected_flag": "FLAG{read}"},
+        {"id": "lab-2", "expected_flag": "FLAG{cased}"},
+    ]
+    # merge_sidecar is id-keyed and cumulative: a stale row is replaced
+    dataset_dir = tmp_path / "grpo"
+    dataset_dir.mkdir()
+    (dataset_dir / "grpo_flags.jsonl").write_text(
+        '{"id": "lab-1", "expected_flag": "FLAG{stale}"}\n', encoding="utf-8"
+    )
+    pack.merge_sidecar(dataset_dir, sidecar_rows)
+    entries = [
+        json.loads(line)
+        for line in (dataset_dir / "grpo_flags.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert entries == [
+        {"id": "lab-1", "expected_flag": "FLAG{read}"},
+        {"id": "lab-2", "expected_flag": "FLAG{cased}"},
+    ]

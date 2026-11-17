@@ -1,8 +1,9 @@
 """GRPO training: reinforcement learning with verifiable rewards.
 
-Uses TRL's GRPOTrainer with BrainForge reward functions:
-- CTF flag verification (task reward, verified tier = exact match)
-- compliance reward (GRPO-oblit realignment after abliteration)
+Uses TRL's GRPOTrainer with BrainForge reward functions resolved from
+the generic registry or the domain pack's hooks (ADR-0022): the pack
+declares its reward name, the dataset columns its reward consumes and
+the optional sidecar carrying per-row ground truth.
 
 Prompts come from a prepared dataset (train.jsonl, ``messages`` format):
 the prompt is the rendered conversation minus the final assistant turn.
@@ -17,25 +18,10 @@ from typing import Any, cast
 from brainforge.errors import BrainforgeError
 
 
-def _load_flags(dataset_dir: Path) -> dict[str, str]:
-    """Optional grpo_flags.jsonl sidecar: id -> expected flag."""
-    sidecar = dataset_dir / "grpo_flags.jsonl"
-    if not sidecar.exists():
-        return {}
-    flags: dict[str, str] = {}
-    for line in sidecar.open(encoding="utf-8"):
-        if not line.strip():
-            continue
-        entry = json.loads(line)
-        if entry.get("id") and entry.get("expected_flag"):
-            flags[entry["id"]] = str(entry["expected_flag"])
-    return flags
-
-
-def _prompt_column(records: list[dict]) -> list[dict]:
+def _prompt_column(records: list[dict], columns: tuple[str, ...] = ()) -> list[dict]:
     """GRPOTrainer expects a 'prompt' column (chat format accepted).
 
-    The reward-server columns (port, flag, facts) ride the row: TRL
+    The reward columns declared by the domain pack ride the row: TRL
     passes every extra dataset column to the reward function as kwargs.
     """
     rows: list[dict] = []
@@ -49,7 +35,7 @@ def _prompt_column(records: list[dict]) -> list[dict]:
         if not prompt:
             continue
         row = {"id": record.get("id", ""), "prompt": prompt}
-        for column in ("port", "flag", "facts"):
+        for column in columns:
             if column in record:
                 row[column] = record[column]
         rows.append(row)
@@ -83,8 +69,16 @@ def train_grpo(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     train_path = dataset_dir / "train.jsonl"
-    records = [json.loads(line) for line in train_path.open(encoding="utf-8") if line.strip()]
-    rows = _prompt_column(records)
+    records = [
+        json.loads(line) for line in train_path.open(encoding="utf-8") if line.strip()
+    ]
+
+    domain = domain or getattr(config, "domain", "") or None
+    pack = get_or_generic(domain) if domain else None
+    columns = pack.grpo_dataset_columns() if pack else ()
+    sidecar = pack.grpo_sidecar(dataset_dir) if pack else {}
+
+    rows = _prompt_column(records, columns)
     if not rows:
         raise BrainforgeError("empty dataset split")
 
@@ -93,18 +87,18 @@ def train_grpo(
     if plan.quantization != "none":
         load_kwargs["quantization_config"] = _quantization_config(plan.quantization)
 
-    flags = _load_flags(dataset_dir)
-
     spec = reward or getattr(config, "grpo_reward", "")
-    if not spec and domain:
-        spec = get_or_generic(domain).grpo_reward() or ""
+    if not spec and pack:
+        spec = pack.grpo_reward() or ""
     if not spec:
         raise BrainforgeError(
             "no GRPO reward: pass --grpo-reward (registry name or "
             "'name*w,...' composition), set training.grpo_reward, or use "
             "a domain pack that declares grpo_reward()"
         )
-    reward_fn = compose_reward(spec) if ("," in spec or "*" in spec) else get_reward(spec)
+    reward_fn = (
+        compose_reward(spec) if ("," in spec or "*" in spec) else get_reward(spec)
+    )
 
     grpo_config = GRPOConfig(
         output_dir=str(output_dir),
@@ -113,26 +107,26 @@ def train_grpo(
         per_device_train_batch_size=config.batch_size,
         gradient_accumulation_steps=config.gradient_accumulation,
         learning_rate=config.learning_rate,
-        num_generations=max(2, min(8, config.batch_size * 2)),
+        num_generations=max(2, min(2, config.batch_size)),
         save_steps=config.save_steps,
         warmup_steps=config.warmup_steps,
         bf16=True,
         logging_steps=1,
     )
 
-    def _reward_with_flags(completions: list[str], **kwargs: Any) -> list[float]:
+    def _reward_with_sidecar(completions: list[str], **kwargs: Any) -> list[float]:
         ids = kwargs.get("id", [""] * len(completions))
-        expected_flags = [flags.get(i, "") for i in ids]
-        return reward_fn(completions, expected_flag=expected_flags)
+        for key in sorted({k for row in sidecar.values() for k in row}):
+            kwargs[key] = [sidecar.get(i, {}).get(key, "") for i in ids]
+        return reward_fn(completions, **kwargs)
 
     from datasets import Dataset
 
     trainer = GRPOTrainer(
         model=config.base_model,
         args=grpo_config,
-        # TRL rejects a plain list: the rows ride a Dataset
         train_dataset=Dataset.from_list(rows),
-        reward_funcs=[cast(Any, _reward_with_flags if flags else reward_fn)],
+        reward_funcs=[cast(Any, _reward_with_sidecar if sidecar else reward_fn)],
         peft_config=_lora_config(config),
     )
 
@@ -146,5 +140,7 @@ def train_grpo(
         "n_prompts": len(rows),
         "output_dir": str(output_dir),
     }
-    (output_dir / "train_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    (output_dir / "train_summary.json").write_text(
+        json.dumps(summary, indent=2), encoding="utf-8"
+    )
     return summary
