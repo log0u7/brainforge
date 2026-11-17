@@ -40,6 +40,14 @@ Phases are cumulative. The MVP (phase 1) is implemented in this repository.
 
 ## Phase 3 - Measure, ablate, extend
 
+- [ ] Framework decoupling per [ADR-0022](docs/adr/0022-wake-sleep-framework-skeleton.md):
+      break the CTF couplings inside generic modules (`task_eval`, `grpo`,
+      `rewards`, `consolidation`, `benchmark`, `pipeline/engine`,
+      `flag_ground_truth`, `dataset_cmd`) into pack-level hooks
+      (`eval_score`, `arbitrate`, `rewards`, `gate_metrics`); relocate the
+      CTF-only experiments (`pilot`, `model_only_pilot`, `bench_lab`,
+      `final_bench`, `ctf_ingest`) to the CTF pack surface. The loop
+      definition becomes domain-free; new domains plug in as one pack.
 - [ ] Multi-teacher experiments (A: security+judge, B: +coding, C: +general)
       comparing accuracy, FP/FN, confidence, cost, latency
 - [ ] Teacher ablation reporting in the experiments manager
@@ -64,7 +72,14 @@ Phases are cumulative. The MVP (phase 1) is implemented in this repository.
       with the three-arm benchmark (no KD vs top-k sidecar vs GKD) as the
       sidecar path's promotion/deprecation gate
 - [ ] GRPO experiment on the CTF pack with a verifier reward (found flag as
-      binary reward); candidate environment: the lictor lab targets
+      binary reward); candidate environment: the lictor lab targets. Via the
+      pack-level reward hook (ADR-0022): `GRPOTrainer` callable reward
+      functions, `loss_type="dapo"` (`epsilon_high=0.28`),
+      `scale_rewards=False` (Dr. GRPO), `beta=0.0`.
+- [ ] OPD (on-policy distillation v2): reverse-KL per-token dense reward
+      over the GRPO trainer (Thinking Machines 2025 / OPD2 recipe, arXiv
+      2607.15161); recette SFT puis OPD (`lr=1e-4`, groups_per_batch=512,
+      lora_rank=128). Follows the GRPO experiment.
 - [ ] OpenEnv environment wrapping the CTF sandbox (Docker target plus
       verifier reward), depends on the GRPO experiment
 - [ ] Multi-harness RL through a capture proxy; requires vLLM/SGLang token
@@ -89,6 +104,17 @@ framework assumes must land as optional supports, not core assumptions.
 - [ ] Hope/linear-attention backbone support: follow the Transformers
       implementations of the Titans/MIRAS lineage; no custom transformer code
       in BrainForge, so this is a watcher item until upstream lands
+- [ ] Abliteration as a first-class sleep-phase pass: port the
+      single-direction refusal method (Arditi et al., arXiv 2406.11717) to
+      plain transformers hooks (no TransformerLens dependency), promote the
+      experimental command per [ADR-0014](docs/adr/0014-abliteration-single-direction.md),
+      with a before/after safety eval gate.
+- [ ] Weight editing watcher: ROME/MEMIT (arXiv 2202.05262, 2210.07229) as an
+      optional sleep-phase pass on a pyvene-style intervention base; scoped
+      after the abliteration pass proves the hook pattern.
+- [ ] MoE-to-dense distillation watcher: expert-scoring -> grouping -> dense
+      FFN conversion + KD (arXiv 2605.28207 recipe) as an export option for
+      MoE teachers; depends on the MoE student support above.
 - [ ] Final end-to-end benchmark: untrained base vs consolidated student on
       unseen lictor lab challenges, real success rates over repetitions
       (pass@1/pass@k with variance), executed-loop oracle only, published
@@ -101,3 +127,24 @@ framework assumes must land as optional supports, not core assumptions.
   volume.
 - Cloud-only workflows: everything must run on one workstation with an
   optional local gateway.
+
+## Domain loop status (ctf pack, 2026-11-17)
+
+Findings from the mr11 end-to-end cycle (commits `b887583` + teacher verdicts
+in `experiments/teacher-pilot/`):
+
+- The harness was the bottleneck, not the models: base 1.7B, trained mr7,
+  local 4B teacher, paid cloud 27B teacher all scored ~0 on the hard
+  families before the harness fix; after it, base and student score
+  identically (24/280 clean, overlap exact).
+- The facts-first dataset filter fixed the SFT regression
+  (`attempts_without_llm_facts`: 267/440 for mr10, 0/440 for mr11) but
+  produced no capability gain: same facts emitted, same augure decision,
+  same harvest.
+- Teacher capability is lab-bound: the free local 4B and the paid cloud 27B
+  cover exactly the same 2/21 hard families (fmtstr-eval, setcontext_srop);
+  cloud mining is unjustified at this state.
+- Next lever is the lictor/augure chain on the 19 uncovered families
+  (facts -> technique selection -> exploit execution -> flag), not the
+  models. Trace the chain per family from the existing pilot trails, fix
+  the most common death stage, re-pilot.
