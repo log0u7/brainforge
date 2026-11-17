@@ -705,7 +705,7 @@ def test_ask_facts_disables_thinking_generation():
     assert facts == ['vuln("fmtstr").']
     request = provider.requests[0]
     assert request.extra_body == {"chat_template_kwargs": {"enable_thinking": False}}
-    assert request.max_tokens == 512
+    assert request.max_tokens == 2048
 
 
 def test_trajectory_metadata_records_the_llm_fact_count():
