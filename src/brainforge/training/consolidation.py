@@ -142,7 +142,7 @@ def consolidate(
     Nothing is silently defaulted: without a gate dataset the gate cannot
     run, and a round without a gate is a training run, not a sleep cycle.
     """
-    from brainforge.dataset.flag_ground_truth import ingest_trajectories
+    from brainforge.domains.ctf.flag_ground_truth import ingest_trajectories
 
     if not trajectories.is_file():
         raise BrainforgeError(f"trajectories file not found: {trajectories}")

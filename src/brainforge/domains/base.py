@@ -112,6 +112,15 @@ class DomainPack(ABC):
         brainforge.training.rewards registry)."""
         return None
 
+    def arbitrate(self, case: "Case", canonical: dict, teacher_results: dict) -> bool:
+        """Resolve a teacher/judge disagreement with domain ground truth.
+
+        Default: no verification material - the disagreement stands and the
+        gate decides. Packs with curated ground truth override this to
+        accept the case when verification proves one of the two was right.
+        """
+        return False
+
     @abstractmethod
     def output_schema(self, kind: RoleKind) -> type[BaseModel]:
         pass

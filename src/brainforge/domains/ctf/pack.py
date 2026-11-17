@@ -1,3 +1,5 @@
+import json
+
 from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import BaseModel
@@ -106,6 +108,22 @@ class CtfPack(DomainPack):
 
     def grpo_reward(self) -> str | None:
         return "ctf_flag"
+
+    def arbitrate(self, case: "Case", canonical: dict, teacher_results: dict) -> bool:
+        """Resolve a teacher/judge disagreement by verification, not by discard.
+
+        The judge said "insufficient_information" but the case carries ground
+        truth (metadata.expected_flag, verified tier): if the correct flag
+        appears in the teacher outputs or the judge reasoning, the
+        disagreement is resolved - the verified flag wins and the case trains
+        instead of being thrown away. Returns True when arbitration accepts
+        the case.
+        """
+        expected_flag = str(case.metadata.get("expected_flag") or "").strip() if case else ""
+        if not expected_flag:
+            return False
+        haystack = json.dumps(canonical, default=str) + json.dumps(teacher_results, default=str)
+        return expected_flag.lower() in haystack.lower()
 
     def quality_gate(
         self,

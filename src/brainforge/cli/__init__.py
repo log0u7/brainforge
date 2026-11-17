@@ -3,6 +3,7 @@ import typer
 from brainforge.cli import (
     abliterate_cmd,
     config_cmd,
+    ctf_cmd,
     dataset_cmd,
     models_cmd,
     ops_cmd,
@@ -34,6 +35,7 @@ for sub_app, name, help_text in [
     (providers_cmd, "providers", "Provider diagnostics (logprobs probe)."),
     (rag_cmd, "rag", "Local RAG index and search."),
     (dataset_cmd, "dataset", "Dataset utilities."),
+    (ctf_cmd, "ctf", "CTF domain: flag ground truth and trajectory ingest."),
     (
         train_cmd,
         "train",

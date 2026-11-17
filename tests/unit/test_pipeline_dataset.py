@@ -21,6 +21,7 @@ from brainforge.dataset.writer import (
     write_jsonl,
 )
 from brainforge.domains import get_pack
+from brainforge.domains.generic import GenericPack
 from brainforge.models.registry import ModelRegistry
 from brainforge.pipeline.engine import PipelineEngine, run_pipeline
 from brainforge.providers.base import ChatMessage, Provider
@@ -135,6 +136,41 @@ def test_engine_rejects_unresolved(postcutoff_case):
     result = engine.run_case(postcutoff_case)
     assert not result.accepted
     assert "unresolved_disagreement" in result.gate_reasons
+
+
+def test_engine_generic_pack_does_not_arbitrate(postcutoff_case):
+    """ADR-0022: the generic engine has no flag concept - a non-CTF pack
+    must not arbitrate even when the case carries verification material."""
+    config = scripted_config()
+    responses = {
+        "mock-security": {
+            "summary": "s",
+            "vulnerability_found": True,
+            "confidence": 0.9,
+            "evidence": [{"description": "e"}],
+            "reasoning": "r",
+        },
+        "mock-coding": {"summary": "s", "behavior": "b", "confidence": 0.9, "reasoning": "r"},
+        "mock-judge": {
+            "verdict": "insufficient_information",
+            "confidence": 0.4,
+            "reasoning": "not enough info",
+            "disagreement": True,
+        },
+    }
+    roles = RoleRegistry(config, ModelRegistry(config))
+    engine = PipelineEngine(
+        config,
+        "security_dataset",
+        roles,
+        GenericPack(name="generic"),
+        provider_override=ScriptedProvider(responses),
+    )
+    case = postcutoff_case.model_copy(update={"metadata": {"expected_flag": "FLAG{known}"}})
+    result = engine.run_case(case)
+    assert not result.accepted
+    assert "unresolved_disagreement" in result.gate_reasons
+    assert "arbitrated_by_ground_truth" not in result.gate_reasons
 
 
 def test_engine_tags_recitation_risk(precutoff_case):
