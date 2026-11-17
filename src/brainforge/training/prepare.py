@@ -19,16 +19,16 @@ def tool_turn_warning(dataset_path: Path | str) -> str | None:
     path = Path(dataset_path)
     if not path.is_file():
         return None
-    flagged = 0
+    multi_turn = 0
     for record in read_jsonl(path):
         messages = record.get("messages") or []
         roles = [message.get("role") for message in messages]
         if "tool" in roles or roles.count("assistant") > 1:
-            flagged += 1
-    if not flagged:
+            multi_turn += 1
+    if not multi_turn:
         return None
     return (
-        f"{flagged} record(s) contain tool observations or multiple assistant"
+        f"{multi_turn} record(s) contain tool observations or multiple assistant"
         " turns; prompt-completion training scores only the final assistant"
         " turn, so intermediate turns receive no loss. Split agentic records"
         " into per-turn examples if their intermediate turns must be learned."

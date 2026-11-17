@@ -17,7 +17,9 @@ def _fake_env(monkeypatch) -> None:
     torch.version = types.SimpleNamespace(hip=None)
     torch.cuda = types.SimpleNamespace(is_available=lambda: False)
     torch.xpu = types.SimpleNamespace(is_available=lambda: False)
-    torch.backends = types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda: False))
+    torch.backends = types.SimpleNamespace(
+        mps=types.SimpleNamespace(is_available=lambda: False)
+    )
     torch.bfloat16 = "bfloat16"
     torch.float16 = "float16"
     torch.float32 = "float32"
@@ -53,7 +55,9 @@ def test_train_bench_writes_results_files(project_env, monkeypatch) -> None:
         return fake_results
 
     monkeypatch.setattr(bench_mod, "run_three_arm_benchmark", fake_benchmark)
-    monkeypatch.setattr(bench_mod, "render_markdown_table", lambda results: "# bench")
+    monkeypatch.setattr(
+        bench_mod, "render_markdown_table", lambda results, domain="security": "# bench"
+    )
     monkeypatch.setattr(
         "brainforge.config.load_config", lambda _config: SimpleNamespace(training=None)
     )

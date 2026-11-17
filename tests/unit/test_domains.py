@@ -5,7 +5,10 @@ from brainforge.domains import get_or_generic, get_pack, pack_names
 from brainforge.domains.base import GeneralCritique
 from brainforge.domains.coding.schemas import CodingJudgeVerdict, CodingTeacherAnalysis
 from brainforge.domains.generic import GenericAnalysis, GenericVerdict
-from brainforge.domains.security.schemas import SecurityJudgeVerdict, SecurityTeacherAnalysis
+from brainforge.domains.security.schemas import (
+    SecurityJudgeVerdict,
+    SecurityTeacherAnalysis,
+)
 from brainforge.errors import ConfigError
 from brainforge.types import Mode, RoleKind
 
@@ -14,7 +17,9 @@ from brainforge.types import Mode, RoleKind
 def case():
     return Case(
         id="case-test",
-        source=CaseSource(type="git", repository="repo", commit="abc", date="2026-07-01"),
+        source=CaseSource(
+            type="git", repository="repo", commit="abc", date="2026-07-01"
+        ),
         input=CaseInput(
             code="import subprocess\nsubprocess.run(user_input, shell=True)",
             description="A CLI helper",
@@ -97,7 +102,9 @@ def test_security_prompts_contain_case_and_rag(case):
     teacher = pack.teacher_prompt("security_teacher", case, [Chunk()])
     assert "subprocess.run" in teacher
     assert "CWE-78 subprocess injection" in teacher
-    critic = pack.critic_prompt("general_teacher", case, [], {"security_teacher": {"summary": "s"}})
+    critic = pack.critic_prompt(
+        "general_teacher", case, [], {"security_teacher": {"summary": "s"}}
+    )
     assert "security_teacher" in critic
     judge = pack.judge_prompt(case, [], {"security_teacher": {"summary": "s"}})
     assert "canonical verdict" in judge
@@ -174,7 +181,12 @@ def test_security_gate_rejects_vulnerability_without_evidence():
 
 def test_coding_gate_rejects_confirmed_without_issues():
     pack = get_pack("coding")
-    data = {"verdict": "confirmed", "confidence": 0.9, "reasoning": "r", "disagreement": False}
+    data = {
+        "verdict": "confirmed",
+        "confidence": 0.9,
+        "reasoning": "r",
+        "disagreement": False,
+    }
     result = pack.quality_gate(RoleKind.JUDGE, data)
     assert not result.passed
 
@@ -189,7 +201,9 @@ def test_coding_gate_rejects_teacher_without_behavior():
 
 def test_generic_gate():
     pack = get_or_generic("custom")
-    assert pack.quality_gate(RoleKind.TEACHER, {"summary": "s", "confidence": 0.9}).passed
+    assert pack.quality_gate(
+        RoleKind.TEACHER, {"summary": "s", "confidence": 0.9}
+    ).passed
     assert not pack.quality_gate(RoleKind.TEACHER, {"confidence": 0.9}).passed
 
 
@@ -206,3 +220,19 @@ def test_eval_score_hook_security_and_ctf_only():
     assert get_pack("security").eval_score({}, {}) is not None
     assert get_pack("ctf").eval_score({}, {}) is not None
     assert get_or_generic("kubernetes").eval_score({}, {}) is None
+
+
+def test_generic_pack_declares_no_training_contract():
+    """ADR-0022: a non-CTF pack runs the generic cycle untouched - no GRPO
+    reward, no reward columns, no sidecar, no ingest hooks, accuracy-only
+    gate metrics."""
+    pack = get_or_generic("kubernetes")
+    assert pack.grpo_reward() is None
+    assert pack.grpo_dataset_columns() == ()
+    assert pack.grpo_sidecar("/tmp/nowhere") == {}
+    assert pack.merge_sidecar("/tmp/nowhere", [{"id": "x"}]) is None
+    assert pack.ingest_trajectories([{"id": "a", "messages": []}], []) == (
+        [{"id": "a", "messages": []}],
+        [],
+    )
+    assert pack.gate_metrics() == ("accuracy",)

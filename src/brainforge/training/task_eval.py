@@ -37,9 +37,8 @@ def expected_from_record(record: dict) -> dict:
     """Extract the judge-verified ground truth from the record's assistant
     answer, mapped to the domain pack's eval shape.
 
-    Security records yield {vulnerability_found, abstain, cwe}; CTF records
-    yield {verdict, abstain, flag} with the judge verdict kept verbatim
-    (solved / partial / insufficient_information).
+    Security records yield {vulnerability_found, abstain, cwe}; other
+    domains yield whatever their pack's eval_shape maps the verdict to.
     """
     messages = record.get("messages") or []
     if not messages:
@@ -67,7 +66,7 @@ def prediction_from_text(text: str, domain: str = "security") -> dict:
 
 def score_task(pairs: list[tuple[dict, dict]], domain: str = "security") -> dict:
     """Compute accuracy, FP/FN rates, the pack's secondary-metric accuracy
-    (``cwe_accuracy`` for security, ``flag_accuracy`` for CTF) and abstention
+    (see the pack's ``eval_secondary_metrics`` hook) and abstention
     metrics.
 
     Abstention is a third outcome class (``insufficient_information``): a model
@@ -114,7 +113,9 @@ def score_task(pairs: list[tuple[dict, dict]], domain: str = "security") -> dict
         "false_positive_rate": false_positives / n,
         "false_negative_rate": false_negatives / n,
         "abstain_rate": abstain_predicted / n,
-        "abstain_recall": (abstain_correct / abstain_expected) if abstain_expected else None,
+        "abstain_recall": (abstain_correct / abstain_expected)
+        if abstain_expected
+        else None,
     }
     metrics.update(pack.eval_secondary_metrics(pairs))
     return metrics
@@ -146,7 +147,9 @@ def _budget_warning(records: list[dict], max_new_tokens: int) -> str | None:
 
 
 def run_task_eval(
-    records: list[dict], generate: Callable[[list], list[str]], max_new_tokens: int = 512
+    records: list[dict],
+    generate: Callable[[list], list[str]],
+    max_new_tokens: int = 512,
 ) -> dict:
     """Score generated answers against expected ones.
 
@@ -159,7 +162,9 @@ def run_task_eval(
     budget_warning = _budget_warning(records, max_new_tokens)
     if budget_warning is not None:
         logging.getLogger(__name__).warning(budget_warning)
-    domains = {str(record["domain"]) for record in records if record.get("domain") is not None}
+    domains = {
+        str(record["domain"]) for record in records if record.get("domain") is not None
+    }
     if len(domains) > 1:
         raise BrainforgeError(
             f"mixed domains not supported: run one domain per evaluation, found: {sorted(domains)}"
@@ -212,13 +217,19 @@ def evaluate_model_on_records(
     records = read_jsonl(dataset_path)
     if generator is None:
         generator = _build_generator(
-            model_path, quantization, max_new_tokens, batch_size, enable_thinking=enable_thinking
+            model_path,
+            quantization,
+            max_new_tokens,
+            batch_size,
+            enable_thinking=enable_thinking,
         )
     result = run_task_eval(records, generator, max_new_tokens=max_new_tokens)
     # Hub ids (base-model evaluation) resolve outside the local filesystem:
     # the report is only persisted next to locally stored weights.
     if model_path.is_dir():
-        (model_path / "task_eval.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+        (model_path / "task_eval.json").write_text(
+            json.dumps(result, indent=2), encoding="utf-8"
+        )
     return result
 
 
@@ -360,9 +371,13 @@ def _build_generator(
                     return_dict=True,
                     **template_kwargs,
                 ).to(model.device)
-                output = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
+                output = model.generate(
+                    **inputs, max_new_tokens=max_new_tokens, do_sample=False
+                )
                 generated = output[:, inputs["input_ids"].shape[1] :]
-                replies.extend(tokenizer.batch_decode(generated, skip_special_tokens=True))
+                replies.extend(
+                    tokenizer.batch_decode(generated, skip_special_tokens=True)
+                )
         return replies
 
     return generate

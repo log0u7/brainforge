@@ -86,7 +86,6 @@ def test_remote_generator_uses_flat_user_message(monkeypatch: Any):
 
 def test_evaluate_on_records_with_remote_generator(tmp_path: Any, monkeypatch: Any):
     """run_task_eval through a remote generator writes no local task_eval.json."""
-    from pathlib import Path
 
     import brainforge.training.task_eval as te
 

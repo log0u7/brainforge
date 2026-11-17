@@ -80,7 +80,9 @@ def run_arm(
     unparseable, so the benchmark defaults to the task-eval CLI value.
     """
     if arm not in ARMS:
-        raise BrainforgeError(f"unknown benchmark arm: {arm} (known: {', '.join(ARMS)})")
+        raise BrainforgeError(
+            f"unknown benchmark arm: {arm} (known: {', '.join(ARMS)})"
+        )
     spec = ARMS[arm]
     dataset_dir = Path(dataset_dir)
     gate_dataset = Path(gate_dataset)
@@ -113,7 +115,12 @@ def run_arm(
         gate = evaluate_model_on_records
     metrics = gate(out_dir, gate_dataset, max_new_tokens=max_new_tokens)
 
-    return {"arm": arm, "metrics": metrics, "output_dir": str(out_dir), "train_summary": summary}
+    return {
+        "arm": arm,
+        "metrics": metrics,
+        "output_dir": str(out_dir),
+        "train_summary": summary,
+    }
 
 
 def run_three_arm_benchmark(
@@ -147,23 +154,32 @@ def run_three_arm_benchmark(
     return results
 
 
-def render_markdown_table(results: dict[str, dict[str, Any]]) -> str:
+def render_markdown_table(
+    results: dict[str, dict[str, Any]], domain: str = "security"
+) -> str:
     """Render the comparison table for docs/explanation/benchmark.md.
+
+    The secondary metric column comes from the domain pack's
+    eval_secondary_metrics hook (ADR-0022): the security pack reports
+    cwe_accuracy, the CTF pack reports flag_accuracy.
 
     n_records rides every row: the honesty rule of the first benchmark
     (report n with every number) applies here too.
     """
-    header = "| arm | accuracy | flag_accuracy | n_records |"
-    separator = "|---|---|---|---|"
+    from brainforge.domains.registry import get_or_generic
+
+    secondary = sorted(key for key in get_or_generic(domain).eval_secondary_metrics([]))
+    header = "| arm | accuracy | " + " | ".join(secondary) + " | n_records |"
+    separator = "|---" * (len(secondary) + 3) + "|"
     rows: list[str] = []
     for arm in ARMS:
         if arm not in results:
             continue
         metrics = results[arm].get("metrics", {})
         accuracy = metrics.get("accuracy")
-        flag_accuracy = metrics.get("flag_accuracy")
+        secondary_values = [metrics.get(key) for key in secondary]
         n_records = metrics.get("n_records", "-")
         acc = f"{accuracy:.4f}" if isinstance(accuracy, float) else "-"
-        flag = f"{flag_accuracy:.4f}" if isinstance(flag_accuracy, float) else "-"
-        rows.append(f"| {arm} | {acc} | {flag} | {n_records} |")
+        sec = [f"{v:.4f}" if isinstance(v, float) else "-" for v in secondary_values]
+        rows.append(f"| {arm} | {acc} | " + " | ".join(sec) + f" | {n_records} |")
     return "\n".join([header, separator, *rows])

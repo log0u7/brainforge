@@ -135,7 +135,9 @@ def test_run_arm_lora64_overrides_rank(dataset_dir: Path, tmp_path: Path) -> Non
     _write_jsonl(gate, [_record("g1")])
     seen: list[TrainingConfig] = []
 
-    def fake_train(config: TrainingConfig, dataset_dir: Path, output_dir: Path, **kw: Any) -> dict:
+    def fake_train(
+        config: TrainingConfig, dataset_dir: Path, output_dir: Path, **kw: Any
+    ) -> dict:
         seen.append(config)
         return {"output_dir": str(output_dir)}
 
@@ -166,7 +168,9 @@ def test_run_arm_gkd_requires_teacher(dataset_dir: Path, tmp_path: Path) -> None
         )
 
 
-def test_run_arm_passes_max_new_tokens_to_gate(dataset_dir: Path, tmp_path: Path) -> None:
+def test_run_arm_passes_max_new_tokens_to_gate(
+    dataset_dir: Path, tmp_path: Path
+) -> None:
     """Regression: the bench gate got max_new_tokens=512 (task_eval default)
     while the ground-truth completions need up to ~1550 tokens - answers were
     cut and scored unparseable, invalidating every benchmark number."""
@@ -190,7 +194,9 @@ def test_run_arm_passes_max_new_tokens_to_gate(dataset_dir: Path, tmp_path: Path
     assert seen[0].get("max_new_tokens") == 2048
 
 
-def test_run_arm_accepts_explicit_max_new_tokens(dataset_dir: Path, tmp_path: Path) -> None:
+def test_run_arm_accepts_explicit_max_new_tokens(
+    dataset_dir: Path, tmp_path: Path
+) -> None:
     gate = tmp_path / "gate.jsonl"
     _write_jsonl(gate, [_record("g1")])
     seen: list[dict[str, Any]] = []
@@ -212,7 +218,9 @@ def test_run_arm_accepts_explicit_max_new_tokens(dataset_dir: Path, tmp_path: Pa
     assert seen[0].get("max_new_tokens") == 4096
 
 
-def test_run_three_arm_benchmark_runs_all_arms(dataset_dir: Path, tmp_path: Path) -> None:
+def test_run_three_arm_benchmark_runs_all_arms(
+    dataset_dir: Path, tmp_path: Path
+) -> None:
     gate = tmp_path / "gate.jsonl"
     _write_jsonl(gate, [_record("g1")])
     # the sidecar arm needs the sidecar present for a clean run
@@ -244,15 +252,33 @@ def test_render_markdown_table_has_all_arms_and_metrics() -> None:
             "arm": "sidecar",
             "metrics": {"accuracy": 0.4, "flag_accuracy": 0.3, "n_records": 26},
         },
-        "gkd": {"arm": "gkd", "metrics": {"accuracy": 0.6, "flag_accuracy": 0.5, "n_records": 26}},
+        "gkd": {
+            "arm": "gkd",
+            "metrics": {"accuracy": 0.6, "flag_accuracy": 0.5, "n_records": 26},
+        },
         "lora64": {
             "arm": "lora64",
             "metrics": {"accuracy": 0.55, "flag_accuracy": 0.45, "n_records": 26},
         },
     }
-    table = render_markdown_table(results)
-    assert "| arm " in table
+    table = render_markdown_table(results, domain="ctf")
+    assert "| arm | accuracy | flag_accuracy | n_records |" in table
     for arm in ("no-kd", "sidecar", "gkd", "lora64"):
         assert arm in table
     assert "0.5000" in table  # accuracy of no-kd
+    assert "0.4000" in table  # flag_accuracy of no-kd (the CTF pack's metric)
     assert "26" in table  # n_records honesty rule
+
+
+def test_render_markdown_table_secondary_metric_comes_from_the_pack() -> None:
+    """The comparison table renders the domain pack's secondary metric
+    (ADR-0022): cwe_accuracy for the security pack, flag_accuracy for CTF."""
+    results = {
+        "no-kd": {
+            "arm": "no-kd",
+            "metrics": {"accuracy": 0.5, "cwe_accuracy": 0.3, "n_records": 4},
+        },
+    }
+    table = render_markdown_table(results, domain="security")
+    assert "| arm | accuracy | cwe_accuracy | n_records |" in table
+    assert "0.3000" in table
