@@ -198,6 +198,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   bench continues instead of freezing.
 ### Changed
 
+- Framework decoupling (ADR-0022, the wake/sleep skeleton): the CTF
+  domain no longer lives inside the generic modules. The pipeline
+  engine arbitrates through ``DomainPack.arbitrate``; task evaluation
+  scores through ``DomainPack.eval_score``/``eval_shape``/
+  ``eval_secondary_metrics``; the GRPO sidecar, dataset columns and
+  reward registry live in the CTF pack (``grpo_sidecar``,
+  ``grpo_dataset_columns``, ``ingest_trajectories``, ``merge_sidecar``);
+  gate metrics and benchmark columns come from the pack
+  (``gate_metrics``). ``flag_ground_truth`` moved to
+  ``domains/ctf/flag_ground_truth.py`` and the ``enrich-flags``/
+  ``ingest-trajectories`` commands moved to ``ctf enrich-flags``/
+  ``ctf ingest-trajectories`` (``dataset`` aliases deprecated). The
+  engine, grpo, rewards, consolidation, benchmark and task_eval
+  modules carry no CTF logic anymore (grep-clean outside
+  ``domains/ctf/``); a non-CTF pack can run the full loop (tests
+  ``test_generic_pack_declares_no_training_contract``,
+  ``test_engine_generic_pack_rejects_unarbitratable``).
+
+### Docs
+
+- ADR-0022: wake/sleep loop as the framework skeleton, domain packs
+  carry the eval/reward/gate hooks. Roadmap updated with the mr11
+  loop verdicts (harness was the bottleneck, teacher capability is
+  lab-bound) and the SOTA items (OPD as dense-reward GRPO,
+  abliteration pass, MoE support, weight editing as watcher).
+### Changed
+
 - Bench progress observability: `run_bench_lab` prints one flushed
   progress line per launch and per outcome
   (`[bench <model> rep N/M] <challenge>: FLAG|miss (elapsed Ns)`).
