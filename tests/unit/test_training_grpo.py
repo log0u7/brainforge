@@ -137,3 +137,48 @@ def test_train_grpo_config_overrides_reach_trl(fake_training_modules, tmp_path):
     assert args["epsilon_high"] == 0.3
     assert args["scale_rewards"] == "group"
     assert args["beta"] == 0.01
+def test_training_config_domain_field():
+    """TrainingConfig carries the domain: the pack hook resolves the
+    GRPO reward (ctf_flag) and the sidecar columns from it."""
+    config = TrainingConfig()
+    assert config.domain == ""
+    assert TrainingConfig(domain="ctf").domain == "ctf"
+
+
+def test_train_student_dispatches_grpo_with_domain(tmp_path, monkeypatch):
+    """train_student passes the config's domain to train_grpo: without
+    it the pack never loads, the reward never sees expected_flag (mr22:
+    the ctf_flag reward got no sidecar -> TypeError before training)."""
+    import brainforge.training.grpo as grpo_mod
+    from brainforge.cli.train_cmd import train_student
+
+    captured: dict = {}
+
+    def fake_grpo(config, dataset_dir, output_dir, resume=False, domain=None):
+        captured["domain"] = domain
+        return {"output_dir": str(output_dir)}
+
+    monkeypatch.setattr(grpo_mod, "train_grpo", fake_grpo)
+    # 1.7B fits the detected cuda budget (the default 8B does not fit
+    # 5.1GB and auto_fit_config refuses before dispatching)
+    config = TrainingConfig(strategy="grpo", domain="ctf", base_model="Qwen/Qwen3-1.7B")
+    train_student(config, tmp_path, tmp_path / "out")
+    assert captured["domain"] == "ctf"
+
+
+def test_train_student_dispatches_grpo_without_domain(tmp_path, monkeypatch):
+    """No domain in the config: train_grpo gets None, the generic
+    reward path still runs (explicit --grpo-reward)."""
+    import brainforge.training.grpo as grpo_mod
+    from brainforge.cli.train_cmd import train_student
+
+    captured: dict = {}
+
+    def fake_grpo(config, dataset_dir, output_dir, resume=False, domain=None):
+        captured["domain"] = domain
+        return {"output_dir": str(output_dir)}
+
+    monkeypatch.setattr(grpo_mod, "train_grpo", fake_grpo)
+    config = TrainingConfig(strategy="grpo", base_model="Qwen/Qwen3-1.7B")
+    train_student(config, tmp_path, tmp_path / "out")
+    assert captured["domain"] is None

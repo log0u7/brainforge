@@ -104,6 +104,10 @@ class TrainingConfig(BaseModel):
     quantization: Literal["auto", "4bit", "8bit", "none"] = "auto"
     strategy: Literal["qlora", "full", "grpo", "gkd"] = "qlora"
     grpo_reward: str = ""
+    # the domain pack that resolves the GRPO reward hook and the sidecar
+    # columns (e.g. "ctf" -> ctf_flag reward + grpo_flags.jsonl sidecar);
+    # empty = generic reward path (explicit grpo_reward only)
+    domain: str = ""
     # SOTA recipe (DAPO clip-higher, Dr. GRPO, no KL penalty)
     grpo_loss_type: Literal["grpo", "bnpo", "dr_grpo", "dapo"] = "dapo"
     grpo_epsilon_high: float = Field(default=0.28, gt=0.2)

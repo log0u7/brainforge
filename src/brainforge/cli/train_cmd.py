@@ -118,6 +118,11 @@ def train_student(
         from brainforge.training.unsloth_backend import train_unsloth as train_fn
     else:
         from brainforge.training.qlora import train_qlora as train_fn
+    if getattr(training, "strategy", "") == "grpo":
+        # the domain pack resolves the reward hook and the sidecar
+        # columns inside train_grpo; the other strategies have no pack
+        return train_fn(training, dataset_dir, output_dir, resume=resume,
+            domain=getattr(training, "domain", "") or None)
     return train_fn(training, dataset_dir, output_dir, resume=resume)
 
 
@@ -283,6 +288,9 @@ def run(
     strategy: Literal["qlora", "full", "grpo", "gkd"] | None = typer.Option(
         None, "--strategy", help="Override config training strategy (qlora, full, grpo or gkd)"
     ),
+    domain: str = typer.Option(
+        "", "--domain", help="Domain pack for GRPO reward resolution (e.g. ctf)"
+    ),
     backend: Literal["auto", "trl", "unsloth"] | None = typer.Option(
         None, "--backend", help="Override config training backend"
     ),
@@ -328,6 +336,8 @@ def run(
         updates["base_model"] = base_model
     if strategy:
         updates["strategy"] = strategy
+    if domain:
+        updates["domain"] = domain
     if backend:
         updates["backend"] = backend
     if device:
