@@ -42,6 +42,43 @@ def _prompt_column(records: list[dict], columns: tuple[str, ...] = ()) -> list[d
     return rows
 
 
+def _resolve_teacher_kl(spec: str, opd_teacher_url: str = "", base_model: str = ""):
+    """Resolve the teacher_kl (OPD dense reward) spec into a reward fn.
+
+    The URL is config-driven and mandatory: nothing is silently defaulted.
+    The chat-template renderer is the student's tokenizer (the reward must
+    score the exact text the student generated from); it loads lazily at
+    reward time, so unit tests run without the model.
+    """
+    if "teacher_kl" not in spec:
+        return None
+    if not opd_teacher_url:
+        raise BrainforgeError(
+            "teacher_kl reward in the GRPO spec requires "
+            "training.opd_teacher_url (the llama.cpp teacher server to "
+            "score against)"
+        )
+    from brainforge.training.opd import make_teacher_kl_reward
+
+    render = None
+    if base_model:
+        from functools import lru_cache
+
+        from transformers import AutoTokenizer
+
+        @lru_cache(maxsize=1)
+        def _load_tokenizer(name: str):
+            return AutoTokenizer.from_pretrained(name)
+
+        def render(messages: Any) -> str:
+            return _load_tokenizer(base_model).apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+
+    return make_teacher_kl_reward(opd_teacher_url, render=render)
+
+
+
 def train_grpo(
     config: Any,
     dataset_dir: Path | str,
@@ -96,9 +133,13 @@ def train_grpo(
             "'name*w,...' composition), set training.grpo_reward, or use "
             "a domain pack that declares grpo_reward()"
         )
-    reward_fn = (
-        compose_reward(spec) if ("," in spec or "*" in spec) else get_reward(spec)
-    )
+    opd_url = getattr(config, "opd_teacher_url", "")
+    if "teacher_kl" in spec:
+        reward_fn = _resolve_teacher_kl(spec, opd_url, base_model=config.base_model)
+    elif "," in spec or "*" in spec:
+        reward_fn = compose_reward(spec)
+    else:
+        reward_fn = get_reward(spec)
 
     grpo_config = GRPOConfig(
         output_dir=str(output_dir),

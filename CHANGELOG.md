@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- OPD dense reward (``feat(opd)``): the ``teacher_kl`` GRPO reward scores
+  the student's completions against a llama.cpp teacher server
+  (``training.opd_teacher_url``) and returns the teacher's negative
+  log-likelihood per token (echo + logprobs, prompt boundary via
+  ``/tokenize``). Dense per-token signal, unlike the binary ``ctf_flag``
+  reward; the Thinking Machines on-policy distillation formulation.
+
 - Docs: two SOTA references integrated into the night's narrative.
   Deletion Tuning (arXiv:2611.10866, NeurIPS 2026): a binary mask over
   the gate projection zeroing <0.05% of the weights matches FFT across
