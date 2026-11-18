@@ -137,3 +137,30 @@ Where it lands in brainforge:
   learns which weights to zero - the same theme, the capability lives
   in few parameters.
 - Nothing from the paper is implemented yet: roadmap item, not code.
+
+## Self-Improvement Memory: the formalization of our diag-fix-repilot loop
+
+(Google Cloud AI and Google DeepMind, 2026). [arXiv:2611.18856](https://arxiv.org/abs/2611.18856).
+SIM studies what happens when a harness optimizer must keep going after the
+benchmark or the policy model changes, and gives the optimizer a memory of its
+own past edits. Key finding: an evolved harness does not always transfer (an
+Opus-evolved harness starts at 68.41 on Gemini, below the 73.89 of the seed).
+SIM groups past edits by the recurring harness problem they addressed and
+stores the rationale, the predicted and observed outcome, and the evaluation
+context. With matched starting harnesses, rounds and candidate budgets, full
+SIM beats harness-only and root-cause-only continuation in ten settings
+(mean gain 2.36 points, p=0.003).
+
+Where it lands in brainforge:
+
+- Our capability curve 2 -> 7 -> 12 -> 13 -> 15/21 is a SIM run informally:
+  each round is a diag trail (the recurring problem), a fix (the edit, with
+  its rationale in the commit), and a re-pilot (the observed outcome). The
+  paper formalizes exactly this loop; the article's methodology section can
+  cite it as the established protocol for continuation runs.
+- The transfer-negative result maps onto our observed regressions (the mr16
+  pin fix broke callme-eval, the mr17 payload fix exposed a masked bug):
+  keep the *why* of every edit, not just the diff.
+- The product form is the sleep-time compute watcher (ROADMAP phase 4):
+  the diag trail + lesson store is the SIM store, already in informal use.
+

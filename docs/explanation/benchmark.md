@@ -865,3 +865,15 @@ seed 7+i), the control experiments (free-vs-paid, facts-first,
 student-vs-base), and the classification of the remaining families.
 The GRPO run (70-row dataset, ctf_flag reward, DAPO recipe) and the
 OPD v2 ablation are the next pending slots.
+
+### The continuation protocol
+
+The curve 2 -> 15/21 was produced by a diag -> fix -> re-pilot loop over
+five rounds: each round reads the previous run's trails, fixes the most
+common failure stage, and re-measures with the same seeds contract. This
+is a Self-Improvement Memory run informally (SIM,
+[arXiv:2611.18856](https://arxiv.org/abs/2611.18856)): past edits grouped
+by the recurring problem, rationale kept, predicted vs observed outcome
+checked at each re-pilot. SIM shows this protocol beats harness-only
+continuation (+2.36 points, p=0.003); our curve is the single-domain
+instance of it.
