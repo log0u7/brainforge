@@ -833,6 +833,7 @@ Three stacked findings:
 | mr20 | 12/21 | got_overwrite demotion, pack priors override |
 | mr21 | 13/21 | walk past unexploitable ranks |
 | mr22 (10-rep) | **15/21** | static-read nil guard + Metasm::Exception rescue |
+| mr23 | **16/21** | ret2libc_eval pack + lab_ret2libc_eval_001 (the PIE twin) |
 
 mr22 10-rep per family: brop 10/10, callme-eval 7/10, callme-eval2
 10/10, fmtstr-eval 10/10, got_partial_overwrite 6/10, jop 10/10,
