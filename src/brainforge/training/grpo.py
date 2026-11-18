@@ -112,6 +112,13 @@ def train_grpo(
         warmup_steps=config.warmup_steps,
         bf16=True,
         logging_steps=1,
+        # SOTA recipe: DAPO clip-higher, Dr. GRPO unbiased baseline and no
+        # KL penalty. TRL 1.12 takes scale_rewards as a str ("group" |
+        # "batch" | "none"); the bool config False maps to "none".
+        loss_type=config.grpo_loss_type,
+        epsilon_high=config.grpo_epsilon_high,
+        scale_rewards="none" if not config.grpo_scale_rewards else "group",
+        beta=config.grpo_beta,
     )
 
     def _reward_with_sidecar(completions: list[str], **kwargs: Any) -> list[float]:

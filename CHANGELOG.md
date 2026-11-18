@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- GRPO SOTA recipe defaults (``feat(grpo)``): DAPO clip-higher
+  (``grpo_loss_type: dapo``, ``grpo_epsilon_high: 0.28``), Dr. GRPO
+  unbiased baseline (``grpo_scale_rewards: false`` -> TRL
+  ``scale_rewards=none``) and no KL penalty (``grpo_beta: 0.0``).
+  All four exposed on ``training`` config and wired into
+  ``GRPOConfig`` (TRL 1.12).
+
 - Teacher pilot: the fixed chain covers 7/21 hard families (baseline
   pre-fix: 2/21, run-20261116-mr7). The post-fix run (teacher 4B local,
   21 families x 3 reps, capability-lab-bound so the free local teacher

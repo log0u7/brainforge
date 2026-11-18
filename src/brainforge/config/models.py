@@ -104,6 +104,11 @@ class TrainingConfig(BaseModel):
     quantization: Literal["auto", "4bit", "8bit", "none"] = "auto"
     strategy: Literal["qlora", "full", "grpo", "gkd"] = "qlora"
     grpo_reward: str = ""
+    # SOTA recipe (DAPO clip-higher, Dr. GRPO, no KL penalty)
+    grpo_loss_type: Literal["grpo", "bnpo", "dr_grpo", "dapo"] = "dapo"
+    grpo_epsilon_high: float = Field(default=0.28, gt=0.2)
+    grpo_scale_rewards: bool = False
+    grpo_beta: float = Field(default=0.0, ge=0, le=1)
     gkd_teacher: str = ""
     gkd_lmbda: float = Field(default=1.0, ge=0, le=1)
     gkd_beta: float = Field(default=1.0, ge=0, le=1)
