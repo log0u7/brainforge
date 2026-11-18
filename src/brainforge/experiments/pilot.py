@@ -446,7 +446,15 @@ def _run_one_target(
     drawn = re.search(r"selected:\s+(\S+)", stdout)
     rank_line = re.search(r"ranking:\s+(.+)", stdout)
     ranked = [t.strip() for t in rank_line.group(1).split(">")] if rank_line else []
+    # the walk heads the pin accepts: the run's walk starts at the
+    # ranking's first entry, the plan's Thompson draw may sit elsewhere
+    # (augure separates ranking [prior-mean] from selected [draw] -
+    # measured ret2vdso rep0 mr18: the built technique ranked first in
+    # the walk but the pin compared it against the drawn head only and
+    # the payload never travelled)
+    walk_heads = set(ranked[:1])
     if drawn:
+        walk_heads.add(drawn.group(1))
         ranked = [drawn.group(1)] + [t for t in ranked if t != drawn.group(1)]
     build_failures: list[dict[str, Any]] = []
     built: dict[str, Any] = {}
@@ -500,6 +508,15 @@ def _run_one_target(
         seed,
         "--flag-regex",
         re.escape(expected_flag) if expected_flag else "FLAG\\{[^}]+\\}",
+        # the scaffold auto: a rank whose technique has no exploit gets
+        # one drafted from the built payload (run.rb: binary &&
+        # repo_dir gate the scaffold; without these the rank stays
+        # dead - measured mr18: got_overwrite ranked first on 4
+        # families with no exploit and no scaffold possible)
+        "--bin",
+        binary,
+        "--repo-dir",
+        str(tgt),
     ]
     # the payload rides ONLY with the pin: an unpinned run walks the
     # ranking, and the payload on disk was built for whichever
@@ -507,7 +524,7 @@ def _run_one_target(
     # banner-derived exploit corrupts its chain (measured mr17:
     # callme-eval 0/3, 'the chain did not print a flag', the 10-rep
     # baseline flagged 9/10 unpinned and payload-less)
-    if built_technique and built_technique == (ranked[0] if ranked else None) and (
+    if built_technique and built_technique in walk_heads and (
         tgt / "payload.bin"
     ).is_file():
         run_args += ["--payload", "payload.bin"]
@@ -519,7 +536,7 @@ def _run_one_target(
     # buildable and the rank-1 technique never ran). When the head
     # builds, the pin keeps the payload/technique pairing that the
     # handoff-x4 measurement demanded.
-    if built_technique and built_technique == (ranked[0] if ranked else None):
+    if built_technique and built_technique in walk_heads:
         run_args += ["--technique", built_technique]
     outcome: dict[str, Any] = runner(tgt, run_args)
     outcome["built_technique"] = built_technique
