@@ -184,7 +184,7 @@ def test_cli_default_thinking_is_false_matching_training(tmp_path: Any, monkeypa
         model_path, dataset, quantization, max_new_tokens, batch_size=None, enable_thinking=None
     ):
         captured["enable_thinking"] = enable_thinking
-        return {"n_records": 1, "accuracy": 1.0}
+        return {"n_records": 1, "accuracy": 1.0, "domains": ["security"]}
 
     monkeypatch.setattr(te_module, "evaluate_model_on_records", fake_eval)
     monkeypatch.setattr(tc, "latest_run_dir", lambda: _Path(tmp_path))

@@ -82,3 +82,36 @@ def test_train_benchmark_module_exports_contract() -> None:
 
     assert hasattr(bench_mod, "run_three_arm_benchmark")
     assert hasattr(bench_mod, "render_markdown_table")
+
+def _fake_eval_result(fake_result):
+    def fake_eval(*args, **kwargs):
+        return dict(fake_result)
+    return fake_eval
+
+def test_task_eval_display_metrics_come_from_the_pack(project_env, monkeypatch) -> None:
+    """ADR-0022 D3 cleanup: the task-eval display shows the domain pack's
+    secondary metrics (eval_secondary_metrics hook), not a hardcoded list."""
+    _fake_env(monkeypatch)
+    import brainforge.training.task_eval as task_eval_mod
+
+    for domain, pack_metric, other_metric in (
+        ("ctf", "flag_accuracy", "cwe_accuracy"),
+        ("security", "cwe_accuracy", "flag_accuracy"),
+    ):
+        fake_result = {
+            "n_records": 2,
+            "accuracy": 0.5,
+            "false_positive_rate": 0.25,
+            "false_negative_rate": 0.25,
+            pack_metric: 0.5,
+            "domains": [domain],
+        }
+        monkeypatch.setattr(
+            task_eval_mod,
+            "evaluate_model_on_records",
+            _fake_eval_result(fake_result),
+        )
+        result = runner.invoke(app, ["train", "task-eval", "--model", "x"])
+        assert result.exit_code == 0, result.output
+        assert pack_metric in result.output
+        assert other_metric not in result.output

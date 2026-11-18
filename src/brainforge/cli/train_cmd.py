@@ -495,12 +495,13 @@ def task_eval(
             enable_thinking=thinking,
         )
     console.print(f"[green]task evaluation done[/green] ({result['n_records']} records)")
+    from brainforge.domains.registry import get_or_generic
+    pack = get_or_generic(result["domains"][0])
     for key in (
         "accuracy",
         "false_positive_rate",
         "false_negative_rate",
-        "cwe_accuracy",
-        "flag_accuracy",
+        *sorted(key for key in pack.eval_secondary_metrics([])),
     ):
         value = result.get(key)
         console.print(f"  {key}: {value:.4f}" if isinstance(value, float) else f"  {key}: {value}")
