@@ -9,6 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Teacher pilot: the fixed chain covers 7/21 hard families (baseline
+  pre-fix: 2/21, run-20261116-mr7). The post-fix run (teacher 4B local,
+  21 families x 3 reps, capability-lab-bound so the free local teacher
+  is the measurement) shows callme-eval 3/3, fmtstr-eval 3/3, jop 2/3,
+  ret2func-eval2 2/3, ret2partial_overwrite 1/3, ret2plt-eval 3/3,
+  setcontext_srop 3/3. The gains come from the augure/lictor fixes
+  below; the 14 remaining families split into structural classes
+  (ret2func: strcpy truncates at the first NUL; the PIE eval2 twins:
+  no leak source without a prior exploit step) and calibration gaps
+  (brop, one_gadget, orw, srop-eval, uaf_heap) for the next cycle.
+
+- Augure: eval-twin priors recalibrated and a new ``got_overwrite_target``
+  fact emitted by the profiler. The eval twins previously inherited the
+  demo family's prior distribution, so the plan ranked the wrong
+  technique first (jop -> ret2func, one_gadget -> brop, got_partial ->
+  fmtstr_leak). Parity 8/8 on the calibration set.
+
+- Lictor: banner protocol made tolerant across the lab exploit labs and
+  three missing eval2 exploits written (ret2plt-eval2, callme-eval2,
+  srop-eval2) plus the uaf_tcache rename. Live validation: 8 flags
+  including the three new eval2 exploits. Two families stay
+  structural (ret2func strcpy NUL truncation; fmtstr-eval2 and
+  ret2libc-eval2 need a PIE leak that no single-shot exploit provides).
+
+- Lictor: the payload_file plumbing no longer poisons the six exploit
+  templates that never declare it, and ``discover`` matches tokens
+  exactly. Retry and exact-token fixes landed together (953a953).
+
 - Bench: the repetition loop parallelizes. The harness used to run the
   reps sequentially (one rep at a time over the challenge list), which
   pinned the whole bench to one core: the pilot is a subprocess
