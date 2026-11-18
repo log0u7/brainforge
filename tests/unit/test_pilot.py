@@ -593,6 +593,69 @@ def test_build_walks_the_ranking_when_the_draw_is_unbuildable(tmp_path: Any):
     assert "ranked_walk" in verdict
 
 
+def test_the_build_walk_survives_the_plan_stdout_tail(tmp_path: Any, monkeypatch: Any):
+    """The plan prints ~10KB of log before the augure ranking (measured on
+    the mr15 brop-001 trail: ranking near char ~200 of a 9.8KB stdout).
+    The walk must see the FULL plan stdout: the old stdout[-400:] tail
+    erased the ranking, the walk saw ranked=[] and ran unpinned (4
+    identical single-technique attempts)."""
+    import sys
+    import types
+
+    import brainforge.experiments.pilot as pilot
+    from brainforge.providers.base import ChatResponse
+
+    class FakeProvider:
+        def complete(self, request, model):
+            return ChatResponse(content='vuln("sof").', provider="fake", model=model)
+
+    plan_stdout = (
+        "plan: loading packs\n" + "x" * 150 + "\n"
+        "ranking:    ret2libc > shellcode > ret2func\n"
+        "selected:   ret2libc\n" + "y" * 9000
+    )
+    build_techniques: list[str | None] = []
+    run_pins: list[str | None] = []
+
+    def fake_run(argv, cwd, capture_output, text, timeout, check):
+        command = argv[1]
+        if command == "plan":
+            return types.SimpleNamespace(returncode=0, stdout=plan_stdout, stderr="")
+        if command == "build":
+            build_techniques.append(
+                argv[argv.index("--technique") + 1] if "--technique" in argv else None
+            )
+            if "--technique" in argv and argv[argv.index("--technique") + 1] == "ret2libc":
+                return types.SimpleNamespace(
+                    returncode=1, stdout="", stderr="lictor: no pop_rdi_ret gadget"
+                )
+            (cwd / "payload.bin").write_bytes(b"\xeb\x16")
+            return types.SimpleNamespace(returncode=0, stdout="status:  done\n", stderr="")
+        if command == "run":
+            run_pins.append(
+                argv[argv.index("--technique") + 1] if "--technique" in argv else None
+            )
+            return types.SimpleNamespace(
+                returncode=0,
+                stdout="status:  success\nflag:    FLAG{walk_saw_the_full_ranking}\n",
+                stderr="",
+            )
+        return types.SimpleNamespace(returncode=0, stdout="status:  done\n", stderr="")
+
+    monkeypatch.setitem(sys.modules, "subprocess", types.SimpleNamespace(run=fake_run))
+    records = pilot.run_pilot(
+        targets=[("ctf-lictor-brop-001", "127.0.0.1:9995", "brop", "material")],
+        workdir=tmp_path,
+        provider=FakeProvider(),
+        model="m",
+        output=tmp_path / "t.jsonl",
+    )
+    assert build_techniques == ["ret2libc", "shellcode"]
+    assert run_pins == ["shellcode"]
+    verdict = json.loads(records[0]["messages"][-1]["content"])
+    assert verdict["flag"] == "FLAG{walk_saw_the_full_ranking}"
+
+
 fake_lictor_calls: list[list[str]] = []
 
 

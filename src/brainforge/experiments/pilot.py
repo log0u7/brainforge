@@ -367,7 +367,11 @@ def run_lictor(
             if isinstance(parsed, dict):
                 return parsed
     text = result.stdout or ""
-    outcome: dict[str, Any] = {"status": "done", "stdout": text[-400:]}
+    # the FULL stdout, not a tail: the plan's augure ranking sits near the
+    # START of a multi-KB stdout (measured mr15: the stdout[-400:] tail
+    # erased the ranking, the build walk saw ranked=[] and ran unpinned);
+    # the walk parses this text, the trajectory keeps it whole
+    outcome: dict[str, Any] = {"status": "done", "stdout": text}
     status_match = re.search(r"^status:\s+(\S+)", text, re.MULTILINE)
     if status_match:
         outcome["status"] = status_match.group(1)
