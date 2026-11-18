@@ -114,6 +114,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Augure: the `ret2libc_eval` pack ships - the PIE eval twin's rule
+  keys on the harvested ``leaked_address("rdi"/"main")`` facts (the
+  banner anchors the eval twin announces, unique to it), the family
+  specialist prior outranks the generic ret2libc draw; ``7760dfa``.
+
 - Run: the static read survives a nil offset and unmetasm errors
   (2026-11-18, mr21 diag: fmtstr-eval, fmtstr-eval2,
   got_partial_overwrite and uaf_heap died before run.json, 12 runs
