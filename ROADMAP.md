@@ -40,7 +40,7 @@ Phases are cumulative. The MVP (phase 1) is implemented in this repository.
 
 ## Phase 3 - Measure, ablate, extend
 
-- [ ] Framework decoupling per [ADR-0022](docs/adr/0022-wake-sleep-framework-skeleton.md):
+- [x] Framework decoupling per [ADR-0022](docs/adr/0022-wake-sleep-framework-skeleton.md):
       break the CTF couplings inside generic modules (`task_eval`, `grpo`,
       `rewards`, `consolidation`, `benchmark`, `pipeline/engine`,
       `flag_ground_truth`, `dataset_cmd`) into pack-level hooks
@@ -48,6 +48,9 @@ Phases are cumulative. The MVP (phase 1) is implemented in this repository.
       CTF-only experiments (`pilot`, `model_only_pilot`, `bench_lab`,
       `final_bench`, `ctf_ingest`) to the CTF pack surface. The loop
       definition becomes domain-free; new domains plug in as one pack.
+      Done 2026-11-17/18 night: commits `e03b0d7`, `75ff7f4`, `3e2f17c`,
+      `abc3f3f`, `4919329` (CHANGELOG `b044079`); 935 unit tests pass,
+      ruff clean.
 - [ ] Multi-teacher experiments (A: security+judge, B: +coding, C: +general)
       comparing accuracy, FP/FN, confidence, cost, latency
 - [ ] Teacher ablation reporting in the experiments manager
@@ -121,6 +124,25 @@ framework assumes must land as optional supports, not core assumptions.
       with a contamination audit (n-gram overlap, holdout-id exclusion,
       provenance tags); single-seed honesty per the multi-harness RL guide
 
+## Publishable results (work in progress)
+
+- Before/after: baseline 2/21 hard families (run-20261116-mr7, pre-fix)
+  -> 7/21 after the 2026-11-17/18 fix night (pilot mr15, 21 families x 3
+  reps, seed-base 7; trail on `~/pilot-mr15`).
+- Free-vs-paid control: the free local 4B teacher and the paid cloud 27B
+  teacher covered the same 2/21 pre-fix families, teacher capacity is
+  lab-bound (chain-limited, not model-limited).
+- Facts-first regression control: `attempts_without_llm_facts` 267/440
+  (mr10) -> 0/440 (mr11).
+- Student-vs-base control: 24/280 identical answers, exact overlap.
+- Seeds contract: results reported per seed with variance over repetitions
+  (mr15 pilot = 3 reps; target contract below).
+- Publication checklist (remaining):
+  - [ ] 10 reps x 21 families for variance
+  - [ ] contamination audit (n-gram overlap + holdout-id exclusion)
+  - [ ] before/after capability curve across cycles
+  - [ ] GRPO / OPDv2 numbers to come
+
 ## Non-goals (standing)
 
 - Mass-producing synthetic examples: quality, provenance and verification beat
@@ -148,3 +170,29 @@ in `experiments/teacher-pilot/`):
   (facts -> technique selection -> exploit execution -> flag), not the
   models. Trace the chain per family from the existing pilot trails, fix
   the most common death stage, re-pilot.
+
+2026-11-18 (fix night): the chain fixes landed. ADR-0022 decoupling
+complete (commits `e03b0d7`, `75ff7f4`, `3e2f17c`, `abc3f3f`, `4919329`,
+CHANGELOG `b044079`): all CTF logic moved out of the generic modules into
+pack hooks (arbitrate, eval_score, eval_shape, eval_secondary_metrics,
+grpo sidecar/columns, gate_metrics, benchmark columns, pack-driven CLI
+metric); 935 unit tests pass, ruff clean. Lictor/augure fixes (`953a953`,
+`ff90fcf`, `f688611` in lictor; `2da2c7a`, `5e9ae03`, `773e0f0` in augure):
+payload_file retry, exact-token discover, tolerant banner protocol, three
+eval2 exploits written (ret2plt-eval2, callme-eval2, srop-eval2), uaf_tcache
+rename, recalibrated priors, got_overwrite_target fixed. Live validation:
+8 flags. Pilot mr15 (free local 4B teacher, 21 families x 3 reps,
+seed-base 7): 7/21 families covered vs baseline 2/21 (run-20261116-mr7);
+details: callme-eval 3/3, fmtstr-eval 3/3, ret2plt-eval 3/3,
+setcontext_srop 3/3, jop 2/3, ret2func-eval2 2/3, ret2partial_overwrite
+1/3; trail on `~/pilot-mr15`.
+
+- 14 families remain, two classes:
+  - calibration (fixable via lictor/augure trails): brop, one_gadget,
+    orw-eval, orw-eval2, srop-eval, srop-eval2, uaf_heap,
+    got_partial_overwrite, callme-eval2, ret2plt-eval2, ret2libc-eval,
+    ret2vdso
+  - structural (code changes, not calibration): ret2func (strcpy truncates
+    at the first NUL), fmtstr-eval2 and ret2libc-eval2 (PIE without leak)
+- Next lever: fix the calibration families (mr15 trails on disk), then
+  GRPO on the pack reward hook.
