@@ -588,7 +588,13 @@ def test_build_walks_the_ranking_when_the_draw_is_unbuildable(tmp_path: Any):
     assert builds[0][builds[0].index("--technique") + 1] == "ret2libc"
     assert builds[1][builds[1].index("--technique") + 1] == "shellcode"
     run_args = next(a for a in calls if a[0] == "run")
-    assert "--payload" in run_args
+    # the payload rides ONLY with the pin: the built technique here is
+    # rank 2 (ret2libc, rank 1, failed to build), so the run goes out
+    # UNPINNED and payload-less - the on-disk payload was built for the
+    # rank-2 technique and would corrupt a banner-derived rank-1
+    # exploit (measured mr17: callme-eval 0/3 with a mismatched
+    # payload.bin, 9/10 unpinned and payload-less in the 10-rep run)
+    assert "--payload" not in run_args
     verdict = records[0]["messages"][-1]["content"]
     assert "ranked_walk" in verdict
 
