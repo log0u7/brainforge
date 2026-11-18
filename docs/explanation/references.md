@@ -106,3 +106,31 @@ Where it lives, honestly: as a roadmap, not in the code.
   multi-direction or Heretic-style iterative optimization"). Nothing from
   the paper's method is implemented yet, and the single-direction result
   stays a heuristic: evaluate capability and refusal behavior yourself.
+
+## Deletion Tuning: zeroing the gate projection matches FFT
+
+(Lu, Yang, Lasby, Pote, Ioannou, Ren, 2026). [arXiv:2611.10866](https://arxiv.org/abs/2611.10866),
+NeurIPS 2026. Deletion Tuning learns a binary mask over the gate
+projection of transformer blocks: zeroing fewer than 0.05% of the
+weights, with no other modification, matches full fine-tuning at scale
+across three post-training regimes - RLVR, SFT and on-policy
+distillation. The mask is hundreds to thousands of times smaller than
+the corresponding FFT checkpoint, and forgetting drops sharply (prior
+task accuracy stays near base level where FFT/LoRA/random-sparse lose
+up to 5.4 points). The geometry analysis (stable rank, spectrum drift,
+principal-weight overlap) shows the learned changes closest to FFT.
+
+Where it lands in brainforge:
+
+- The Sleep-style capacity expansion (the frozen adapter pool,
+  [ROADMAP](../../ROADMAP.md) phase 4) gains a candidate: a binary mask
+  per consolidation round is hundreds of times cheaper on disk and
+  merges trivially (set logic over the zeroed weights) compared to
+  low-rank adapter merging.
+- It works under on-policy distillation: the OPD v2 experiment gains a
+  natural ablation (OPD + LoRA vs OPD + Deletion).
+- It is the learned cousin of [ADR-0014](../adr/0014-abliteration-single-direction.md):
+  abliteration zeroes along a measured direction, Deletion Tuning
+  learns which weights to zero - the same theme, the capability lives
+  in few parameters.
+- Nothing from the paper is implemented yet: roadmap item, not code.

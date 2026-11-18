@@ -101,6 +101,13 @@ framework assumes must land as optional supports, not core assumptions.
       low-rank adapter batch (frozen adapter pool) instead of overwriting the
       previous round; requires the consolidation cycle (phase 3) and an
       adapter merge/selection policy, on the 10GB VRAM budget
+- [ ] Deletion Tuning pass ([arXiv:2611.10866](https://arxiv.org/abs/2611.10866),
+      NeurIPS 2026): learn a binary mask over the gate projection, zeroing
+      <0.05% of the weights matches FFT across RLVR/SFT/on-policy
+      distillation, the mask is 100-1000x smaller than the FFT checkpoint,
+      and forgetting drops sharply (prior-task accuracy near base) - the
+      natural candidate for the frozen adapter pool below and the natural
+      OPD v2 ablation (OPD + LoRA vs OPD + Deletion)
 - [ ] Adapter pruning/merging at consolidation time (the synthetic-synaptic
       pruning analogue): rank trimming and adapter merging driven by the
       per-round holdout gate
