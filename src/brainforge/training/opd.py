@@ -7,14 +7,16 @@ prompt. Unlike the binary ctf_flag reward it is dense (every token
 contributes signal) and it cannot be reward-hacked: the only way up is
 to match the teacher's distribution.
 
-Scoring runs against a llama.cpp server (the teacher):
-POST /v1/completions with ``echo: true`` and ``logprobs`` returns the
-per-token logprobs of the echoed sequence; the first ``n_prompt_tokens``
-belong to the prompt (counted via POST /tokenize on the rendered prompt),
-the rest belong to the completion. Reward = -mean(logprob over the
-completion tokens).
+Scoring runs against a llama.cpp server (the teacher). The student's
+completion is tokenized with the teacher's own tokenizer (the Qwen3
+family shares one vocab, so ids align), then a growing-prefix chain of
+native /completion calls with ``n_probs`` reads the teacher's next-token
+distribution at every position. The student's token id is matched in the
+top-k; a miss falls back to the min of the top-k (a lower bound on the
+true logprob - documented approximation, not a paper-grade KL).
 
-Heavy dependencies are not imported here: the module is pure HTTP.
+Pure HTTP: no torch, no model - unit tests run without the training
+extra.
 """
 
 from __future__ import annotations
@@ -25,10 +27,9 @@ from collections.abc import Callable
 from typing import Any
 
 from brainforge.errors import BrainforgeError
-from brainforge.training.rewards import RewardFn
 
 
-def _urlopen(req: urllib.request.Request, timeout: int = 60):
+def _urlopen(req: urllib.request.Request, timeout: int = 120):
     return urllib.request.urlopen(req, timeout=timeout)
 
 
@@ -52,8 +53,8 @@ def _render_prompt(messages: Any, render: Callable[[Any], str] | None) -> str:
         raise BrainforgeError(
             "teacher_kl reward: conversational prompts need a chat "
             "template renderer (the student's tokenizer renders the same "
-            "text the student generated from); pass render= or wire the "
-            "reward via grpo (opd_tokenizer)"
+            "text the student generated from); wire the reward via grpo "
+            "(opd_tokenizer)"
         )
     return render(messages)
 
@@ -61,7 +62,9 @@ def _render_prompt(messages: Any, render: Callable[[Any], str] | None) -> str:
 def make_teacher_kl_reward(
     teacher_url: str,
     render: Callable[[Any], str] | None = None,
-) -> RewardFn:
+    n_probs: int = 20,
+    max_scored_tokens: int = 0,
+) -> Callable[..., list[float]]:
     """Build the dense OPD reward against a llama.cpp teacher server.
 
     ``render`` turns chat-message prompts into the exact text the student
@@ -85,30 +88,51 @@ def make_teacher_kl_reward(
         with _urlopen(req) as resp:
             return json.loads(resp.read().decode("utf-8"))
 
+    def _tokenize(text: str) -> list[int]:
+        return _post("/tokenize", {"content": text})["tokens"]
+
     def _score_one(prompt: Any, completion: str) -> float:
         rendered = _render_prompt(prompt, render)
-        full_text = rendered + completion
-        n_prompt = len(_post("/tokenize", {"content": rendered})["tokens"])
-        body = {
-            "prompt": full_text,
-            "echo": True,
-            "logprobs": 1,
-            "max_tokens": 1,
-            "temperature": 0.0,
-        }
-        data = _post("/v1/completions", body)
-        logprobs = data["choices"][0].get("logprobs") or []
-        completion_lps = [
-            entry["logprob"]
-            for entry in logprobs[n_prompt:]
-            if isinstance(entry, dict) and "logprob" in entry
-        ]
-        if not completion_lps:
+        full_ids = _tokenize(rendered + completion)
+        n_prompt = len(_tokenize(rendered))
+        completion_ids = full_ids[n_prompt:]
+        if not completion_ids:
             raise BrainforgeError(
-                "teacher_kl reward: the teacher returned no logprobs for "
-                "the completion tokens (echo+logprobs unsupported?)"
+                "teacher_kl reward: the completion tokenized to nothing "
+                "(empty completion or a template/tokenizer mismatch)"
             )
-        return -sum(completion_lps) / len(completion_lps)
+        # cap the scored prefix (0 = all): the reward is the mean over the
+        # scored tokens; the growing-prefix chain costs one /completion call
+        # per scored token
+        if max_scored_tokens:
+            completion_ids = completion_ids[:max_scored_tokens]
+        logprobs: list[float] = []
+        for i, student_id in enumerate(completion_ids):
+            prefix = full_ids[: n_prompt + i]
+            data = _post(
+                "/completion",
+                {
+                    "prompt": prefix,
+                    "n_predict": 1,
+                    "n_probs": n_probs,
+                    "cache_prompt": True,
+                    "temperature": 0.0,
+                },
+            )
+            top = data.get("completion_probabilities")
+            if not top:
+                raise BrainforgeError(
+                    "teacher_kl reward: the teacher returned no "
+                    f"completion_probabilities at token {i}/{len(completion_ids)} "
+                    f"(raw response: {json.dumps(data)[:300]})"
+                )
+            top = top[0]["top_logprobs"]
+            lp = next(
+                (e["logprob"] for e in top if e["id"] == student_id),
+                min(e["logprob"] for e in top),
+            )
+            logprobs.append(lp)
+        return -sum(logprobs) / len(logprobs)
 
     def _teacher_kl(completions: list, prompts: Any = None, **_: object) -> list[float]:
         prompt_list = prompts if prompts is not None else [""] * len(completions)

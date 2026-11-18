@@ -117,6 +117,8 @@ class TrainingConfig(BaseModel):
     # OPD dense reward (teacher_kl): the llama.cpp teacher server that
     # scores the student's completions (teacher NLL = the dense reward)
     opd_teacher_url: str = ""
+    # cap the scored tokens per completion for the OPD chain (0 = all)
+    opd_max_scored_tokens: int = Field(default=0, ge=0)
     gkd_lmbda: float = Field(default=1.0, ge=0, le=1)
     gkd_beta: float = Field(default=1.0, ge=0, le=1)
     gkd_seq_kd: bool = False

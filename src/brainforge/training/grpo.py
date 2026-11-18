@@ -42,7 +42,12 @@ def _prompt_column(records: list[dict], columns: tuple[str, ...] = ()) -> list[d
     return rows
 
 
-def _resolve_teacher_kl(spec: str, opd_teacher_url: str = "", base_model: str = ""):
+def _resolve_teacher_kl(
+    spec: str,
+    opd_teacher_url: str = "",
+    base_model: str = "",
+    max_scored_tokens: int = 0,
+):
     """Resolve the teacher_kl (OPD dense reward) spec into a reward fn.
 
     The URL is config-driven and mandatory: nothing is silently defaulted.
@@ -75,7 +80,9 @@ def _resolve_teacher_kl(spec: str, opd_teacher_url: str = "", base_model: str = 
                 messages, tokenize=False, add_generation_prompt=True
             )
 
-    return make_teacher_kl_reward(opd_teacher_url, render=render)
+    return make_teacher_kl_reward(
+        opd_teacher_url, render=render, max_scored_tokens=max_scored_tokens
+    )
 
 
 
@@ -120,7 +127,7 @@ def train_grpo(
         raise BrainforgeError("empty dataset split")
 
     plan = plan_for_config(config)
-    load_kwargs: dict[str, Any] = {}
+    load_kwargs: dict[str, Any] = {"device_map": plan.device}
     if plan.quantization != "none":
         load_kwargs["quantization_config"] = _quantization_config(plan.quantization)
 
@@ -135,7 +142,12 @@ def train_grpo(
         )
     opd_url = getattr(config, "opd_teacher_url", "")
     if "teacher_kl" in spec:
-        reward_fn = _resolve_teacher_kl(spec, opd_url, base_model=config.base_model)
+        reward_fn = _resolve_teacher_kl(
+            spec,
+            opd_url,
+            base_model=config.base_model,
+            max_scored_tokens=getattr(config, "opd_max_scored_tokens", 0),
+        )
     elif "," in spec or "*" in spec:
         reward_fn = compose_reward(spec)
     else:

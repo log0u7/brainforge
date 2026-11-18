@@ -44,3 +44,6 @@ experiments/*
 .idea/
 .vscode/
 .DS_Store
+
+# local model exports (GGUF artifacts, never commit)
+models/
