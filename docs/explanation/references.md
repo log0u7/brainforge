@@ -110,7 +110,10 @@ Where it lives, honestly: as a roadmap, not in the code.
 ## Deletion Tuning: zeroing the gate projection matches FFT
 
 (Lu, Yang, Lasby, Pote, Ioannou, Ren, 2026). [arXiv:2611.10866](https://arxiv.org/abs/2611.10866),
-NeurIPS 2026. Deletion Tuning learns a binary mask over the gate
+NeurIPS 2026. Shipped as a production artifact: [Harness Hub](https://huggingface.co/blog/harness-hub/harness-adapters)
+and the adapted model [harness-hub/Qwen3.8-27B-pi-adapted](https://huggingface.co/harness-hub/Qwen3.8-27B-pi-adapted)
+(an adapter pool of harness-conditioned variants built by this method). Proof the approach ships,
+not just benchmarks. Deletion Tuning learns a binary mask over the gate
 projection of transformer blocks: zeroing fewer than 0.05% of the
 weights, with no other modification, matches full fine-tuning at scale
 across three post-training regimes - RLVR, SFT and on-policy
