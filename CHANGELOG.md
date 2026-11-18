@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Docs: two SOTA references integrated into the night's narrative.
+  Deletion Tuning (arXiv:2611.10866, NeurIPS 2026): a binary mask over
+  the gate projection zeroing <0.05% of the weights matches FFT across
+  RLVR/SFT/on-policy distillation - ROADMAP phase 4 candidate for the
+  frozen adapter pool, OPD + Deletion ablation slot. Self-Improvement
+  Memory (arXiv:2611.18856, Google DeepMind): harness-optimizer
+  continuation with a memory of past edits beats harness-only
+  continuation (+2.36 points, p=0.003) - our diag -> fix -> re-pilot
+  rounds are a SIM run informally, cited in benchmark.md as the
+  continuation protocol.
+
 - GRPO SOTA recipe defaults (``feat(grpo)``): DAPO clip-higher
   (``grpo_loss_type: dapo``, ``grpo_epsilon_high: 0.28``), Dr. GRPO
   unbiased baseline (``grpo_scale_rewards: false`` -> TRL
