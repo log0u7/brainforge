@@ -27,6 +27,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no leak source without a prior exploit step) and calibration gaps
   (brop, one_gadget, orw, srop-eval, uaf_heap) for the next cycle.
 
+- Teacher pilot: the calibration cycle closes. mr20/mr21 (teacher 4B
+  local, 21 families x 3 reps) cover 12/21 hard families, confirmed on
+  10 reps (``~/pilot-mr20-10rep``). The orw-eval fix cascade needed
+  three stacked fixes, each live-validated: the target regains its
+  ``vuln_copy`` entry point (the e97737b rewrite left it unsolvable),
+  the harvest reads the ``buf()`` leak the eval twin announces, and
+  the pack's named ``orw`` stub upgrades to ``orw_openat`` (openat
+  257, AT_FDCWD) under the harvested ``seccomp_openat`` fact - the
+  filter kills open(2), the generic orw stub never reads the flag.
+
 - Augure: eval-twin priors recalibrated and a new ``got_overwrite_target``
   fact emitted by the profiler. The eval twins previously inherited the
   demo family's prior distribution, so the plan ranked the wrong
@@ -103,6 +113,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mapping regression tests included.
 
 ### Fixed
+
+- Pilot: the run pin and the payload now match the build walk
+  (2026-11-18, mr16-mr20 diag cascade). Four fixes, one chain:
+  (1) the plan stdout is parsed in full before any truncation, so the
+  augure ranking reaches the build walk (``text[-400:]`` erased it,
+  the walk ran unpinned, ``8e635c3``); (2) the pin requires the built
+  technique to be the ranking head, a build failure must not demote a
+  rank-1 technique that is runnable without a payload (``2964f39``);
+  (3) the payload travels only with the pin, an unpinned run must not
+  carry the internal draw's ``payload.bin`` which corrupts
+  banner-derived exploits (``11ce442``); (4) the run gets
+  ``--bin/--repo-dir`` so the scaffold drafts an unexploitable rank
+  and the pin accepts the walk head (drawn or ``ranking[0]``,
+  ``d07bb87``). Verdict: mr20 12/21 hard families (baseline 2/21,
+  run-20261116-mr7), confirmed on 10 reps (12/21, ``~/pilot-mr20-10rep``).
 
 - Bench ground truth: ``_load_ground_truth`` now parses plain-Prolog
   completions (``vuln("sof").``, the MR9/MR10 facts format) in addition to
