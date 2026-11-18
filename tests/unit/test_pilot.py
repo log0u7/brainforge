@@ -651,7 +651,14 @@ def test_the_build_walk_survives_the_plan_stdout_tail(tmp_path: Any, monkeypatch
         output=tmp_path / "t.jsonl",
     )
     assert build_techniques == ["ret2libc", "shellcode"]
-    assert run_pins == ["shellcode"]
+    # the pin rule: the run takes --technique only when the BUILT
+    # technique is the ranking head. ret2libc (rank 1) failed to build,
+    # so the run goes out UNPINNED: pinning the rank-2 build would
+    # demote a rank-1 technique that is runnable without a payload
+    # (measured mr16: callme-eval and setcontext_srop regressed 0/3 -
+    # their exploits read the banner, the build walk pinned the rank-2
+    # buildable and the run never tried the rank-1 technique).
+    assert run_pins == [None]
     verdict = json.loads(records[0]["messages"][-1]["content"])
     assert verdict["flag"] == "FLAG{walk_saw_the_full_ranking}"
 

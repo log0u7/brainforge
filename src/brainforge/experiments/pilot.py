@@ -503,11 +503,15 @@ def _run_one_target(
     ]
     if (tgt / "payload.bin").is_file():
         run_args += ["--payload", "payload.bin"]
-    # the run's own bandit draw could pick a technique whose exploit
-    # recipe differs from the payload the build just produced
-    # (measured: the shellcode run drew ret2libc, no exploit exists
-    # for it -> handoff x4) - the run executes the built technique
-    if built_technique:
+    # the run executes the built technique ONLY when the built
+    # technique IS the ranking head: a build failure must not demote a
+    # higher-ranked technique that is runnable without a payload
+    # (measured mr16: callme-eval and setcontext_srop regressed 0/3 -
+    # their exploits read the banner, the build walk pinned the rank-2
+    # buildable and the rank-1 technique never ran). When the head
+    # builds, the pin keeps the payload/technique pairing that the
+    # handoff-x4 measurement demanded.
+    if built_technique and built_technique == (ranked[0] if ranked else None):
         run_args += ["--technique", built_technique]
     outcome: dict[str, Any] = runner(tgt, run_args)
     outcome["built_technique"] = built_technique
