@@ -114,6 +114,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Run: the static read survives a nil offset and unmetasm errors
+  (2026-11-18, mr21 diag: fmtstr-eval, fmtstr-eval2,
+  got_partial_overwrite and uaf_heap died before run.json, 12 runs
+  lost). Two stacked bugs: ``StaticOffset.offset`` can return nil and
+  the enrichment dereferenced it unchecked, and the rescue listed
+  ``Metasm::DecodeError`` - a class that never existed, so the rescue
+  itself raised NameError on the first metasm error. The nil is
+  guarded (no measure event), the rescue resolves. One fix unblocks
+  12 runs: pilot mr22 measures 15/21 hard families (mr21: 13/21,
+  mr20: 12/21, baseline 2/21), confirmed on 10 reps
+  (``~/pilot-mr22-10rep``); ``03bd42b``.
+
 - Pilot: the run pin and the payload now match the build walk
   (2026-11-18, mr16-mr20 diag cascade). Four fixes, one chain:
   (1) the plan stdout is parsed in full before any truncation, so the
