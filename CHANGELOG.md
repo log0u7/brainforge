@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Added train/eval ID overlap guard (assert_no_id_overlap) in train prepare: fails loud when eval records leak into train (5/7 eval records were in-sample).
+
 ### Added
 
 - Weighted GRPO reward composition including teacher_kl:
