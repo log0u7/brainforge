@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- 3-arm eval V4b (7 in-sample records, 8B): base 3/7 vuln, 1/7 flag exact; teacher_kl adapter 5/7 vuln, 0/7 flag exact; composition adapter 5/7 vuln, 3/7 flag emitted, 1/7 flag exact. Composition raises flag emission (rewarded behavior) without losing vuln coverage; n=7 in-sample, relative signal only.
 - Added train/eval ID overlap guard (assert_no_id_overlap) in train prepare: fails loud when eval records leak into train (5/7 eval records were in-sample).
 
 ### Added
