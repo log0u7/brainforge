@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- GRPO smoke on OPD (``teacher_kl``) GREEN: Qwen3-1.7B student against the
+  llama.cpp Qwen3-4B teacher (port 9934), 51/51 steps in 12 min on one RTX
+  3080 shared by both models. Reward mean 2.9 -> 3.6 over 3 epochs, stable
+  entropy, no hangs.
+
 - OPD dense reward (``feat(opd)``): the ``teacher_kl`` GRPO reward scores
   the student's completions against a llama.cpp teacher server
   (``training.opd_teacher_url``) and returns the teacher's negative

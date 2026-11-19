@@ -184,6 +184,10 @@
     "opd_teacher_url": "http://192.168.1.26:9934",
     "domain": "ctf",
     "epochs": 1,
-    "opd_max_scored_tokens": 96
+    "opd_max_scored_tokens": 48,
+    "max_length": 1024,
+    "grpo_max_completion_length": 128,
+    "gradient_accumulation": 4,
+    "batch_size": 1
   }
 }

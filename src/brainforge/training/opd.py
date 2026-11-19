@@ -29,7 +29,7 @@ from typing import Any
 from brainforge.errors import BrainforgeError
 
 
-def _urlopen(req: urllib.request.Request, timeout: int = 120):
+def _urlopen(req: urllib.request.Request, timeout: int = 60):
     return urllib.request.urlopen(req, timeout=timeout)
 
 

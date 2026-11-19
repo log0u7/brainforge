@@ -155,7 +155,10 @@ def train_grpo(
 
     grpo_config = GRPOConfig(
         output_dir=str(output_dir),
-        max_completion_length=min(512, config.max_length),
+        max_completion_length=(
+            getattr(config, "grpo_max_completion_length", 0)
+            or min(512, config.max_length)
+        ),
         model_init_kwargs=load_kwargs,
         per_device_train_batch_size=config.batch_size,
         gradient_accumulation_steps=config.gradient_accumulation,
