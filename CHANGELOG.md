@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - 3-arm eval V4b (7 in-sample records, 8B): base 3/7 vuln, 1/7 flag exact; teacher_kl adapter 5/7 vuln, 0/7 flag exact; composition adapter 5/7 vuln, 3/7 flag emitted, 1/7 flag exact. Composition raises flag emission (rewarded behavior) without losing vuln coverage; n=7 in-sample, relative signal only.
-- Added train/eval ID overlap guard (assert_no_id_overlap) in train prepare: fails loud when eval records leak into train (5/7 eval records were in-sample).
+- Eval expansion V5 (13 new held-out lab targets, 0 train overlap): all three arms emit fact lines 13/13 (format learned), but canonical vuln classes do not transfer: base 1/10, teacher_kl 0/10, composition 0/10 correct classes; models emit semantic labels (heap_overflow, buffer_overflow, use_after_free) instead of canonical sof/fmtstr/uaf. Zero flags emitted. Distillation installs the format, not the source-knowledge vocabulary. Teacher relaunch preserved.- Added train/eval ID overlap guard (assert_no_id_overlap) in train prepare: fails loud when eval records leak into train (5/7 eval records were in-sample).
 
 ### Added
 
