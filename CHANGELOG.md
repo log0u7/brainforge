@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- GRPO 8B fit on a 10 GB card: gradient_checkpointing=True in
+  GRPOConfig. prepare_model_for_kbit_training upcasts the lm_head to
+  fp32 (~2.5 GB on an 8B); full activations next to it OOM, checkpointing
+  trades ~25% speed for the fit.
+
 - ``teacher_kl`` scoring: one retry when the llama.cpp teacher serves a
   well-formed response without ``completion_probabilities`` (transient,
   observed once in ~800 calls); fails loud with the raw response after.

@@ -167,6 +167,10 @@ def train_grpo(
         save_steps=config.save_steps,
         warmup_steps=config.warmup_steps,
         bf16=True,
+        # prepare_model_for_kbit_training upcasts lm_head to fp32 (~2.5 GB
+        # on an 8B); full activations do not fit next to it on a 10 GB
+        # card - checkpointing trades ~25% speed for the fit
+        gradient_checkpointing=True,
         logging_steps=1,
         # SOTA recipe: DAPO clip-higher, Dr. GRPO unbiased baseline and no
         # KL penalty. TRL 1.12 takes scale_rewards as a str ("group" |
