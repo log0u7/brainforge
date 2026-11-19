@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Weighted GRPO reward composition including teacher_kl:
+  compose_reward now consults a resolver for names the registry does
+  not hold (teacher_kl needs the teacher URL and the student tokenizer).
+  teacher_kl,ctf_flag*2 composes the OPD dense reward with flag
+  success; config-grpo-8b-composition.json added.
+
 - First full Qwen3-8B QLoRA GRPO run on the 10 GB card (105/105 steps,
   48 min): teacher_kl dense reward, compacted mr22 dataset, grpo_beta 0.01.
   lm_head fp32 upcast + bf16 load + gradient checkpointing fit together.
