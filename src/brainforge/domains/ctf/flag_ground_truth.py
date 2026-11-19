@@ -55,7 +55,48 @@ def enrich_flags(records: list[dict], cases: list[dict]) -> list[dict]:
     return out
 
 
-def ingest_trajectories(records: list[dict], cases: list[dict]) -> tuple[list[dict], list[dict]]:
+# Tool-observation compaction (the maki pattern): raw tool dumps are
+# 59% of the corpus chars; ingest excerpts them instead. Bounded,
+# deterministic: head + dropped-chars marker + tail.
+TOOL_OBS_MAX_CHARS = 240
+TOOL_OBS_HEAD = 150
+TOOL_OBS_TAIL = 60
+
+
+def compact_tool_text(text: str, max_chars: int = TOOL_OBS_MAX_CHARS) -> str:
+    """Excerpt a long tool observation: head + marker + tail.
+
+    Anything at or under ``max_chars`` passes through untouched, so the
+    compaction never inflates short observations.
+    """
+    if len(text) <= max_chars:
+        return text
+    head = text[:TOOL_OBS_HEAD]
+    tail = text[-TOOL_OBS_TAIL:]
+    dropped = len(text) - len(head) - len(tail)
+    marker = f"\n[... {dropped} chars truncated ...]\n"
+    return head + marker + tail
+
+
+def compact_tool_observations(record: dict) -> dict:
+    """Compact every long ``tool`` message of a record; other roles are
+    untouched (assistant answers are the training target)."""
+    messages = record.get("messages") or []
+    compacted = [
+        {**m, "content": compact_tool_text(m["content"])}
+        if m.get("role") == "tool" and len(m.get("content", "")) > TOOL_OBS_MAX_CHARS
+        else m
+        for m in messages
+    ]
+    return {**record, "messages": compacted}
+
+
+
+def ingest_trajectories(
+    records: list[dict],
+    cases: list[dict],
+    compact: bool = True,
+) -> tuple[list[dict], list[dict]]:
     """The pilot's execution-verified trajectories become GRPO dataset
     material.
 
@@ -82,7 +123,7 @@ def ingest_trajectories(records: list[dict], cases: list[dict]) -> tuple[list[di
         messages = record.get("messages") or []
         if not rid or not messages:
             continue
-        rows.append(record)
+        rows.append(compact_tool_observations(record) if compact else record)
         expected = flags_by_id.get(rid)
         if expected:
             flags.append({"id": rid, "expected_flag": expected})

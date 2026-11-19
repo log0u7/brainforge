@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Tool-observation compaction at CTF ingest (``compact_tool_observations``):
+  long ``tool`` messages are excerpted head + ``[... N chars truncated ...]``
+  marker + tail, bounded at 240 chars (raw tool dumps were 59% of the mr22
+  corpus chars). ``ctf ingest-trajectories`` compacts by default, opt out
+  with ``--no-compact``. Compacted copy of mr22 generated at
+  ``datasets/grpo-mr22-compact`` (16% smaller).
+
 - GRPO smoke on OPD (``teacher_kl``) GREEN: Qwen3-1.7B student against the
   llama.cpp Qwen3-4B teacher (port 9934), 51/51 steps in 12 min on one RTX
   3080 shared by both models. Reward mean 2.9 -> 3.6 over 3 epochs, stable

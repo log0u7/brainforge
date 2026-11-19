@@ -78,11 +78,18 @@ def ingest_trajectories_cmd(
     cases_dir: Path = typer.Option(
         Path("examples/cases"), "--cases-dir", help="Directory of case JSON files"
     ),
+    no_compact: bool = typer.Option(
+        False,
+        "--no-compact",
+        help="Store raw tool observations instead of excerpted ones",
+    ),
 ) -> None:
     """The pilot's execution-verified trajectories become the GRPO
     dataset: train.jsonl merged by id (a re-ingested challenge replaces
     its stale row) and the grpo_flags.jsonl sidecar carrying the flag
-    the SERVICE read - the execution is the ground truth."""
+    the SERVICE read - the execution is the ground truth. Tool
+    observations are excerpted at ingest (compact_tool_observations);
+    pass --no-compact to store raw dumps."""
     from brainforge.cli.dataset_cmd import _read_jsonl_generic
     from brainforge.domains.ctf.flag_ground_truth import ingest_trajectories
 
@@ -91,7 +98,7 @@ def ingest_trajectories_cmd(
         raise typer.Exit(code=1)
     cases = _read_cases(cases_dir)
     records = _read_jsonl_generic(trajectories)
-    rows, flags = ingest_trajectories(records, cases)
+    rows, flags = ingest_trajectories(records, cases, compact=not no_compact)
 
     dataset_dir.mkdir(parents=True, exist_ok=True)
     train_path = dataset_dir / "train.jsonl"
