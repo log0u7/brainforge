@@ -47,8 +47,14 @@ def reward_names() -> list[str]:
     return sorted(_REWARD_REGISTRY)
 
 
-def compose_reward(spec: str) -> RewardFn:
-    """Compose weighted rewards: 'ctf_flag,compliance*0.5' (default weight 1)."""
+def compose_reward(spec: str, resolver: Callable[[str], RewardFn | None] | None = None) -> RewardFn:
+    """Compose weighted rewards: 'ctf_flag,compliance*0.5' (default weight 1).
+
+    ``resolver`` lets a caller route names the registry does not hold
+    (e.g. teacher_kl, whose reward fn needs the teacher URL and the
+    student tokenizer): it is consulted first, and ``None`` falls back
+    to the registry.
+    """
     parts: list[tuple[RewardFn, float]] = []
     for token in spec.split(","):
         token = token.strip()
@@ -56,9 +62,14 @@ def compose_reward(spec: str) -> RewardFn:
             continue
         if "*" in token:
             name, weight = token.rsplit("*", 1)
-            parts.append((get_reward(name.strip()), float(weight)))
+            name = name.strip()
+            weight = float(weight)
         else:
-            parts.append((get_reward(token), 1.0))
+            name, weight = token, 1.0
+        fn = resolver(name) if resolver else None
+        if fn is None:
+            fn = get_reward(name)
+        parts.append((fn, weight))
     if not parts:
         raise KeyError(f"empty reward spec '{spec}'")
 

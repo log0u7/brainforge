@@ -144,7 +144,22 @@ def train_grpo(
             "a domain pack that declares grpo_reward()"
         )
     opd_url = getattr(config, "opd_teacher_url", "")
-    if "teacher_kl" in spec:
+    if "teacher_kl" in spec and "," in spec:
+        # weighted composition including the OPD dense reward: the
+        # registry does not hold teacher_kl (it needs the teacher URL
+        # and the student tokenizer), so route it through a resolver
+        def _teacher_kl_resolver(name: str):
+            if name == "teacher_kl":
+                return _resolve_teacher_kl(
+                    name,
+                    opd_url,
+                    base_model=config.base_model,
+                    max_scored_tokens=getattr(config, "opd_max_scored_tokens", 0),
+                )
+            return None
+
+        reward_fn = compose_reward(spec, resolver=_teacher_kl_resolver)
+    elif "teacher_kl" in spec:
         reward_fn = _resolve_teacher_kl(
             spec,
             opd_url,
