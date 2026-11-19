@@ -35,6 +35,28 @@ def tool_turn_warning(dataset_path: Path | str) -> str | None:
     )
 
 
+def assert_no_id_overlap(train_path: Path | str, eval_path: Path | str) -> None:
+    """Reject an eval split whose record IDs overlap the train split.
+
+    A committed eval protocol input must be leak-free by construction:
+    an overlap means the eval prompts were optimized during training and
+    any flag accuracy on them is in-sample, not a capability result.
+    A missing eval file is not an error (some datasets have no split).
+    """
+    eval_p = Path(eval_path)
+    if not eval_p.is_file():
+        return
+    train_ids = {r.get("id") for r in read_jsonl(train_path)}
+    overlap = [r["id"] for r in read_jsonl(eval_p) if r.get("id") in train_ids]
+    if overlap:
+        raise ValueError(
+            f"eval split leaks {len(overlap)} train record ID(s): "
+            f"{sorted(overlap)[:5]}{'...' if len(overlap) > 5 else ''}. "
+            "Eval prompts seen during training make any accuracy on them "
+            "in-sample; regenerate the eval split or remove the overlap."
+        )
+
+
 def prepare(
     dataset_path: Path | str,
     output_dir: Path | str,

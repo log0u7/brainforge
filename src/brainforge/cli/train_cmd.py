@@ -205,7 +205,7 @@ def prepare(
     ),
 ) -> None:
     """Validate, split and export a dataset for TRL training."""
-    from brainforge.training.prepare import prepare
+    from brainforge.training.prepare import assert_no_id_overlap, prepare
 
     target = output_dir or Path("datasets") / "prepared"
     stats = prepare(
@@ -214,6 +214,9 @@ def prepare(
     console.print(f"[green]prepared dataset[/green] -> {target}")
     for name, count in stats.items():
         console.print(f"  {name}: {count}")
+    # leak guard: a committed eval split must not overlap the train split
+    assert_no_id_overlap(target / "train.jsonl", target / "test.jsonl")
+    console.print("[dim]leak guard: train/test ID overlap checked[/dim]")
 
 
 @app.command("check")
