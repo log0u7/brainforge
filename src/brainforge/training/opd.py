@@ -109,23 +109,27 @@ def make_teacher_kl_reward(
         logprobs: list[float] = []
         for i, student_id in enumerate(completion_ids):
             prefix = full_ids[: n_prompt + i]
-            data = _post(
-                "/completion",
-                {
-                    "prompt": prefix,
-                    "n_predict": 1,
-                    "n_probs": n_probs,
-                    "cache_prompt": True,
-                    "temperature": 0.0,
-                },
-            )
-            top = data.get("completion_probabilities")
-            if not top:
-                raise BrainforgeError(
-                    "teacher_kl reward: the teacher returned no "
-                    f"completion_probabilities at token {i}/{len(completion_ids)} "
-                    f"(raw response: {json.dumps(data)[:300]})"
-                )
+            body = {
+                "prompt": prefix,
+                "n_predict": 1,
+                "n_probs": n_probs,
+                "cache_prompt": True,
+                "temperature": 0.0,
+            }
+            # llama.cpp occasionally serves a well-formed response without
+            # completion_probabilities (once in ~800 calls); one retry
+            # before failing loud
+            for attempt in (0, 1):
+                data = _post("/completion", body)
+                top = data.get("completion_probabilities")
+                if top:
+                    break
+                if attempt:
+                    raise BrainforgeError(
+                        "teacher_kl reward: the teacher returned no "
+                        f"completion_probabilities at token {i}/{len(completion_ids)} "
+                        f"(raw response: {json.dumps(data)[:300]})"
+                    )
             top = top[0]["top_logprobs"]
             lp = next(
                 (e["logprob"] for e in top if e["id"] == student_id),

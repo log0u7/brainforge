@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- ``teacher_kl`` scoring: one retry when the llama.cpp teacher serves a
+  well-formed response without ``completion_probabilities`` (transient,
+  observed once in ~800 calls); fails loud with the raw response after.
+
 - Tool-observation compaction at CTF ingest (``compact_tool_observations``):
   long ``tool`` messages are excerpted head + ``[... N chars truncated ...]``
   marker + tail, bounded at 240 chars (raw tool dumps were 59% of the mr22
