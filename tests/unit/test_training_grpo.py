@@ -122,6 +122,18 @@ def test_train_grpo_passes_sota_recipe(fake_training_modules, tmp_path):
     assert args["beta"] == 0.0
 
 
+def test_train_grpo_loads_model_in_bf16(fake_training_modules, tmp_path):
+    """TRL create_model_from_path defaults dtype to float32 when model_init_kwargs
+    omits it. On a 10 GB card that materializes tied embeddings + prefill logits
+    in fp32 (~2.5 GB each on an 8B) and OOMs at step 0; bf16 fits."""
+    _, fake_config = fake_training_modules
+    config = TrainingConfig(strategy="grpo")
+    train_grpo(config, _dataset_dir(tmp_path), tmp_path / "run", reward="compliance")
+    kwargs = fake_config.instances[-1].kwargs["model_init_kwargs"]
+    assert kwargs["dtype"] == "bfloat16"
+    assert kwargs["device_map"] == "cuda:0"
+
+
 def test_train_grpo_config_overrides_reach_trl(fake_training_modules, tmp_path):
     _, fake_config = fake_training_modules
     config = TrainingConfig(

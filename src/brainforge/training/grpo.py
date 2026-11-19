@@ -127,7 +127,10 @@ def train_grpo(
         raise BrainforgeError("empty dataset split")
 
     plan = plan_for_config(config)
-    load_kwargs: dict[str, Any] = {"device_map": plan.device}
+    # TRL create_model_from_path defaults dtype to float32; on a 10 GB card
+    # that materializes tied embeddings + prefill logits in fp32 (~2.5 GB
+    # each on an 8B) and OOMs at step 0. bf16 keeps the fit.
+    load_kwargs: dict[str, Any] = {"device_map": plan.device, "dtype": "bfloat16"}
     if plan.quantization != "none":
         load_kwargs["quantization_config"] = _quantization_config(plan.quantization)
 
