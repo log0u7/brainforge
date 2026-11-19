@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- First full Qwen3-8B QLoRA GRPO run on the 10 GB card (105/105 steps,
+  48 min): teacher_kl dense reward, compacted mr22 dataset, grpo_beta 0.01.
+  lm_head fp32 upcast + bf16 load + gradient checkpointing fit together.
+  Adapter saved at experiments/run-8b/run-20261119-162139-420294.
+
 - GRPO 8B fit on a 10 GB card: gradient_checkpointing=True in
   GRPOConfig. prepare_model_for_kbit_training upcasts the lm_head to
   fp32 (~2.5 GB on an 8B); full activations next to it OOM, checkpointing
