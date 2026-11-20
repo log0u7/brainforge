@@ -31,6 +31,7 @@ datasets/*
 !datasets/eval/
 experiments/*
 !experiments/.gitkeep
+!experiments/teacher-pilot/
 !experiments/eval/
 !experiments/ctf_ingest/
 !experiments/final-bench-results/

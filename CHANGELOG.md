@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Eval expansion committed: results-2026-11-20.md (teacher-pilot data article for the 16-record held-out set) and the V5 grpo-expanded eval set (13 records, ctf-lictor ids).
+
 - Eval V6 (16-record held-out expansion dataset, zero train overlap, 3 arms): base 3/16 vuln, 3/16 flag exact; teacher_kl 8/16 vuln, 2/16 flag exact; composition 12/16 vuln, 3/16 flag exact. Composition transfers vuln-class emission to held-out lab targets best; flag_exact uninformative (flag strings not derivable one-shot).
 
 - 3-arm eval V4b (7 in-sample records, 8B): base 3/7 vuln, 1/7 flag exact; teacher_kl adapter 5/7 vuln, 0/7 flag exact; composition adapter 5/7 vuln, 3/7 flag emitted, 1/7 flag exact. Composition raises flag emission (rewarded behavior) without losing vuln coverage; n=7 in-sample, relative signal only.
