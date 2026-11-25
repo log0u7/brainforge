@@ -11,8 +11,8 @@ import re
 import time
 
 import torch
-from transformers import AutoTokenizer
 from peft import AutoPeftModelForCausalLM
+from transformers import AutoTokenizer
 
 with open("/home/logout/projets/datasets/grpo-eval-expansion/train.jsonl") as _f:
     rows = [json.loads(line) for line in _f]
