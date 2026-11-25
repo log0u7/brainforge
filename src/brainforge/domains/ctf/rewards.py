@@ -33,9 +33,7 @@ def extract_flag(text: str) -> str | None:
     return match.group(0) if match else None
 
 
-def flag_reward(
-    completions: list, expected_flag: list[str], **_: object
-) -> list[float]:
+def flag_reward(completions: list, expected_flag: list[str], **_: object) -> list[float]:
     """GRPO reward: exact expected flag = 1.0, valid format = 0.3, else 0.
 
     ``expected_flag`` arrives as a dataset column via GRPOTrainer kwargs;

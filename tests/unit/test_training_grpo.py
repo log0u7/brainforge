@@ -149,6 +149,8 @@ def test_train_grpo_config_overrides_reach_trl(fake_training_modules, tmp_path):
     assert args["epsilon_high"] == 0.3
     assert args["scale_rewards"] == "group"
     assert args["beta"] == 0.01
+
+
 def test_training_config_domain_field():
     """TrainingConfig carries the domain: the pack hook resolves the
     GRPO reward (ctf_flag) and the sidecar columns from it."""

@@ -73,9 +73,7 @@ def extract_prompt_completion(records: list[dict]) -> list[dict]:
                 f"record at index {index} needs at least a user and an assistant message"
             )
         if messages[-1].get("role") != "assistant":
-            raise BrainforgeError(
-                f"record at index {index} does not end with an assistant message"
-            )
+            raise BrainforgeError(f"record at index {index} does not end with an assistant message")
         # Qwen3-style templates insert the empty think block into the
         # generation prompt at --no-thinking inference; training must render
         # the same prompt or the model answers after a prefix it never saw
@@ -104,14 +102,8 @@ def _check_max_length_fit(records: list[dict], max_length: int, tokenizer: Any) 
     longest = 0
     longest_id = None
     for record in records:
-        tokenized = tokenizer.apply_chat_template(
-            record.get("messages") or [], tokenize=True
-        )
-        n_tokens = (
-            len(tokenized["input_ids"])
-            if isinstance(tokenized, dict)
-            else len(tokenized)
-        )
+        tokenized = tokenizer.apply_chat_template(record.get("messages") or [], tokenize=True)
+        n_tokens = len(tokenized["input_ids"]) if isinstance(tokenized, dict) else len(tokenized)
         if n_tokens > longest:
             longest, longest_id = n_tokens, record.get("id")
     if longest > max_length:
@@ -307,9 +299,7 @@ def _eval_tokenizer(model_ref: str) -> Any:
     return tokenizer
 
 
-def _score_records(
-    model: Any, tokenizer: Any, rows: list[dict], batch_size: int
-) -> float:
+def _score_records(model: Any, tokenizer: Any, rows: list[dict], batch_size: int) -> float:
     """Token-weighted mean NLL over ``rows`` via batched padded forward passes.
 
     The reported loss is the true corpus NLL: HF returns the mean over
@@ -390,9 +380,7 @@ def evaluate(
         "quantization": plan.quantization,
         "attn_implementation": plan.attn_implementation,
     }
-    (model_path / "eval.json").write_text(
-        json.dumps(result, indent=2), encoding="utf-8"
-    )
+    (model_path / "eval.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     return result
 
 

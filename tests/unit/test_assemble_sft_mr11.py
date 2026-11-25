@@ -98,15 +98,11 @@ def test_assembly_filters_provenance_and_dedup(tmp_path: Path):
         traj / "trajectories-seed-100.jsonl",
         [
             record("ctf-lictor-fmtstr-001", flagged=True, metadata=dict(flagged_meta)),
-            record(
-                "ctf-lictor-orw-001", flagged=True, metadata=dict(flagged_meta)
-            ),  # kept
+            record("ctf-lictor-orw-001", flagged=True, metadata=dict(flagged_meta)),  # kept
             record(
                 "ctf-lictor-orw-001", flagged=True, metadata=dict(flagged_meta)
             ),  # identical, dropped
-            record(
-                "ctf-lictor-shellcode-001", flagged=False, metadata={}
-            ),  # unflagged, dropped
+            record("ctf-lictor-shellcode-001", flagged=False, metadata={}),  # unflagged, dropped
             record(
                 "ctf-lictor-fmtstr-001", first="augure", metadata=dict(flagged_meta)
             ),  # facts-skip, dropped

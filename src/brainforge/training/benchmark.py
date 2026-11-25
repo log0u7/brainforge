@@ -80,9 +80,7 @@ def run_arm(
     unparseable, so the benchmark defaults to the task-eval CLI value.
     """
     if arm not in ARMS:
-        raise BrainforgeError(
-            f"unknown benchmark arm: {arm} (known: {', '.join(ARMS)})"
-        )
+        raise BrainforgeError(f"unknown benchmark arm: {arm} (known: {', '.join(ARMS)})")
     spec = ARMS[arm]
     dataset_dir = Path(dataset_dir)
     gate_dataset = Path(gate_dataset)
@@ -154,9 +152,7 @@ def run_three_arm_benchmark(
     return results
 
 
-def render_markdown_table(
-    results: dict[str, dict[str, Any]], domain: str = "security"
-) -> str:
+def render_markdown_table(results: dict[str, dict[str, Any]], domain: str = "security") -> str:
     """Render the comparison table for docs/explanation/benchmark.md.
 
     The secondary metric column comes from the domain pack's

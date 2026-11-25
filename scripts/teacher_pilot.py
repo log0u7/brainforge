@@ -67,8 +67,9 @@ def main() -> int:
     parser.add_argument("--workdir", type=Path, default=Path("/tmp/teacher-pilot"))
     parser.add_argument("--attempt-cap", type=float, default=600.0)
     parser.add_argument("--seed-base", type=int, default=7)
-    parser.add_argument("--ids", default=None,
-                        help="optional comma-separated subset of the hard ids")
+    parser.add_argument(
+        "--ids", default=None, help="optional comma-separated subset of the hard ids"
+    )
     args = parser.parse_args()
     challenges, _ = load_verified_challenges(
         Path("experiments/ctf_ingest/manifest.jsonl"), Path("examples/cases")
@@ -78,6 +79,7 @@ def main() -> int:
     targets = [by_id[c] for c in wanted if c in by_id]
     expected_flags = {entry[0]: entry[4] for entry in targets if len(entry) > 4}
     import os
+
     api_key = os.environ.get("OPENROUTER_API_KEY") if "openrouter" in args.provider_url else None
     provider = _build_provider("teacher", args.provider_url, api_key)
     print(

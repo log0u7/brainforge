@@ -32,7 +32,7 @@ def _wire(monkeypatch, responses: list):
     def _fake_urlopen(req: urllib.request.Request, timeout: int = 60):
         body = json.loads(req.data.decode("utf-8"))
         if req.full_url.endswith("/tokenize"):
-            return _FakeResponse({"tokens": list(range(len(body["content"])) )})
+            return _FakeResponse({"tokens": list(range(len(body["content"])))})
         calls.append(body)
         return _FakeResponse(responses.pop(0))
 
@@ -41,11 +41,7 @@ def _wire(monkeypatch, responses: list):
 
 
 def _probs(student_id: int = 7) -> dict:
-    return {
-        "completion_probabilities": [
-            {"top_logprobs": [{"id": student_id, "logprob": -1.0}]}
-        ]
-    }
+    return {"completion_probabilities": [{"top_logprobs": [{"id": student_id, "logprob": -1.0}]}]}
 
 
 def test_retry_recovers_from_missing_probabilities(monkeypatch):

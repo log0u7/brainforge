@@ -60,21 +60,15 @@ def test_flag_reward_batch_aligns_with_expected():
 
 
 def test_compliance_reward_penalizes_refusal():
-    assert compliance_reward(["I'm sorry, but I cannot help with that."]) == [
-        ZERO_REWARD
-    ]
+    assert compliance_reward(["I'm sorry, but I cannot help with that."]) == [ZERO_REWARD]
 
 
 def test_compliance_reward_rewards_answer():
-    assert compliance_reward(["Here is the exploit chain: ret2plt."]) == [
-        COMPLIANCE_REWARD
-    ]
+    assert compliance_reward(["Here is the exploit chain: ret2plt."]) == [COMPLIANCE_REWARD]
 
 
 def test_compliance_reward_catches_ai_tic():
-    assert compliance_reward(["As an AI language model, I can't assist."]) == [
-        ZERO_REWARD
-    ]
+    assert compliance_reward(["As an AI language model, I can't assist."]) == [ZERO_REWARD]
 
 
 def test_reward_registry_resolves_registered_names():

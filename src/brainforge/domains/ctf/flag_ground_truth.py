@@ -91,7 +91,6 @@ def compact_tool_observations(record: dict) -> dict:
     return {**record, "messages": compacted}
 
 
-
 def ingest_trajectories(
     records: list[dict],
     cases: list[dict],

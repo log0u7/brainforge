@@ -37,9 +37,7 @@ def register_reward(name: str, fn: RewardFn) -> None:
 
 def get_reward(name: str) -> RewardFn:
     if name not in _REWARD_REGISTRY:
-        raise KeyError(
-            f"unknown GRPO reward '{name}' (known: {sorted(_REWARD_REGISTRY)})"
-        )
+        raise KeyError(f"unknown GRPO reward '{name}' (known: {sorted(_REWARD_REGISTRY)})")
     return _REWARD_REGISTRY[name]
 
 
@@ -104,8 +102,7 @@ def compliance_reward(completions: list, **_: object) -> list[float]:
     them toward full compliance on benign prompts.
     """
     return [
-        ZERO_REWARD if _REFUSAL_RE.search(_as_text(c)) else COMPLIANCE_REWARD
-        for c in completions
+        ZERO_REWARD if _REFUSAL_RE.search(_as_text(c)) else COMPLIANCE_REWARD for c in completions
     ]
 
 

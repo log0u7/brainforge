@@ -5,7 +5,6 @@ _resolve_teacher_kl alone, silently dropping the other weighted parts
 ("teacher_kl,ctf_flag*2" trained as pure teacher_kl).
 """
 
-
 from brainforge.domains.ctf import pack  # noqa: F401  (registers ctf_flag)
 from brainforge.training.rewards import compose_reward
 

@@ -15,9 +15,7 @@ import typer
 from brainforge.cli._common import console, err_console
 from brainforge.errors import BrainforgeError
 
-app = typer.Typer(
-    help="CTF domain: flag ground truth and trajectory ingest.", no_args_is_help=True
-)
+app = typer.Typer(help="CTF domain: flag ground truth and trajectory ingest.", no_args_is_help=True)
 
 
 def _read_cases(cases_dir: Path) -> list[dict]:
@@ -35,9 +33,7 @@ def _read_cases(cases_dir: Path) -> list[dict]:
 
 @app.command("enrich-flags")
 def enrich_flags_cmd(
-    dataset: Path = typer.Argument(
-        ..., help="Path to dataset.jsonl (rewritten in place)"
-    ),
+    dataset: Path = typer.Argument(..., help="Path to dataset.jsonl (rewritten in place)"),
     cases_dir: Path = typer.Option(
         Path("examples/cases"), "--cases-dir", help="Directory of case JSON files"
     ),
@@ -69,9 +65,7 @@ def enrich_flags_cmd(
 
 @app.command("ingest-trajectories")
 def ingest_trajectories_cmd(
-    trajectories: Path = typer.Argument(
-        ..., help="Path to the pilot's trajectories.jsonl"
-    ),
+    trajectories: Path = typer.Argument(..., help="Path to the pilot's trajectories.jsonl"),
     dataset_dir: Path = typer.Argument(
         ..., help="GRPO dataset dir (train.jsonl + grpo_flags.jsonl)"
     ),

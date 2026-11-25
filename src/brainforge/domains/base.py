@@ -215,9 +215,7 @@ class DomainPack(ABC):
         pass
 
     @abstractmethod
-    def judge_prompt(
-        self, case: "Case", rag_context: list, previous_results: dict
-    ) -> str:
+    def judge_prompt(self, case: "Case", rag_context: list, previous_results: dict) -> str:
         pass
 
     @abstractmethod

@@ -60,9 +60,7 @@ def uaf_class_legal(record: dict) -> bool:
         except ValueError:
             payload = None
         if isinstance(payload, dict) and payload.get("action") == "facts":
-            for predicate in (payload.get("action_input") or {}).get(
-                "predicates"
-            ) or []:
+            for predicate in (payload.get("action_input") or {}).get("predicates") or []:
                 if predicate.startswith(mr6.UAF_CLASS_FACT):
                     return False
         if mr6.UAF_CLASS_FACT in content:
@@ -74,9 +72,7 @@ def record_key(record: dict) -> str:
     """The exact-content dedup key: id + messages. Same-id distinct runs
     both survive (the class balance relies on them); only IDENTICAL
     trajectories against the same target collapse."""
-    return json.dumps(
-        {"id": record.get("id"), "messages": record.get("messages")}, sort_keys=True
-    )
+    return json.dumps({"id": record.get("id"), "messages": record.get("messages")}, sort_keys=True)
 
 
 def main() -> int:
@@ -87,12 +83,8 @@ def main() -> int:
         required=True,
         help="the mining's trajectories dir (per-seed JSONL)",
     )
-    parser.add_argument(
-        "--base", type=Path, default=Path("datasets/sft-mr10-facts/train.jsonl")
-    )
-    parser.add_argument(
-        "--out", type=Path, default=Path("datasets/sft-mr11-facts/train.jsonl")
-    )
+    parser.add_argument("--base", type=Path, default=Path("datasets/sft-mr10-facts/train.jsonl"))
+    parser.add_argument("--out", type=Path, default=Path("datasets/sft-mr11-facts/train.jsonl"))
     args = parser.parse_args()
 
     kept: list[dict] = []

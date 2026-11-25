@@ -113,9 +113,7 @@ def score_task(pairs: list[tuple[dict, dict]], domain: str = "security") -> dict
         "false_positive_rate": false_positives / n,
         "false_negative_rate": false_negatives / n,
         "abstain_rate": abstain_predicted / n,
-        "abstain_recall": (abstain_correct / abstain_expected)
-        if abstain_expected
-        else None,
+        "abstain_recall": (abstain_correct / abstain_expected) if abstain_expected else None,
     }
     metrics.update(pack.eval_secondary_metrics(pairs))
     return metrics
@@ -162,9 +160,7 @@ def run_task_eval(
     budget_warning = _budget_warning(records, max_new_tokens)
     if budget_warning is not None:
         logging.getLogger(__name__).warning(budget_warning)
-    domains = {
-        str(record["domain"]) for record in records if record.get("domain") is not None
-    }
+    domains = {str(record["domain"]) for record in records if record.get("domain") is not None}
     if len(domains) > 1:
         raise BrainforgeError(
             f"mixed domains not supported: run one domain per evaluation, found: {sorted(domains)}"
@@ -227,9 +223,7 @@ def evaluate_model_on_records(
     # Hub ids (base-model evaluation) resolve outside the local filesystem:
     # the report is only persisted next to locally stored weights.
     if model_path.is_dir():
-        (model_path / "task_eval.json").write_text(
-            json.dumps(result, indent=2), encoding="utf-8"
-        )
+        (model_path / "task_eval.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     return result
 
 
@@ -371,13 +365,9 @@ def _build_generator(
                     return_dict=True,
                     **template_kwargs,
                 ).to(model.device)
-                output = model.generate(
-                    **inputs, max_new_tokens=max_new_tokens, do_sample=False
-                )
+                output = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
                 generated = output[:, inputs["input_ids"].shape[1] :]
-                replies.extend(
-                    tokenizer.batch_decode(generated, skip_special_tokens=True)
-                )
+                replies.extend(tokenizer.batch_decode(generated, skip_special_tokens=True))
         return replies
 
     return generate

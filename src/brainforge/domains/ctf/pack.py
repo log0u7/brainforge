@@ -66,9 +66,7 @@ both fully supported by the challenge."""
 
 class CtfPack(DomainPack):
     name = "ctf"
-    description = (
-        "CTF challenge solving: category, technique, exploit path, flag derivation."
-    )
+    description = "CTF challenge solving: category, technique, exploit path, flag derivation."
     recommended_steps: ClassVar[dict[Mode, list[str]]] = {
         Mode.CHEAP: ["ctf_teacher", "judge"],
         Mode.STANDARD: ["ctf_teacher", "coding_teacher", "judge"],
@@ -103,9 +101,7 @@ class CtfPack(DomainPack):
             previous=format_previous_results(previous_results),
         )
 
-    def judge_prompt(
-        self, case: "Case", rag_context: list, previous_results: dict
-    ) -> str:
+    def judge_prompt(self, case: "Case", rag_context: list, previous_results: dict) -> str:
         return CTF_JUDGE_PROMPT.format(
             case=format_case(case),
             rag=format_rag_context(rag_context),
@@ -153,9 +149,7 @@ class CtfPack(DomainPack):
                 known[entry["id"]] = entry
         sidecar.parent.mkdir(parents=True, exist_ok=True)
         sidecar.write_text(
-            "".join(
-                json.dumps(entry, ensure_ascii=False) + "\n" for entry in known.values()
-            ),
+            "".join(json.dumps(entry, ensure_ascii=False) + "\n" for entry in known.values()),
             encoding="utf-8",
         )
 
@@ -203,14 +197,10 @@ class CtfPack(DomainPack):
         instead of being thrown away. Returns True when arbitration accepts
         the case.
         """
-        expected_flag = (
-            str(case.metadata.get("expected_flag") or "").strip() if case else ""
-        )
+        expected_flag = str(case.metadata.get("expected_flag") or "").strip() if case else ""
         if not expected_flag:
             return False
-        haystack = json.dumps(canonical, default=str) + json.dumps(
-            teacher_results, default=str
-        )
+        haystack = json.dumps(canonical, default=str) + json.dumps(teacher_results, default=str)
         return expected_flag.lower() in haystack.lower()
 
     def quality_gate(
@@ -227,9 +217,7 @@ class CtfPack(DomainPack):
         if kind == RoleKind.TEACHER:
             reasons.extend(self._teacher_checks(data))
         elif kind == RoleKind.JUDGE:
-            expected_flag = (
-                str(case.metadata.get("expected_flag") or "").strip() if case else ""
-            )
+            expected_flag = str(case.metadata.get("expected_flag") or "").strip() if case else ""
             # on verified-tier cases the flag lives outside the challenge
             # material: the known-flag rules replace the generic demand
             reasons.extend(self._judge_checks(data, require_flag=not expected_flag))
@@ -263,9 +251,7 @@ class CtfPack(DomainPack):
                     f"technique does not match expected_technique ({'/'.join(keywords)})"
                 )
         expected_flag_raw = case.metadata.get("expected_flag")
-        expected_flag = (
-            expected_flag_raw.strip() if isinstance(expected_flag_raw, str) else ""
-        )
+        expected_flag = expected_flag_raw.strip() if isinstance(expected_flag_raw, str) else ""
         flag = str(data.get("flag") or "").strip()
         if expected_flag and flag and flag != expected_flag:
             reasons.append(
@@ -333,9 +319,7 @@ class CtfPack(DomainPack):
                 flag_compared += 1
                 if predicted_flag == expected_flag:
                     flag_correct += 1
-        return {
-            "flag_accuracy": (flag_correct / flag_compared) if flag_compared else None
-        }
+        return {"flag_accuracy": (flag_correct / flag_compared) if flag_compared else None}
 
     def _eval_answer_class(self, side: dict) -> str:
         if side.get("abstain"):
@@ -345,10 +329,6 @@ class CtfPack(DomainPack):
 
     def student_input(self, case: "Case") -> str:
         task = case.input.question or "Solve the following CTF challenge."
-        description = (
-            f"\n\nChallenge:\n{case.input.description}"
-            if case.input.description
-            else ""
-        )
+        description = f"\n\nChallenge:\n{case.input.description}" if case.input.description else ""
         code_block = f"\n\n```\n{case.input.code}\n```" if case.input.code else ""
         return f"{task}{description}{code_block}"

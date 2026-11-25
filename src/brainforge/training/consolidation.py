@@ -51,9 +51,7 @@ def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
     )
 
 
-def gate_ok(
-    current: dict[str, Any], previous: dict[str, Any], metrics: tuple[str, ...]
-) -> bool:
+def gate_ok(current: dict[str, Any], previous: dict[str, Any], metrics: tuple[str, ...]) -> bool:
     """Cheap per-round gate: not worse than the previous round on the
     pack's gate metrics.
 
@@ -202,13 +200,9 @@ def consolidate(
         if row.get("id") and row.get("metadata", {}).get("recitation_risk") is True
     }
     prior_rows = [
-        row
-        for row in merged.values()
-        if row.get("id") not in {r.get("id") for r in rows}
+        row for row in merged.values() if row.get("id") not in {r.get("id") for r in rows}
     ]
-    replayed = _replay_sample(
-        prior_rows, len(rows), replay_ratio, excluded, random.Random(seed)
-    )
+    replayed = _replay_sample(prior_rows, len(rows), replay_ratio, excluded, random.Random(seed))
     mix = rows + replayed
 
     # --- 3. train ---------------------------------------------------------
@@ -245,9 +239,7 @@ def consolidate(
         "gate": gate_result,
         "checkpoint": str(round_dir / "adapter"),
     }
-    (round_dir / "round.json").write_text(
-        json.dumps(journal, indent=2), encoding="utf-8"
-    )
+    (round_dir / "round.json").write_text(json.dumps(journal, indent=2), encoding="utf-8")
     (output_dir / f"round-{round_number}.json").write_text(
         json.dumps(journal, indent=2), encoding="utf-8"
     )

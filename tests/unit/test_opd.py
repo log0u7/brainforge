@@ -91,11 +91,7 @@ def test_fallback_when_student_token_misses_topk(monkeypatch):
             content = body["content"]
             return _FakeResponse({"tokens": list(range(1 if content == "Hi" else 2))})
         return _FakeResponse(
-            {
-                "completion_probabilities": [
-                    {"top_logprobs": [{"id": 777, "logprob": -3.0}]}
-                ]
-            }
+            {"completion_probabilities": [{"top_logprobs": [{"id": 777, "logprob": -3.0}]}]}
         )
 
     monkeypatch.setattr("brainforge.training.opd._urlopen", _fake_urlopen)

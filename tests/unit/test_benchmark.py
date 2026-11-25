@@ -135,9 +135,7 @@ def test_run_arm_lora64_overrides_rank(dataset_dir: Path, tmp_path: Path) -> Non
     _write_jsonl(gate, [_record("g1")])
     seen: list[TrainingConfig] = []
 
-    def fake_train(
-        config: TrainingConfig, dataset_dir: Path, output_dir: Path, **kw: Any
-    ) -> dict:
+    def fake_train(config: TrainingConfig, dataset_dir: Path, output_dir: Path, **kw: Any) -> dict:
         seen.append(config)
         return {"output_dir": str(output_dir)}
 
@@ -168,9 +166,7 @@ def test_run_arm_gkd_requires_teacher(dataset_dir: Path, tmp_path: Path) -> None
         )
 
 
-def test_run_arm_passes_max_new_tokens_to_gate(
-    dataset_dir: Path, tmp_path: Path
-) -> None:
+def test_run_arm_passes_max_new_tokens_to_gate(dataset_dir: Path, tmp_path: Path) -> None:
     """Regression: the bench gate got max_new_tokens=512 (task_eval default)
     while the ground-truth completions need up to ~1550 tokens - answers were
     cut and scored unparseable, invalidating every benchmark number."""
@@ -194,9 +190,7 @@ def test_run_arm_passes_max_new_tokens_to_gate(
     assert seen[0].get("max_new_tokens") == 2048
 
 
-def test_run_arm_accepts_explicit_max_new_tokens(
-    dataset_dir: Path, tmp_path: Path
-) -> None:
+def test_run_arm_accepts_explicit_max_new_tokens(dataset_dir: Path, tmp_path: Path) -> None:
     gate = tmp_path / "gate.jsonl"
     _write_jsonl(gate, [_record("g1")])
     seen: list[dict[str, Any]] = []
@@ -218,9 +212,7 @@ def test_run_arm_accepts_explicit_max_new_tokens(
     assert seen[0].get("max_new_tokens") == 4096
 
 
-def test_run_three_arm_benchmark_runs_all_arms(
-    dataset_dir: Path, tmp_path: Path
-) -> None:
+def test_run_three_arm_benchmark_runs_all_arms(dataset_dir: Path, tmp_path: Path) -> None:
     gate = tmp_path / "gate.jsonl"
     _write_jsonl(gate, [_record("g1")])
     # the sidecar arm needs the sidecar present for a clean run

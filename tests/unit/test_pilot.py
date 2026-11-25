@@ -638,9 +638,7 @@ def test_the_build_walk_survives_the_plan_stdout_tail(tmp_path: Any, monkeypatch
             (cwd / "payload.bin").write_bytes(b"\xeb\x16")
             return types.SimpleNamespace(returncode=0, stdout="status:  done\n", stderr="")
         if command == "run":
-            run_pins.append(
-                argv[argv.index("--technique") + 1] if "--technique" in argv else None
-            )
+            run_pins.append(argv[argv.index("--technique") + 1] if "--technique" in argv else None)
             return types.SimpleNamespace(
                 returncode=0,
                 stdout="status:  success\nflag:    FLAG{walk_saw_the_full_ranking}\n",

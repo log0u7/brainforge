@@ -525,9 +525,7 @@ def _run_one_target(
     # banner-derived exploit corrupts its chain (measured mr17:
     # callme-eval 0/3, 'the chain did not print a flag', the 10-rep
     # baseline flagged 9/10 unpinned and payload-less)
-    if built_technique and built_technique in walk_heads and (
-        tgt / "payload.bin"
-    ).is_file():
+    if built_technique and built_technique in walk_heads and (tgt / "payload.bin").is_file():
         run_args += ["--payload", "payload.bin"]
     # the run executes the built technique ONLY when the built
     # technique IS the ranking head: a build failure must not demote a

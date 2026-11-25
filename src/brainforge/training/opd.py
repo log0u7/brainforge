@@ -133,9 +133,7 @@ def make_teacher_kl_reward(
                         f"(raw response: {json.dumps(data)[:300]})"
                     )
             if not top:
-                raise BrainforgeError(
-                    "teacher_kl reward: no completion_probabilities from teacher"
-                )
+                raise BrainforgeError("teacher_kl reward: no completion_probabilities from teacher")
             top = top[0]["top_logprobs"]
             lp = next(
                 (e["logprob"] for e in top if e["id"] == student_id),

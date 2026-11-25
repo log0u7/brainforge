@@ -68,7 +68,7 @@ def _gate_ok_case() -> dict[str, Any]:
 
 def test_gate_ok_regresses_on_worse_metric() -> None:
     # round 1 accepted (no previous), round 2 accepted when not worse
-    metrics = get_pack('ctf').gate_metrics()
+    metrics = get_pack("ctf").gate_metrics()
     assert gate_ok({"flag_accuracy": 0.5}, {}, metrics) is True
     assert gate_ok({"flag_accuracy": 0.5}, {"flag_accuracy": 0.5}, metrics) is True
     assert gate_ok({"flag_accuracy": 0.7}, {"flag_accuracy": 0.5}, metrics) is True
@@ -79,8 +79,7 @@ def test_gate_ok_ignores_missing_metric_keys() -> None:
     # the holdout carries only flag_accuracy for CTF; a metric absent from
     # the previous round is not a regression
     assert (
-        gate_ok({"accuracy": 0.4}, {"flag_accuracy": 0.9}, get_pack('ctf').gate_metrics())
-        is True
+        gate_ok({"accuracy": 0.4}, {"flag_accuracy": 0.9}, get_pack("ctf").gate_metrics()) is True
     )
 
 

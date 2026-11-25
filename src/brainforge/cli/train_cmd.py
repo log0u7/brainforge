@@ -122,8 +122,14 @@ def train_student(
         # the domain pack resolves the reward hook and the sidecar
         # columns inside train_grpo; the other strategies have no pack
         from brainforge.training.grpo import train_grpo as train_grpo_fn
-        return train_grpo_fn(training, dataset_dir, output_dir, resume=resume,
-            domain=getattr(training, "domain", "") or None)
+
+        return train_grpo_fn(
+            training,
+            dataset_dir,
+            output_dir,
+            resume=resume,
+            domain=getattr(training, "domain", "") or None,
+        )
     return train_fn(training, dataset_dir, output_dir, resume=resume)
 
 
@@ -510,6 +516,7 @@ def task_eval(
         )
     console.print(f"[green]task evaluation done[/green] ({result['n_records']} records)")
     from brainforge.domains.registry import get_or_generic
+
     pack = get_or_generic(result["domains"][0])
     for key in (
         "accuracy",

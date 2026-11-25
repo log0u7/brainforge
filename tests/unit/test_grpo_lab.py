@@ -46,7 +46,7 @@ def test_prompt_column_keeps_the_lab_columns():
         "flag": "ROPE{a_placeholder_32byte_flag!}",
         "facts": 'nx("true").\n',
     }
-    rows = _prompt_column([record], get_pack('ctf').grpo_dataset_columns())
+    rows = _prompt_column([record], get_pack("ctf").grpo_dataset_columns())
     assert len(rows) == 1
     assert rows[0]["port"] == 9992
     assert rows[0]["flag"] == "ROPE{a_placeholder_32byte_flag!}"

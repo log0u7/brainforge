@@ -17,9 +17,7 @@ def _fake_env(monkeypatch) -> None:
     torch.version = types.SimpleNamespace(hip=None)
     torch.cuda = types.SimpleNamespace(is_available=lambda: False)
     torch.xpu = types.SimpleNamespace(is_available=lambda: False)
-    torch.backends = types.SimpleNamespace(
-        mps=types.SimpleNamespace(is_available=lambda: False)
-    )
+    torch.backends = types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda: False))
     torch.bfloat16 = "bfloat16"
     torch.float16 = "float16"
     torch.float32 = "float32"
@@ -83,10 +81,13 @@ def test_train_benchmark_module_exports_contract() -> None:
     assert hasattr(bench_mod, "run_three_arm_benchmark")
     assert hasattr(bench_mod, "render_markdown_table")
 
+
 def _fake_eval_result(fake_result):
     def fake_eval(*args, **kwargs):
         return dict(fake_result)
+
     return fake_eval
+
 
 def test_task_eval_display_metrics_come_from_the_pack(project_env, monkeypatch) -> None:
     """ADR-0022 D3 cleanup: the task-eval display shows the domain pack's

@@ -17,9 +17,7 @@ from brainforge.types import Mode, RoleKind
 def case():
     return Case(
         id="case-test",
-        source=CaseSource(
-            type="git", repository="repo", commit="abc", date="2026-07-01"
-        ),
+        source=CaseSource(type="git", repository="repo", commit="abc", date="2026-07-01"),
         input=CaseInput(
             code="import subprocess\nsubprocess.run(user_input, shell=True)",
             description="A CLI helper",
@@ -102,9 +100,7 @@ def test_security_prompts_contain_case_and_rag(case):
     teacher = pack.teacher_prompt("security_teacher", case, [Chunk()])
     assert "subprocess.run" in teacher
     assert "CWE-78 subprocess injection" in teacher
-    critic = pack.critic_prompt(
-        "general_teacher", case, [], {"security_teacher": {"summary": "s"}}
-    )
+    critic = pack.critic_prompt("general_teacher", case, [], {"security_teacher": {"summary": "s"}})
     assert "security_teacher" in critic
     judge = pack.judge_prompt(case, [], {"security_teacher": {"summary": "s"}})
     assert "canonical verdict" in judge
@@ -201,9 +197,7 @@ def test_coding_gate_rejects_teacher_without_behavior():
 
 def test_generic_gate():
     pack = get_or_generic("custom")
-    assert pack.quality_gate(
-        RoleKind.TEACHER, {"summary": "s", "confidence": 0.9}
-    ).passed
+    assert pack.quality_gate(RoleKind.TEACHER, {"summary": "s", "confidence": 0.9}).passed
     assert not pack.quality_gate(RoleKind.TEACHER, {"confidence": 0.9}).passed
 
 
