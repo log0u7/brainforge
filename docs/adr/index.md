@@ -49,3 +49,4 @@ one file per decision, in [MADR 3.0](https://adr.github.io/madr/) format.
 | [0019](0019-on-policy-self-training-opst.md) | On-policy self-training (OPST) adopted as an experimental training backend | accepted |
 | [0020](0020-gkd-consolidation-cycle.md) | On-policy distillation (GKD) and the periodic consolidation cycle | proposed |
 | [0021](0021-final-benchmark-contract.md) | Final benchmark contract: unseen challenges, oracle-verified runs, contamination audit | proposed |
+| [0022](0022-wake-sleep-framework-skeleton.md) | Wake/sleep loop as the framework skeleton: domain-agnostic methods menu, pack-level hooks (ADR-0022) | accepted |

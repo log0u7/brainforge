@@ -1,0 +1,6 @@
+fmtstr_read("true"). // suggested
+remote("true").
+verified("remote").
+leaked_address("system", 4235888).
+leaked_address("sh", 4878544).
+leaked_address("gadget", 4200069).

@@ -1,0 +1,3 @@
+{"run":"77c307dc-a6a3-4583-aa31-74ff416693a8","type":"harvest","target":"127.0.0.1:9983","addresses":{"system":"0x40a270","sh":"0x4a70d0","gadget":"0x401685"},"timestamp":"2026-11-16T17:15:13Z"}
+{"run":"f57bef5a-d8df-44ab-bbb3-84ec8dbcc701","type":"suggest","target":"target.facts","suggested":[["fmtstr_read",["true"]]],"added":[["fmtstr_read",["true"]]],"applicable_before":[],"applicable_after":[],"selected_before":null,"selected_after":null,"timestamp":"2026-11-16T17:15:13Z"}
+{"run":"446e866a-5724-46ef-9c93-0c79bdacb7cb","type":"plan","mode":"handoff (prints a recipe; executes nothing)","facts_file":"target.facts","profiled":null,"selected":null,"applicable":[],"explain":{"provenance":{}},"priors_adapted":false,"timestamp":"2026-11-16T17:15:14Z"}

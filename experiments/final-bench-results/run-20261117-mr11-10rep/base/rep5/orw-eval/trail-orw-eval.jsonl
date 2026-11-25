@@ -1,0 +1,8 @@
+{"run":"a19ab7e6-1a6b-49dc-a7d5-491077c55109","type":"acquire","target":"127.0.0.1:19999","source":"http://127.0.0.1:8000/orw-eval","binary":"./orw-eval","companions":[],"timestamp":"2026-11-17T18:50:25Z"}
+{"run":"5bf3b525-cc57-49fb-bd92-34320a5a1fe8","type":"harvest","target":"127.0.0.1:19999","addresses":{"buf":"0x7ffdb53aa810"},"timestamp":"2026-11-17T18:50:25Z"}
+{"run":"2159d7dd-6972-481d-af45-d3b1f1ff4707","type":"suggest","target":"target.facts","suggested":[["vuln",["fmtstr"]]],"added":[["vuln",["fmtstr"]]],"applicable_before":["orw"],"applicable_after":["orw"],"selected_before":"orw","selected_after":"orw","timestamp":"2026-11-17T18:50:28Z"}
+{"run":"19a6089e-8798-4b26-847e-656e0c6bd26c","type":"plan","mode":"handoff (prints a recipe; executes nothing)","facts_file":"target.facts","profiled":null,"selected":"orw","applicable":["orw"],"explain":{"provenance":{"orw":[{"rule":"app_orw_stack","evidence":[["seccomp","true"],["nx","false"]],"origin":"orw","evidence_sources":["measured"]}]}},"priors_adapted":false,"timestamp":"2026-11-17T18:50:29Z"}
+{"run":"5c540cdb-0791-45f0-a6a1-a085f1dd1a5f","type":"outcome","technique":"orw","success":false,"executed":true,"target":"127.0.0.1:19999","timestamp":"2026-11-17T18:50:32Z"}
+{"run":"5c540cdb-0791-45f0-a6a1-a085f1dd1a5f","type":"outcome","technique":"orw","success":false,"executed":true,"target":"127.0.0.1:19999","timestamp":"2026-11-17T18:50:33Z"}
+{"run":"5c540cdb-0791-45f0-a6a1-a085f1dd1a5f","type":"outcome","technique":"orw","success":false,"executed":true,"target":"127.0.0.1:19999","timestamp":"2026-11-17T18:50:34Z"}
+{"run":"5c540cdb-0791-45f0-a6a1-a085f1dd1a5f","type":"outcome","technique":"orw","success":false,"executed":true,"target":"127.0.0.1:19999","timestamp":"2026-11-17T18:50:36Z"}

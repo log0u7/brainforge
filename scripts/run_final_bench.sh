@@ -3,8 +3,8 @@
 #
 # Two arms:
 #   full   - model + augure + lictor (the production system)
-#   model  - model alone, no augure/lictor: the model must solve the
-#            challenge from source code alone
+#   model  - model alone, no augure/lictor: classification only - the model
+#            classifies the vulnerability, it does not solve from source
 #
 # WHY THIS SCRIPT EXISTS (lesson from run-20261104-mr6-10rep, 2026-11-04):
 #   the re-bench was launched by hand WITHOUT the committed protocol
@@ -48,7 +48,7 @@ cd "$(dirname "$0")/.."
 
 TAG="${1:?usage: run_final_bench.sh <tag> [repetitions] [--mode full|model]}"
 REPS="${2:-10}"
-ATTEMPT_CAP="${ATTEMPT_CAP:-600}"
+ATTEMPT_CAP="${ATTEMPT_CAP:-900}"
 shift 2 2>/dev/null || true
 MODE="full"
 while [[ $# -gt 0 ]]; do
@@ -78,6 +78,7 @@ TRAIN_IDS=(
 	"datasets/sft-mr8-facts/train.jsonl"
 	"datasets/sft-mr9-facts/train.jsonl"
 	"datasets/sft-mr10-facts/train.jsonl"
+	"datasets/sft-mr11-facts/train.jsonl"
 	"datasets/eval/grpo-translated.jsonl"
 )
 BASE_URL="${BASE_URL:-http://192.168.1.26:9932/v1}"

@@ -15,6 +15,7 @@ from typing import Any
 
 import pytest
 
+from brainforge.domains.registry import get_pack
 from brainforge.errors import BrainforgeError
 from brainforge.training.consolidation import consolidate, gate_ok
 
@@ -67,16 +68,19 @@ def _gate_ok_case() -> dict[str, Any]:
 
 def test_gate_ok_regresses_on_worse_metric() -> None:
     # round 1 accepted (no previous), round 2 accepted when not worse
-    assert gate_ok({"flag_accuracy": 0.5}, {}) is True
-    assert gate_ok({"flag_accuracy": 0.5}, {"flag_accuracy": 0.5}) is True
-    assert gate_ok({"flag_accuracy": 0.7}, {"flag_accuracy": 0.5}) is True
-    assert gate_ok({"flag_accuracy": 0.3}, {"flag_accuracy": 0.5}) is False
+    metrics = get_pack("ctf").gate_metrics()
+    assert gate_ok({"flag_accuracy": 0.5}, {}, metrics) is True
+    assert gate_ok({"flag_accuracy": 0.5}, {"flag_accuracy": 0.5}, metrics) is True
+    assert gate_ok({"flag_accuracy": 0.7}, {"flag_accuracy": 0.5}, metrics) is True
+    assert gate_ok({"flag_accuracy": 0.3}, {"flag_accuracy": 0.5}, metrics) is False
 
 
 def test_gate_ok_ignores_missing_metric_keys() -> None:
     # the holdout carries only flag_accuracy for CTF; a metric absent from
     # the previous round is not a regression
-    assert gate_ok({"accuracy": 0.4}, {"flag_accuracy": 0.9}) is True
+    assert (
+        gate_ok({"accuracy": 0.4}, {"flag_accuracy": 0.9}, get_pack("ctf").gate_metrics()) is True
+    )
 
 
 def test_consolidate_first_round_trains_and_journals(tmp_path: Path) -> None:
@@ -99,6 +103,7 @@ def test_consolidate_first_round_trains_and_journals(tmp_path: Path) -> None:
         gate_dataset=gate_dataset,
         train_fn=trainer,
         gate_fn=fake_gate,
+        domain="ctf",
     )
 
     assert result["accepted"] is True
@@ -146,6 +151,7 @@ def test_consolidate_replay_mixes_prior_rounds_stratified(tmp_path: Path) -> Non
         gate_dataset=gate_dataset,
         train_fn=trainer,
         gate_fn=fake_gate,
+        domain="ctf",
     )
 
     assert result["ingested"] == 2
@@ -190,6 +196,7 @@ def test_consolidate_replay_excludes_contaminated_and_holdout_ids(tmp_path: Path
         gate_dataset=gate_dataset,
         train_fn=trainer,
         gate_fn=fake_gate,
+        domain="ctf",
     )
 
     # the mix held 1 new + 1 replayed clean record; risky and holdout-id excluded
@@ -221,6 +228,7 @@ def test_consolidate_failed_gate_keeps_previous_checkpoint(tmp_path: Path) -> No
         gate_dataset=gate_dataset,
         train_fn=trainer,
         gate_fn=fake_gate,
+        domain="ctf",
     )
     assert first["accepted"] is True
     # accepted round promotes its checkpoint
@@ -237,6 +245,7 @@ def test_consolidate_failed_gate_keeps_previous_checkpoint(tmp_path: Path) -> No
         gate_dataset=gate_dataset,
         train_fn=trainer,
         gate_fn=fake_gate,
+        domain="ctf",
     )
     assert second["accepted"] is False
     # the current pointer still references round 1 - nothing overwritten

@@ -588,9 +588,83 @@ def test_build_walks_the_ranking_when_the_draw_is_unbuildable(tmp_path: Any):
     assert builds[0][builds[0].index("--technique") + 1] == "ret2libc"
     assert builds[1][builds[1].index("--technique") + 1] == "shellcode"
     run_args = next(a for a in calls if a[0] == "run")
-    assert "--payload" in run_args
+    # the payload rides ONLY with the pin: the built technique here is
+    # rank 2 (ret2libc, rank 1, failed to build), so the run goes out
+    # UNPINNED and payload-less - the on-disk payload was built for the
+    # rank-2 technique and would corrupt a banner-derived rank-1
+    # exploit (measured mr17: callme-eval 0/3 with a mismatched
+    # payload.bin, 9/10 unpinned and payload-less in the 10-rep run)
+    assert "--payload" not in run_args
     verdict = records[0]["messages"][-1]["content"]
     assert "ranked_walk" in verdict
+
+
+def test_the_build_walk_survives_the_plan_stdout_tail(tmp_path: Any, monkeypatch: Any):
+    """The plan prints ~10KB of log before the augure ranking (measured on
+    the mr15 brop-001 trail: ranking near char ~200 of a 9.8KB stdout).
+    The walk must see the FULL plan stdout: the old stdout[-400:] tail
+    erased the ranking, the walk saw ranked=[] and ran unpinned (4
+    identical single-technique attempts)."""
+    import sys
+    import types
+
+    import brainforge.experiments.pilot as pilot
+    from brainforge.providers.base import ChatResponse
+
+    class FakeProvider:
+        def complete(self, request, model):
+            return ChatResponse(content='vuln("sof").', provider="fake", model=model)
+
+    plan_stdout = (
+        "plan: loading packs\n" + "x" * 150 + "\n"
+        "ranking:    ret2libc > shellcode > ret2func\n"
+        "selected:   ret2libc\n" + "y" * 9000
+    )
+    build_techniques: list[str | None] = []
+    run_pins: list[str | None] = []
+
+    def fake_run(argv, cwd, capture_output, text, timeout, check):
+        command = argv[1]
+        if command == "plan":
+            return types.SimpleNamespace(returncode=0, stdout=plan_stdout, stderr="")
+        if command == "build":
+            build_techniques.append(
+                argv[argv.index("--technique") + 1] if "--technique" in argv else None
+            )
+            if "--technique" in argv and argv[argv.index("--technique") + 1] == "ret2libc":
+                return types.SimpleNamespace(
+                    returncode=1, stdout="", stderr="lictor: no pop_rdi_ret gadget"
+                )
+            (cwd / "payload.bin").write_bytes(b"\xeb\x16")
+            return types.SimpleNamespace(returncode=0, stdout="status:  done\n", stderr="")
+        if command == "run":
+            run_pins.append(argv[argv.index("--technique") + 1] if "--technique" in argv else None)
+            return types.SimpleNamespace(
+                returncode=0,
+                stdout="status:  success\nflag:    FLAG{walk_saw_the_full_ranking}\n",
+                stderr="",
+            )
+        return types.SimpleNamespace(returncode=0, stdout="status:  done\n", stderr="")
+
+    monkeypatch.setitem(sys.modules, "subprocess", types.SimpleNamespace(run=fake_run))
+    records = pilot.run_pilot(
+        targets=[("ctf-lictor-brop-001", "127.0.0.1:9995", "brop", "material")],
+        workdir=tmp_path,
+        provider=FakeProvider(),
+        model="m",
+        output=tmp_path / "t.jsonl",
+    )
+    assert build_techniques == ["ret2libc", "shellcode"]
+    # the pin rule: the run takes --technique only when the BUILT
+    # technique is the ranking head. ret2libc (rank 1) failed to build,
+    # so the run goes out UNPINNED: pinning the rank-2 build would
+    # demote a rank-1 technique that is runnable without a payload
+    # (measured mr16: callme-eval and setcontext_srop regressed 0/3 -
+    # their exploits read the banner, the build walk pinned the rank-2
+    # buildable and the run never tried the rank-1 technique).
+    assert run_pins == [None]
+    verdict = json.loads(records[0]["messages"][-1]["content"])
+    assert verdict["flag"] == "FLAG{walk_saw_the_full_ranking}"
 
 
 fake_lictor_calls: list[list[str]] = []
@@ -705,7 +779,7 @@ def test_ask_facts_disables_thinking_generation():
     assert facts == ['vuln("fmtstr").']
     request = provider.requests[0]
     assert request.extra_body == {"chat_template_kwargs": {"enable_thinking": False}}
-    assert request.max_tokens == 512
+    assert request.max_tokens == 2048
 
 
 def test_trajectory_metadata_records_the_llm_fact_count():

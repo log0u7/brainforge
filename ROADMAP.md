@@ -40,6 +40,17 @@ Phases are cumulative. The MVP (phase 1) is implemented in this repository.
 
 ## Phase 3 - Measure, ablate, extend
 
+- [x] Framework decoupling per [ADR-0022](docs/adr/0022-wake-sleep-framework-skeleton.md):
+      break the CTF couplings inside generic modules (`task_eval`, `grpo`,
+      `rewards`, `consolidation`, `benchmark`, `pipeline/engine`,
+      `flag_ground_truth`, `dataset_cmd`) into pack-level hooks
+      (`eval_score`, `arbitrate`, `rewards`, `gate_metrics`); relocate the
+      CTF-only experiments (`pilot`, `model_only_pilot`, `bench_lab`,
+      `final_bench`, `ctf_ingest`) to the CTF pack surface. The loop
+      definition becomes domain-free; new domains plug in as one pack.
+      Done 2026-11-17/18 night: commits `e03b0d7`, `75ff7f4`, `3e2f17c`,
+      `abc3f3f`, `4919329` (CHANGELOG `b044079`); 935 unit tests pass,
+      ruff clean.
 - [ ] Multi-teacher experiments (A: security+judge, B: +coding, C: +general)
       comparing accuracy, FP/FN, confidence, cost, latency
 - [ ] Teacher ablation reporting in the experiments manager
@@ -64,7 +75,14 @@ Phases are cumulative. The MVP (phase 1) is implemented in this repository.
       with the three-arm benchmark (no KD vs top-k sidecar vs GKD) as the
       sidecar path's promotion/deprecation gate
 - [ ] GRPO experiment on the CTF pack with a verifier reward (found flag as
-      binary reward); candidate environment: the lictor lab targets
+      binary reward); candidate environment: the lictor lab targets. Via the
+      pack-level reward hook (ADR-0022): `GRPOTrainer` callable reward
+      functions, `loss_type="dapo"` (`epsilon_high=0.28`),
+      `scale_rewards=False` (Dr. GRPO), `beta=0.0`.
+- [ ] OPD (on-policy distillation v2): reverse-KL per-token dense reward
+      over the GRPO trainer (Thinking Machines 2025 / OPD2 recipe, arXiv
+      2607.15161); recette SFT puis OPD (`lr=1e-4`, groups_per_batch=512,
+      lora_rank=128). Follows the GRPO experiment.
 - [ ] OpenEnv environment wrapping the CTF sandbox (Docker target plus
       verifier reward), depends on the GRPO experiment
 - [ ] Multi-harness RL through a capture proxy; requires vLLM/SGLang token
@@ -83,17 +101,54 @@ framework assumes must land as optional supports, not core assumptions.
       low-rank adapter batch (frozen adapter pool) instead of overwriting the
       previous round; requires the consolidation cycle (phase 3) and an
       adapter merge/selection policy, on the 10GB VRAM budget
+- [ ] Deletion Tuning pass ([arXiv:2611.10866](https://arxiv.org/abs/2611.10866),
+      NeurIPS 2026): learn a binary mask over the gate projection, zeroing
+      <0.05% of the weights matches FFT across RLVR/SFT/on-policy
+      distillation, the mask is 100-1000x smaller than the FFT checkpoint,
+      and forgetting drops sharply (prior-task accuracy near base) - the
+      natural candidate for the frozen adapter pool below and the natural
+      OPD v2 ablation (OPD + LoRA vs OPD + Deletion)
 - [ ] Adapter pruning/merging at consolidation time (the synthetic-synaptic
       pruning analogue): rank trimming and adapter merging driven by the
       per-round holdout gate
 - [ ] Hope/linear-attention backbone support: follow the Transformers
       implementations of the Titans/MIRAS lineage; no custom transformer code
       in BrainForge, so this is a watcher item until upstream lands
+- [ ] Abliteration as a first-class sleep-phase pass: port the
+      single-direction refusal method (Arditi et al., arXiv 2406.11717) to
+      plain transformers hooks (no TransformerLens dependency), promote the
+      experimental command per [ADR-0014](docs/adr/0014-abliteration-single-direction.md),
+      with a before/after safety eval gate.
+- [ ] Weight editing watcher: ROME/MEMIT (arXiv 2202.05262, 2210.07229) as an
+      optional sleep-phase pass on a pyvene-style intervention base; scoped
+      after the abliteration pass proves the hook pattern.
+- [ ] MoE-to-dense distillation watcher: expert-scoring -> grouping -> dense
+      FFN conversion + KD (arXiv 2605.28207 recipe) as an export option for
+      MoE teachers; depends on the MoE student support above.
 - [ ] Final end-to-end benchmark: untrained base vs consolidated student on
       unseen lictor lab challenges, real success rates over repetitions
       (pass@1/pass@k with variance), executed-loop oracle only, published
       with a contamination audit (n-gram overlap, holdout-id exclusion,
       provenance tags); single-seed honesty per the multi-harness RL guide
+
+## Publishable results (work in progress)
+
+- Before/after: baseline 2/21 hard families (run-20261116-mr7, pre-fix)
+  -> 7/21 after the 2026-11-17/18 fix night (pilot mr15, 21 families x 3
+  reps, seed-base 7; trail on `~/pilot-mr15`).
+- Free-vs-paid control: the free local 4B teacher and the paid cloud 27B
+  teacher covered the same 2/21 pre-fix families, teacher capacity is
+  lab-bound (chain-limited, not model-limited).
+- Facts-first regression control: `attempts_without_llm_facts` 267/440
+  (mr10) -> 0/440 (mr11).
+- Student-vs-base control: 24/280 identical answers, exact overlap.
+- Seeds contract: results reported per seed with variance over repetitions
+  (mr15 pilot = 3 reps; target contract below).
+- Publication checklist (remaining):
+  - [ ] 10 reps x 21 families for variance
+  - [ ] contamination audit (n-gram overlap + holdout-id exclusion)
+  - [ ] before/after capability curve across cycles
+  - [ ] GRPO / OPDv2 numbers to come
 
 ## Non-goals (standing)
 
@@ -101,3 +156,50 @@ framework assumes must land as optional supports, not core assumptions.
   volume.
 - Cloud-only workflows: everything must run on one workstation with an
   optional local gateway.
+
+## Domain loop status (ctf pack, 2026-11-17)
+
+Findings from the mr11 end-to-end cycle (commits `b887583` + teacher verdicts
+in `experiments/teacher-pilot/`):
+
+- The harness was the bottleneck, not the models: base 1.7B, trained mr7,
+  local 4B teacher, paid cloud 27B teacher all scored ~0 on the hard
+  families before the harness fix; after it, base and student score
+  identically (24/280 clean, overlap exact).
+- The facts-first dataset filter fixed the SFT regression
+  (`attempts_without_llm_facts`: 267/440 for mr10, 0/440 for mr11) but
+  produced no capability gain: same facts emitted, same augure decision,
+  same harvest.
+- Teacher capability is lab-bound: the free local 4B and the paid cloud 27B
+  cover exactly the same 2/21 hard families (fmtstr-eval, setcontext_srop);
+  cloud mining is unjustified at this state.
+- Next lever is the lictor/augure chain on the 19 uncovered families
+  (facts -> technique selection -> exploit execution -> flag), not the
+  models. Trace the chain per family from the existing pilot trails, fix
+  the most common death stage, re-pilot.
+
+2026-11-18 (fix night): the chain fixes landed. ADR-0022 decoupling
+complete (commits `e03b0d7`, `75ff7f4`, `3e2f17c`, `abc3f3f`, `4919329`,
+CHANGELOG `b044079`): all CTF logic moved out of the generic modules into
+pack hooks (arbitrate, eval_score, eval_shape, eval_secondary_metrics,
+grpo sidecar/columns, gate_metrics, benchmark columns, pack-driven CLI
+metric); 935 unit tests pass, ruff clean. Lictor/augure fixes (`953a953`,
+`ff90fcf`, `f688611` in lictor; `2da2c7a`, `5e9ae03`, `773e0f0` in augure):
+payload_file retry, exact-token discover, tolerant banner protocol, three
+eval2 exploits written (ret2plt-eval2, callme-eval2, srop-eval2), uaf_tcache
+rename, recalibrated priors, got_overwrite_target fixed. Live validation:
+8 flags. Pilot mr15 (free local 4B teacher, 21 families x 3 reps,
+seed-base 7): 7/21 families covered vs baseline 2/21 (run-20261116-mr7);
+details: callme-eval 3/3, fmtstr-eval 3/3, ret2plt-eval 3/3,
+setcontext_srop 3/3, jop 2/3, ret2func-eval2 2/3, ret2partial_overwrite
+1/3; trail on `~/pilot-mr15`.
+
+- 14 families remain, two classes:
+  - calibration (fixable via lictor/augure trails): brop, one_gadget,
+    orw-eval, orw-eval2, srop-eval, srop-eval2, uaf_heap,
+    got_partial_overwrite, callme-eval2, ret2plt-eval2, ret2libc-eval,
+    ret2vdso
+  - structural (code changes, not calibration): ret2func (strcpy truncates
+    at the first NUL), fmtstr-eval2 and ret2libc-eval2 (PIE without leak)
+- Next lever: fix the calibration families (mr15 trails on disk), then
+  GRPO on the pack reward hook.

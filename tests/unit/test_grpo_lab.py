@@ -1,6 +1,8 @@
 """The GRPO lab-loop reward: the counterfactual pipeline behind the
 lictor reward server (1.0 the suggestion was the difference, 0.5
-redundant, 0.0 nothing landed, -0.25 the schema refused)."""
+redundant, 0.0 nothing landed, -0.25 the schema refused). The lab-loop
+reward and its dataset columns live in the CTF pack (ADR-0022); this
+test proves the generic trainer consumes the pack's declared contract."""
 
 from __future__ import annotations
 
@@ -8,6 +10,7 @@ import json
 
 import pytest
 
+from brainforge.domains.registry import get_pack
 from brainforge.training.grpo import _prompt_column
 from brainforge.training.rewards import get_reward
 
@@ -43,7 +46,7 @@ def test_prompt_column_keeps_the_lab_columns():
         "flag": "ROPE{a_placeholder_32byte_flag!}",
         "facts": 'nx("true").\n',
     }
-    rows = _prompt_column([record])
+    rows = _prompt_column([record], get_pack("ctf").grpo_dataset_columns())
     assert len(rows) == 1
     assert rows[0]["port"] == 9992
     assert rows[0]["flag"] == "ROPE{a_placeholder_32byte_flag!}"
@@ -82,7 +85,10 @@ def test_lab_loop_batch_maps_each_completion(monkeypatch):
         facts=["f1.", "f2."],
     )
     assert rewards == [0.5, 0.5]
-    assert [p["completion"] for p in fake.payloads] == ['vuln("sof").', "nothing useful"]
+    assert [p["completion"] for p in fake.payloads] == [
+        'vuln("sof").',
+        "nothing useful",
+    ]
 
 
 def test_lab_loop_missing_columns_are_zero_without_a_call(monkeypatch):

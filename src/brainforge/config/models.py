@@ -104,7 +104,24 @@ class TrainingConfig(BaseModel):
     quantization: Literal["auto", "4bit", "8bit", "none"] = "auto"
     strategy: Literal["qlora", "full", "grpo", "gkd"] = "qlora"
     grpo_reward: str = ""
+    # the domain pack that resolves the GRPO reward hook and the sidecar
+    # columns (e.g. "ctf" -> ctf_flag reward + grpo_flags.jsonl sidecar);
+    # empty = generic reward path (explicit grpo_reward only)
+    domain: str = ""
+    # SOTA recipe (DAPO clip-higher, Dr. GRPO, no KL penalty)
+    grpo_loss_type: Literal["grpo", "bnpo", "dr_grpo", "dapo"] = "dapo"
+    grpo_epsilon_high: float = Field(default=0.28, gt=0.2)
+    grpo_scale_rewards: bool = False
+    grpo_beta: float = Field(default=0.0, ge=0, le=1)
     gkd_teacher: str = ""
+    # OPD dense reward (teacher_kl): the llama.cpp teacher server that
+    # scores the student's completions (teacher NLL = the dense reward)
+    opd_teacher_url: str = ""
+    # cap the scored tokens per completion for the OPD chain (0 = all)
+    opd_max_scored_tokens: int = Field(default=0, ge=0)
+    # GRPO generation cap, decoupled from max_length (which drives the
+    # prompt side); 0 = legacy min(512, max_length)
+    grpo_max_completion_length: int = Field(default=0, ge=0)
     gkd_lmbda: float = Field(default=1.0, ge=0, le=1)
     gkd_beta: float = Field(default=1.0, ge=0, le=1)
     gkd_seq_kd: bool = False

@@ -7,7 +7,140 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Eval expansion committed: results-2026-11-20.md (teacher-pilot data article for the 16-record held-out set) and the V5 grpo-expanded eval set (13 records, ctf-lictor ids).
+
+- Eval V6 (16-record held-out expansion dataset, zero train overlap, 3 arms): base 3/16 vuln, 3/16 flag exact; teacher_kl 8/16 vuln, 2/16 flag exact; composition 12/16 vuln, 3/16 flag exact. Composition transfers vuln-class emission to held-out lab targets best; flag_exact uninformative (flag strings not derivable one-shot).
+- Eval V6 re-run committed as source of record (results-2026-11-25.md): reproduces the 2026-11-20 3-arm numbers exactly (base 3/16 vuln, teacher_kl 8/16, composition 12/16; flag_exact 3/2/3).
+
+- 3-arm eval V4b (7 in-sample records, 8B): base 3/7 vuln, 1/7 flag exact; teacher_kl adapter 5/7 vuln, 0/7 flag exact; composition adapter 5/7 vuln, 3/7 flag emitted, 1/7 flag exact. Composition raises flag emission (rewarded behavior) without losing vuln coverage; n=7 in-sample, relative signal only.
+- Eval expansion V5 (13 new held-out lab targets, 0 train overlap): all three arms emit fact lines 13/13 (format learned), but canonical vuln classes do not transfer: base 1/10, teacher_kl 0/10, composition 0/10 correct classes; models emit semantic labels (heap_overflow, buffer_overflow, use_after_free) instead of canonical sof/fmtstr/uaf. Zero flags emitted. Distillation installs the format, not the source-knowledge vocabulary. Teacher relaunch preserved.- Added train/eval ID overlap guard (assert_no_id_overlap) in train prepare: fails loud when eval records leak into train (5/7 eval records were in-sample).
+
 ### Added
+
+- Weighted GRPO reward composition including teacher_kl:
+  compose_reward now consults a resolver for names the registry does
+  not hold (teacher_kl needs the teacher URL and the student tokenizer).
+  teacher_kl,ctf_flag*2 composes the OPD dense reward with flag
+  success; config-grpo-8b-composition.json added.
+
+- First full Qwen3-8B QLoRA GRPO run on the 10 GB card (105/105 steps,
+  48 min): teacher_kl dense reward, compacted mr22 dataset, grpo_beta 0.01.
+  lm_head fp32 upcast + bf16 load + gradient checkpointing fit together.
+  Adapter saved at experiments/run-8b/run-20261119-162139-420294.
+
+- GRPO 8B fit on a 10 GB card: gradient_checkpointing=True in
+  GRPOConfig. prepare_model_for_kbit_training upcasts the lm_head to
+  fp32 (~2.5 GB on an 8B); full activations next to it OOM, checkpointing
+  trades ~25% speed for the fit.
+
+- ``teacher_kl`` scoring: one retry when the llama.cpp teacher serves a
+  well-formed response without ``completion_probabilities`` (transient,
+  observed once in ~800 calls); fails loud with the raw response after.
+
+- Tool-observation compaction at CTF ingest (``compact_tool_observations``):
+  long ``tool`` messages are excerpted head + ``[... N chars truncated ...]``
+  marker + tail, bounded at 240 chars (raw tool dumps were 59% of the mr22
+  corpus chars). ``ctf ingest-trajectories`` compacts by default, opt out
+  with ``--no-compact``. Compacted copy of mr22 generated at
+  ``datasets/grpo-mr22-compact`` (16% smaller).
+
+- GRPO smoke on OPD (``teacher_kl``) GREEN: Qwen3-1.7B student against the
+  llama.cpp Qwen3-4B teacher (port 9934), 51/51 steps in 12 min on one RTX
+  3080 shared by both models. Reward mean 2.9 -> 3.6 over 3 epochs, stable
+  entropy, no hangs.
+
+- OPD dense reward (``feat(opd)``): the ``teacher_kl`` GRPO reward scores
+  the student's completions against a llama.cpp teacher server
+  (``training.opd_teacher_url``) and returns the teacher's negative
+  log-likelihood per token (echo + logprobs, prompt boundary via
+  ``/tokenize``). Dense per-token signal, unlike the binary ``ctf_flag``
+  reward; the Thinking Machines on-policy distillation formulation.
+
+- Docs: two SOTA references integrated into the night's narrative.
+  Deletion Tuning (arXiv:2611.10866, NeurIPS 2026): a binary mask over
+  the gate projection zeroing <0.05% of the weights matches FFT across
+  RLVR/SFT/on-policy distillation - ROADMAP phase 4 candidate for the
+  frozen adapter pool, OPD + Deletion ablation slot. Self-Improvement
+  Memory (arXiv:2611.18856, Google DeepMind): harness-optimizer
+  continuation with a memory of past edits beats harness-only
+  continuation (+2.36 points, p=0.003) - our diag -> fix -> re-pilot
+  rounds are a SIM run informally, cited in benchmark.md as the
+  continuation protocol.
+
+- GRPO SOTA recipe defaults (``feat(grpo)``): DAPO clip-higher
+  (``grpo_loss_type: dapo``, ``grpo_epsilon_high: 0.28``), Dr. GRPO
+  unbiased baseline (``grpo_scale_rewards: false`` -> TRL
+  ``scale_rewards=none``) and no KL penalty (``grpo_beta: 0.0``).
+  All four exposed on ``training`` config and wired into
+  ``GRPOConfig`` (TRL 1.12).
+
+- Teacher pilot: the fixed chain covers 7/21 hard families (baseline
+  pre-fix: 2/21, run-20261116-mr7). The post-fix run (teacher 4B local,
+  21 families x 3 reps, capability-lab-bound so the free local teacher
+  is the measurement) shows callme-eval 3/3, fmtstr-eval 3/3, jop 2/3,
+  ret2func-eval2 2/3, ret2partial_overwrite 1/3, ret2plt-eval 3/3,
+  setcontext_srop 3/3. The gains come from the augure/lictor fixes
+  below; the 14 remaining families split into structural classes
+  (ret2func: strcpy truncates at the first NUL; the PIE eval2 twins:
+  no leak source without a prior exploit step) and calibration gaps
+  (brop, one_gadget, orw, srop-eval, uaf_heap) for the next cycle.
+
+- Teacher pilot: the calibration cycle closes. mr20/mr21 (teacher 4B
+  local, 21 families x 3 reps) cover 12/21 hard families, confirmed on
+  10 reps (``~/pilot-mr20-10rep``). The orw-eval fix cascade needed
+  three stacked fixes, each live-validated: the target regains its
+  ``vuln_copy`` entry point (the e97737b rewrite left it unsolvable),
+  the harvest reads the ``buf()`` leak the eval twin announces, and
+  the pack's named ``orw`` stub upgrades to ``orw_openat`` (openat
+  257, AT_FDCWD) under the harvested ``seccomp_openat`` fact - the
+  filter kills open(2), the generic orw stub never reads the flag.
+
+- Augure: eval-twin priors recalibrated and a new ``got_overwrite_target``
+  fact emitted by the profiler. The eval twins previously inherited the
+  demo family's prior distribution, so the plan ranked the wrong
+  technique first (jop -> ret2func, one_gadget -> brop, got_partial ->
+  fmtstr_leak). Parity 8/8 on the calibration set.
+
+- Lictor: banner protocol made tolerant across the lab exploit labs and
+  three missing eval2 exploits written (ret2plt-eval2, callme-eval2,
+  srop-eval2) plus the uaf_tcache rename. Live validation: 8 flags
+  including the three new eval2 exploits. Two families stay
+  structural (ret2func strcpy NUL truncation; fmtstr-eval2 and
+  ret2libc-eval2 need a PIE leak that no single-shot exploit provides).
+
+- Lictor: the payload_file plumbing no longer poisons the six exploit
+  templates that never declare it, and ``discover`` matches tokens
+  exactly. Retry and exact-token fixes landed together (953a953).
+
+- Bench: the repetition loop parallelizes. The harness used to run the
+  reps sequentially (one rep at a time over the challenge list), which
+  pinned the whole bench to one core: the pilot is a subprocess
+  (CPU-bound Ruby) plus an LLM HTTP call, so the reps parallelize
+  safely. The pool now runs the (rep, challenge) pairs - a 10-rep run
+  that took ~3 h sequential drops to ~30-40 min with the default pool
+  width. The seed contract survives: same rep index -> same seed
+  across models (the paired comparison), consecutive reps ->
+  consecutive seeds (independent draws). Two consequences, both
+  measured: (1) a workdir per rep - the pilot writes
+  run.json/trail/facts under ``workdir/<binary>``, so two concurrent
+  reps of the same challenge would overwrite each other's evidence
+  (the shared-workdir contamination measured in pilot.py); multi-rep
+  runs nest ``workdir/<model>/rep<N>/<binary>/``, single-rep runs keep
+  the flat layout. (2) the pilot call order interleaves - the per-rep
+  seed pairing is the contract, not the call sequence.
+
+- Bench: the pool width is user-configurable. ``BENCH_WORKERS``
+  tunes the width explicitly; unset, it auto-sizes to the machine
+  (``os.cpu_count()``), capped at the rep count (a wider pool buys
+  nothing past the last rep). The bench is harness-level
+  parallelism only: augure and lictor are invoked per attempt as
+  subprocesses and are unchanged - no worker tuning reaches them.
+
+- Bench: the attempt cap default rises from 600 s to 900 s
+  (``ATTEMPT_CAP`` in ``run_final_bench.sh``, still overridable per
+  run). The 600 s cap was measured to be too short for some exploit
+  chains; with the reps parallelized the wall-clock cost of a longer
+  cap is absorbed by the pool instead of stacking.
 
 - Bench: the canonical bench runs are now committed
   (``experiments/final-bench-results/``, 12 runs, 2026-11-03 to 2026-11-08,
@@ -38,6 +171,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mapping regression tests included.
 
 ### Fixed
+
+- Augure: the `ret2libc_eval` pack ships - the PIE eval twin's rule
+  keys on the harvested ``leaked_address("rdi"/"main")`` facts (the
+  banner anchors the eval twin announces, unique to it), the family
+  specialist prior outranks the generic ret2libc draw; ``7760dfa``.
+
+- Run: the static read survives a nil offset and unmetasm errors
+  (2026-11-18, mr21 diag: fmtstr-eval, fmtstr-eval2,
+  got_partial_overwrite and uaf_heap died before run.json, 12 runs
+  lost). Two stacked bugs: ``StaticOffset.offset`` can return nil and
+  the enrichment dereferenced it unchecked, and the rescue listed
+  ``Metasm::DecodeError`` - a class that never existed, so the rescue
+  itself raised NameError on the first metasm error. The nil is
+  guarded (no measure event), the rescue resolves. One fix unblocks
+  12 runs: pilot mr22 measures 15/21 hard families (mr21: 13/21,
+  mr20: 12/21, baseline 2/21), confirmed on 10 reps
+  (``~/pilot-mr22-10rep``); ``03bd42b``.
+
+- Pilot: the run pin and the payload now match the build walk
+  (2026-11-18, mr16-mr20 diag cascade). Four fixes, one chain:
+  (1) the plan stdout is parsed in full before any truncation, so the
+  augure ranking reaches the build walk (``text[-400:]`` erased it,
+  the walk ran unpinned, ``8e635c3``); (2) the pin requires the built
+  technique to be the ranking head, a build failure must not demote a
+  rank-1 technique that is runnable without a payload (``2964f39``);
+  (3) the payload travels only with the pin, an unpinned run must not
+  carry the internal draw's ``payload.bin`` which corrupts
+  banner-derived exploits (``11ce442``); (4) the run gets
+  ``--bin/--repo-dir`` so the scaffold drafts an unexploitable rank
+  and the pin accepts the walk head (drawn or ``ranking[0]``,
+  ``d07bb87``). Verdict: mr20 12/21 hard families (baseline 2/21,
+  run-20261116-mr7), confirmed on 10 reps (12/21, ``~/pilot-mr20-10rep``).
 
 - Bench ground truth: ``_load_ground_truth`` now parses plain-Prolog
   completions (``vuln("sof").``, the MR9/MR10 facts format) in addition to
@@ -166,6 +331,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bench: `run_bench_lab` caps each pilot attempt with a per-attempt
   watchdog; a blocked attempt becomes an explicit `TIMEOUT` miss and the
   bench continues instead of freezing.
+### Changed
+
+- Framework decoupling (ADR-0022, the wake/sleep skeleton): the CTF
+  domain no longer lives inside the generic modules. The pipeline
+  engine arbitrates through ``DomainPack.arbitrate``; task evaluation
+  scores through ``DomainPack.eval_score``/``eval_shape``/
+  ``eval_secondary_metrics``; the GRPO sidecar, dataset columns and
+  reward registry live in the CTF pack (``grpo_sidecar``,
+  ``grpo_dataset_columns``, ``ingest_trajectories``, ``merge_sidecar``);
+  gate metrics and benchmark columns come from the pack
+  (``gate_metrics``). ``flag_ground_truth`` moved to
+  ``domains/ctf/flag_ground_truth.py`` and the ``enrich-flags``/
+  ``ingest-trajectories`` commands moved to ``ctf enrich-flags``/
+  ``ctf ingest-trajectories`` (``dataset`` aliases deprecated). The
+  engine, grpo, rewards, consolidation, benchmark and task_eval
+  modules carry no CTF logic anymore (grep-clean outside
+  ``domains/ctf/``); a non-CTF pack can run the full loop (tests
+  ``test_generic_pack_declares_no_training_contract``,
+  ``test_engine_generic_pack_rejects_unarbitratable``).
+
+### Docs
+
+- ADR-0022: wake/sleep loop as the framework skeleton, domain packs
+  carry the eval/reward/gate hooks. Roadmap updated with the mr11
+  loop verdicts (harness was the bottleneck, teacher capability is
+  lab-bound) and the SOTA items (OPD as dense-reward GRPO,
+  abliteration pass, MoE support, weight editing as watcher).
 ### Changed
 
 - Bench progress observability: `run_bench_lab` prints one flushed

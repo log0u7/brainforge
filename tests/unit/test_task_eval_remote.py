@@ -86,7 +86,6 @@ def test_remote_generator_uses_flat_user_message(monkeypatch: Any):
 
 def test_evaluate_on_records_with_remote_generator(tmp_path: Any, monkeypatch: Any):
     """run_task_eval through a remote generator writes no local task_eval.json."""
-    from pathlib import Path
 
     import brainforge.training.task_eval as te
 
@@ -108,13 +107,13 @@ def test_evaluate_on_records_with_remote_generator(tmp_path: Any, monkeypatch: A
     provider = _FakeProvider({"case prompt": json.dumps({"verdict": "solved", "flag": "FLAG{a}"})})
     _install(monkeypatch, provider)
     result = te.evaluate_model_on_records(
-        Path("models/export"),
+        tmp_path / "export",
         dataset,
         generator=te.build_remote_generator("http://localhost:9933/v1", "mymodel"),
     )
     assert result["n_records"] == 1
     assert result["accuracy"] == 1.0
-    assert not (Path("models/export") / "task_eval.json").exists()
+    assert not (tmp_path / "export" / "task_eval.json").exists()
 
 
 def test_cli_endpoint_requires_model_name(tmp_path: Any, monkeypatch: Any):
@@ -185,7 +184,7 @@ def test_cli_default_thinking_is_false_matching_training(tmp_path: Any, monkeypa
         model_path, dataset, quantization, max_new_tokens, batch_size=None, enable_thinking=None
     ):
         captured["enable_thinking"] = enable_thinking
-        return {"n_records": 1, "accuracy": 1.0}
+        return {"n_records": 1, "accuracy": 1.0, "domains": ["security"]}
 
     monkeypatch.setattr(te_module, "evaluate_model_on_records", fake_eval)
     monkeypatch.setattr(tc, "latest_run_dir", lambda: _Path(tmp_path))

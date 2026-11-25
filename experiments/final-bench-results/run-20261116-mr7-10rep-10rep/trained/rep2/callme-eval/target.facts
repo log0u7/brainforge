@@ -1,0 +1,104 @@
+nx("true").
+pie("false").
+canary("false").
+relro("partial").
+plt("__libc_start_main").
+plt("puts").
+plt("snprintf").
+plt("fputs").
+plt("read").
+plt("fgets").
+plt("memcpy").
+plt("fflush").
+plt("setvbuf").
+plt("fopen").
+plt("exit").
+plt("fwrite").
+gadget("ret_align", 4198422).
+gadget("ret_align", 4198672).
+gadget("ret_align", 4198720).
+gadget("ret_align", 4198784).
+gadget("ret_align", 4198824).
+gadget("ret_align", 4198830).
+gadget("ret_align", 4198832).
+gadget("pop_rdi_rsi_rdx_ret", 4198854).
+gadget("pop_rdx_ret", 4198856).
+gadget("ret_align", 4198857).
+gadget("ret_align", 4198902).
+gadget("ret_align", 4198968).
+gadget("ret_align", 4198977).
+gadget("ret_align", 4198986).
+gadget("ret_align", 4199018).
+gadget("ret_align", 4199050).
+gadget("ret_align", 4199059).
+gadget("ret_align", 4199068).
+gadget("ret_align", 4199102).
+gadget("ret_align", 4199152).
+gadget("ret_align", 4199165).
+gadget("ret_align", 4199178).
+gadget("ret_align", 4199368).
+gadget("ret_align", 4199658).
+gadget("ret_align", 4199668).
+vuln("sof").
+vuln_function("vuln_copy").
+sink("memcpy").
+plt_addr("puts", 4198448).
+plt_addr("snprintf", 4198464).
+plt_addr("fputs", 4198480).
+plt_addr("read", 4198496).
+plt_addr("fgets", 4198512).
+plt_addr("memcpy", 4198528).
+plt_addr("fflush", 4198544).
+plt_addr("setvbuf", 4198560).
+plt_addr("fopen", 4198576).
+plt_addr("exit", 4198592).
+plt_addr("fwrite", 4198608).
+got_addr("puts", 4210688).
+got_addr("snprintf", 4210696).
+got_addr("fputs", 4210704).
+got_addr("read", 4210712).
+got_addr("fgets", 4210720).
+got_addr("memcpy", 4210728).
+got_addr("fflush", 4210736).
+got_addr("setvbuf", 4210744).
+got_addr("fopen", 4210752).
+got_addr("exit", 4210760).
+got_addr("fwrite", 4210768).
+sym_addr("stdout", 4210792).
+sym_addr("__abi_tag", 4195196).
+sym_addr("deregister_tm_clones", 4198688).
+sym_addr("register_tm_clones", 4198736).
+sym_addr("__do_global_dtors_aux", 4198800).
+sym_addr("__do_global_dtors_aux_fini_array_entry", 4210176).
+sym_addr("frame_dummy", 4198848).
+sym_addr("__frame_dummy_init_array_entry", 4210168).
+sym_addr("armed", 4210804).
+sym_addr("fired", 4210808).
+sym_addr("__FRAME_END__", 4203100).
+sym_addr("_DYNAMIC", 4210184).
+sym_addr("__GNU_EH_FRAME_HDR", 4202696).
+sym_addr("_GLOBAL_OFFSET_TABLE_", 4210664).
+sym_addr("data_start", 4210776).
+sym_addr("probe", 4198903).
+sym_addr("vault_open", 4199103).
+sym_addr("_edata", 4210792).
+sym_addr("_fini", 4199660).
+sym_addr("__data_start", 4210776).
+sym_addr("__dso_handle", 4210784).
+sym_addr("_IO_stdin_used", 4202496).
+sym_addr("vault_arm", 4198947).
+sym_addr("_end", 4210816).
+sym_addr("_dl_relocate_static_pie", 4198672).
+sym_addr("_start", 4198624).
+sym_addr("__bss_start", 4210792).
+sym_addr("main", 4199369).
+sym_addr("vuln_copy", 4198858).
+sym_addr("__TMC_END__", 4210792).
+sym_addr("_init", 4198400).
+sym_addr("vault_fire", 4199019).
+sym_addr("pop3_asm", 4198854).
+leaked_address("arm", 4198947).
+leaked_address("fire", 4199019).
+leaked_address("open", 4199103).
+leaked_address("pop3", 4198854).
+leaked_address("probe", 4198903).

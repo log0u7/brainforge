@@ -118,6 +118,18 @@ def train_student(
         from brainforge.training.unsloth_backend import train_unsloth as train_fn
     else:
         from brainforge.training.qlora import train_qlora as train_fn
+    if getattr(training, "strategy", "") == "grpo":
+        # the domain pack resolves the reward hook and the sidecar
+        # columns inside train_grpo; the other strategies have no pack
+        from brainforge.training.grpo import train_grpo as train_grpo_fn
+
+        return train_grpo_fn(
+            training,
+            dataset_dir,
+            output_dir,
+            resume=resume,
+            domain=getattr(training, "domain", "") or None,
+        )
     return train_fn(training, dataset_dir, output_dir, resume=resume)
 
 
@@ -200,7 +212,7 @@ def prepare(
     ),
 ) -> None:
     """Validate, split and export a dataset for TRL training."""
-    from brainforge.training.prepare import prepare
+    from brainforge.training.prepare import assert_no_id_overlap, prepare
 
     target = output_dir or Path("datasets") / "prepared"
     stats = prepare(
@@ -209,6 +221,9 @@ def prepare(
     console.print(f"[green]prepared dataset[/green] -> {target}")
     for name, count in stats.items():
         console.print(f"  {name}: {count}")
+    # leak guard: a committed eval split must not overlap the train split
+    assert_no_id_overlap(target / "train.jsonl", target / "test.jsonl")
+    console.print("[dim]leak guard: train/test ID overlap checked[/dim]")
 
 
 @app.command("check")
@@ -283,6 +298,9 @@ def run(
     strategy: Literal["qlora", "full", "grpo", "gkd"] | None = typer.Option(
         None, "--strategy", help="Override config training strategy (qlora, full, grpo or gkd)"
     ),
+    domain: str = typer.Option(
+        "", "--domain", help="Domain pack for GRPO reward resolution (e.g. ctf)"
+    ),
     backend: Literal["auto", "trl", "unsloth"] | None = typer.Option(
         None, "--backend", help="Override config training backend"
     ),
@@ -328,6 +346,8 @@ def run(
         updates["base_model"] = base_model
     if strategy:
         updates["strategy"] = strategy
+    if domain:
+        updates["domain"] = domain
     if backend:
         updates["backend"] = backend
     if device:
@@ -495,12 +515,14 @@ def task_eval(
             enable_thinking=thinking,
         )
     console.print(f"[green]task evaluation done[/green] ({result['n_records']} records)")
+    from brainforge.domains.registry import get_or_generic
+
+    pack = get_or_generic(result["domains"][0])
     for key in (
         "accuracy",
         "false_positive_rate",
         "false_negative_rate",
-        "cwe_accuracy",
-        "flag_accuracy",
+        *sorted(key for key in pack.eval_secondary_metrics([])),
     ):
         value = result.get(key)
         console.print(f"  {key}: {value:.4f}" if isinstance(value, float) else f"  {key}: {value}")

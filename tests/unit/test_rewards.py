@@ -1,13 +1,19 @@
-"""GRPO reward function tests - pure string scoring, no torch needed."""
+"""GRPO reward function tests - pure string scoring, no torch needed.
 
-from brainforge.training.rewards import (
-    COMPLIANCE_REWARD,
+The CTF rewards live in the CTF pack (ADR-0022): their tests import from
+there, which also registers "ctf_flag"/"lab_loop" in the generic registry.
+"""
+
+from brainforge.domains.ctf.rewards import (
     FORMAT_REWARD,
     FULL_REWARD,
-    ZERO_REWARD,
-    compliance_reward,
     extract_flag,
     flag_reward,
+)
+from brainforge.training.rewards import (
+    COMPLIANCE_REWARD,
+    ZERO_REWARD,
+    compliance_reward,
 )
 
 

@@ -47,21 +47,6 @@ class CaseResult:
     provider_error: str | None = None
 
 
-def arbitrate_by_ground_truth(canonical: dict, teacher_results: dict, expected_flag: str) -> bool:
-    """Resolve a teacher/judge disagreement by verification, not by discard.
-
-    The judge said "insufficient_information" but the case carries ground
-    truth (expected_flag, verified tier): if the correct flag appears in
-    the teacher outputs or the judge's own reasoning, the disagreement is
-    resolved - the verified flag wins and the case trains instead of
-    being thrown away. Returns True when arbitration accepts the case.
-    """
-    if not expected_flag:
-        return False
-    haystack = json.dumps(canonical, default=str) + json.dumps(teacher_results, default=str)
-    return expected_flag.strip().lower() in haystack.lower()
-
-
 class PipelineEngine:
     def __init__(
         self,
@@ -214,8 +199,7 @@ class PipelineEngine:
         accepted = gate.passed
         reasons = list(gate.reasons)
         if self.pipeline.reject_unresolved and is_unresolved(canonical):
-            expected_flag = str(case.metadata.get("expected_flag") or "").strip()
-            if arbitrate_by_ground_truth(canonical, teacher_results or {}, expected_flag):
+            if self.pack.arbitrate(case, canonical, teacher_results or {}):
                 # one of the two was right and verification proves it: the
                 # disagreement feeds training instead of discarding the case
                 accepted = True

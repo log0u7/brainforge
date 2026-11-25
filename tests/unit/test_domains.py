@@ -5,7 +5,10 @@ from brainforge.domains import get_or_generic, get_pack, pack_names
 from brainforge.domains.base import GeneralCritique
 from brainforge.domains.coding.schemas import CodingJudgeVerdict, CodingTeacherAnalysis
 from brainforge.domains.generic import GenericAnalysis, GenericVerdict
-from brainforge.domains.security.schemas import SecurityJudgeVerdict, SecurityTeacherAnalysis
+from brainforge.domains.security.schemas import (
+    SecurityJudgeVerdict,
+    SecurityTeacherAnalysis,
+)
 from brainforge.errors import ConfigError
 from brainforge.types import Mode, RoleKind
 
@@ -174,7 +177,12 @@ def test_security_gate_rejects_vulnerability_without_evidence():
 
 def test_coding_gate_rejects_confirmed_without_issues():
     pack = get_pack("coding")
-    data = {"verdict": "confirmed", "confidence": 0.9, "reasoning": "r", "disagreement": False}
+    data = {
+        "verdict": "confirmed",
+        "confidence": 0.9,
+        "reasoning": "r",
+        "disagreement": False,
+    }
     result = pack.quality_gate(RoleKind.JUDGE, data)
     assert not result.passed
 
@@ -198,3 +206,27 @@ def test_student_input(case):
     text = pack.student_input(case)
     assert "Find vulnerabilities" in text
     assert "subprocess.run" in text
+
+
+def test_eval_score_hook_security_and_ctf_only():
+    # ADR-0022: task_eval scoring lives in the pack; only packs that
+    # implement the eval_score hook are evaluable
+    assert get_pack("security").eval_score({}, {}) is not None
+    assert get_pack("ctf").eval_score({}, {}) is not None
+    assert get_or_generic("kubernetes").eval_score({}, {}) is None
+
+
+def test_generic_pack_declares_no_training_contract():
+    """ADR-0022: a non-CTF pack runs the generic cycle untouched - no GRPO
+    reward, no reward columns, no sidecar, no ingest hooks, accuracy-only
+    gate metrics."""
+    pack = get_or_generic("kubernetes")
+    assert pack.grpo_reward() is None
+    assert pack.grpo_dataset_columns() == ()
+    assert pack.grpo_sidecar("/tmp/nowhere") == {}
+    assert pack.merge_sidecar("/tmp/nowhere", [{"id": "x"}]) is None
+    assert pack.ingest_trajectories([{"id": "a", "messages": []}], []) == (
+        [{"id": "a", "messages": []}],
+        [],
+    )
+    assert pack.gate_metrics() == ("accuracy",)

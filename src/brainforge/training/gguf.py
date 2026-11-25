@@ -75,9 +75,12 @@ def export_gguf(
             "f16",
         ]
     )
+    quantize_bin = llama_cpp / "llama-quantize"
+    if not quantize_bin.exists() and (llama_cpp / "llama-quantize.exe").exists():
+        quantize_bin = llama_cpp / "llama-quantize.exe"
     _run(
         [
-            str(llama_cpp / "llama-quantize"),
+            str(quantize_bin),
             str(output_dir / "model-f16.gguf"),
             str(quant_gguf),
             quant,

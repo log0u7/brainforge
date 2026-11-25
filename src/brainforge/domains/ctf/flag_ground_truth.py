@@ -1,0 +1,129 @@
+"""Stamp verified-tier ground-truth flags into dataset records.
+
+The CTF pipeline verifies teacher flags against
+``metadata.expected_flag`` (the gate) but the stored record's assistant
+JSON keeps ``flag: null``: the ground truth never reaches the training
+targets or the holdout, so ``flag_accuracy`` is uncomputable. This
+module copies the case's expected flag into the record's assistant JSON
+and tags ``metadata.flag_verified`` for provenance.
+"""
+
+import json
+
+from brainforge.errors import BrainforgeError
+
+
+def enrich_flags(records: list[dict], cases: list[dict]) -> list[dict]:
+    """Copy ``expected_flag`` from verified-tier cases into record answers.
+
+    Tier-B cases (no ``expected_flag`` string) are skipped: their flag is
+    format-only. A record that already carries a different flag is a data
+    defect and raises instead of being silently overwritten.
+    """
+    by_id = {case.get("id"): case for case in cases}
+    out: list[dict] = []
+    for record in records:
+        case = by_id.get(record.get("id"))
+        expected = case.get("metadata", {}).get("expected_flag") if case else None
+        expected_flag = expected.strip() if isinstance(expected, str) else ""
+        if not expected_flag:
+            out.append(record)
+            continue
+        messages = record.get("messages") or []
+        if not messages:
+            raise BrainforgeError(f"record '{record.get('id')}' has no messages")
+        content = messages[-1].get("content", "")
+        try:
+            data = json.loads(content[content.find("{") :])
+        except (ValueError, TypeError) as exc:
+            raise BrainforgeError(
+                f"record '{record.get('id')}' has unparseable assistant JSON: {exc}"
+            ) from exc
+        current = data.get("flag")
+        if current and current != expected_flag:
+            raise BrainforgeError(
+                f"record '{record.get('id')}' claims flag {current!r} but the case "
+                f"ground truth is {expected_flag!r}; refusing to overwrite"
+            )
+        if not current:
+            data["flag"] = expected_flag
+            messages[-1]["content"] = json.dumps(data, ensure_ascii=False, indent=2)
+        metadata = dict(record.get("metadata") or {})
+        metadata["flag_verified"] = True
+        record = {**record, "messages": messages, "metadata": metadata}
+        out.append(record)
+    return out
+
+
+# Tool-observation compaction (the maki pattern): raw tool dumps are
+# 59% of the corpus chars; ingest excerpts them instead. Bounded,
+# deterministic: head + dropped-chars marker + tail.
+TOOL_OBS_MAX_CHARS = 240
+TOOL_OBS_HEAD = 150
+TOOL_OBS_TAIL = 60
+
+
+def compact_tool_text(text: str, max_chars: int = TOOL_OBS_MAX_CHARS) -> str:
+    """Excerpt a long tool observation: head + marker + tail.
+
+    Anything at or under ``max_chars`` passes through untouched, so the
+    compaction never inflates short observations.
+    """
+    if len(text) <= max_chars:
+        return text
+    head = text[:TOOL_OBS_HEAD]
+    tail = text[-TOOL_OBS_TAIL:]
+    dropped = len(text) - len(head) - len(tail)
+    marker = f"\n[... {dropped} chars truncated ...]\n"
+    return head + marker + tail
+
+
+def compact_tool_observations(record: dict) -> dict:
+    """Compact every long ``tool`` message of a record; other roles are
+    untouched (assistant answers are the training target)."""
+    messages = record.get("messages") or []
+    compacted = [
+        {**m, "content": compact_tool_text(m["content"])}
+        if m.get("role") == "tool" and len(m.get("content", "")) > TOOL_OBS_MAX_CHARS
+        else m
+        for m in messages
+    ]
+    return {**record, "messages": compacted}
+
+
+def ingest_trajectories(
+    records: list[dict],
+    cases: list[dict],
+    compact: bool = True,
+) -> tuple[list[dict], list[dict]]:
+    """The pilot's execution-verified trajectories become GRPO dataset
+    material.
+
+    Returns (rows, flags): the rows keep ``id`` + ``messages`` + the
+    pilot metadata (the trainer renders the prompt by popping the
+    trailing assistant verdict); the flags rows carry the flag the
+    SERVICE read - the execution is the ground truth, never the model's
+    guess. Targets whose execution produced no flag (handoffs, budget
+    exhaustion) enter the rows without a sidecar entry: the trainer's
+    reward falls back to the empty-expected behavior (format only).
+    """
+    flags_by_id: dict[str, str] = {}
+    for case in cases:
+        if not isinstance(case, dict):
+            continue
+        cid = case.get("id")
+        expected = (case.get("metadata") or {}).get("expected_flag")
+        if cid and isinstance(expected, str) and expected.strip():
+            flags_by_id[cid] = expected.strip()
+    rows: list[dict] = []
+    flags: list[dict] = []
+    for record in records:
+        rid = record.get("id")
+        messages = record.get("messages") or []
+        if not rid or not messages:
+            continue
+        rows.append(compact_tool_observations(record) if compact else record)
+        expected = flags_by_id.get(rid)
+        if expected:
+            flags.append({"id": rid, "expected_flag": expected})
+    return rows, flags

@@ -7,8 +7,10 @@ the eval set, or the whole benchmark is void.
 """
 
 import json
+import os
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -90,59 +92,75 @@ def _run_over_targets(
     drawing N samples. The same rep index gets the same seed for both
     models, which keeps the comparison paired."""
     stats = {"attempts": 0, "successes": 0, "attempts_without_llm_facts": 0, "per_challenge": {}}  # type: dict
-    for rep in range(repetitions):
-        seed = str(seed_base + rep)
-        for entry in targets:
-            challenge_id = entry[0]
-            # the progress lines: the MR6-v2 hang made a stuck challenge
-            # invisible for hours (the protocol pipes the output through
-            # tail -45 and the trails stayed silent). One flushed line per
-            # launch and per outcome - with the elapsed time - keeps the
-            # oldest in-flight run readable in the bench log itself.
-            print(
-                f"[bench {model} rep {rep + 1}/{repetitions}] {challenge_id} launching", flush=True
-            )
-            started = time.monotonic()
-            records, timed_out = _run_attempt_capped(
-                pilot_fn, [entry], workdir, provider, model, attempt_cap, seed=seed
-            )
-            elapsed = time.monotonic() - started
-            flag = _record_flag(records[0]) if records else None
-            outcome = "TIMEOUT" if timed_out else ("FLAG" if flag else "miss")
-            print(
-                f"[bench {model} rep {rep + 1}/{repetitions}] {challenge_id}: "
-                f"{outcome} (elapsed {elapsed:.0f}s)",
-                flush=True,
-            )
-            for record in records:
-                # the record's id is the launched challenge; fall back to the
-                # entry the harness itself launched if the pilot dropped it
-                challenge_id = record.get("id") or entry[0]
-                # model-only mode returns a "success" boolean directly;
-                # full mode (pilot) returns a flag in the verdict message
-                flag = _record_flag(record)
-                record_success = record.get("success")
-                if record_success is not None:
-                    # model-only mode: success is already computed
-                    is_success = bool(record_success)
-                else:
-                    # full mode: check the flag from the verdict
-                    is_success = bool(
-                        challenge_id in expected_flags and flag == expected_flags[challenge_id]
-                    )
-                stats["attempts"] += 1
-                if not (record.get("metadata") or {}).get("pilot", {}).get("facts"):
-                    # a flag found with zero LLM facts measures lictor's
-                    # deterministic harvest, not the model: surface it
-                    stats["attempts_without_llm_facts"] += 1
-                if is_success:
-                    stats["successes"] += 1
-                slot = stats["per_challenge"].setdefault(
-                    challenge_id, {"attempts": 0, "successes": 0}
+
+    def _attempt_one(rep: int, entry: tuple) -> tuple[int, tuple, list[dict]]:
+        challenge_id = entry[0]
+        # the progress lines: the MR6-v2 hang made a stuck challenge
+        # invisible for hours (the protocol pipes the output through
+        # tail -45 and the trails stayed silent). One flushed line per
+        # launch and per outcome - with the elapsed time - keeps the
+        # oldest in-flight run readable in the bench log itself.
+        print(f"[bench {model} rep {rep + 1}/{repetitions}] {challenge_id} launching", flush=True)
+        started = time.monotonic()
+        # a workdir per rep: the pilot writes run.json/trail/facts under
+        # workdir/<binary>, so two concurrent reps of the same challenge
+        # would overwrite each other's evidence (the shared-workdir
+        # contamination measured in pilot.py). Only multi-rep runs nest
+        # the rep dirs; the single-rep evidence layout stays flat.
+        rep_workdir = workdir / f"rep{rep}" if repetitions > 1 else workdir
+        records, timed_out = _run_attempt_capped(
+            pilot_fn, [entry], rep_workdir, provider, model, attempt_cap, seed=str(seed_base + rep)
+        )
+        elapsed = time.monotonic() - started
+        flag = _record_flag(records[0]) if records else None
+        outcome = "TIMEOUT" if timed_out else ("FLAG" if flag else "miss")
+        print(
+            f"[bench {model} rep {rep + 1}/{repetitions}] {challenge_id}: "
+            f"{outcome} (elapsed {elapsed:.0f}s)",
+            flush=True,
+        )
+        return rep, entry, records
+
+    # the pilot work is one Ruby process per challenge (CPU-bound on a
+    # single core) plus an LLM HTTP call: a thread pool spreads the
+    # subprocess waits across cores (the pilot is a subprocess, the
+    # GIL is not the bottleneck). The pool runs the (rep, challenge)
+    # pairs - the reps are no longer sequential. BENCH_WORKERS tunes
+    # the width; unset, it auto-sizes to the machine, capped at the
+    # rep count (a wider pool buys nothing past the last rep).
+    workers = int(os.environ.get("BENCH_WORKERS", "0")) or min(os.cpu_count() or 1, repetitions)
+    pairs = [(rep, entry) for rep in range(repetitions) for entry in targets]
+    with ThreadPoolExecutor(max_workers=max(workers, 1)) as executor:
+        results = list(executor.map(lambda pair: _attempt_one(*pair), pairs))
+
+    for _rep, entry, records in results:
+        for record in records:
+            # the record's id is the launched challenge; fall back to the
+            # entry the harness itself launched if the pilot dropped it
+            challenge_id = record.get("id") or entry[0]
+            # model-only mode returns a "success" boolean directly;
+            # full mode (pilot) returns a flag in the verdict message
+            flag = _record_flag(record)
+            record_success = record.get("success")
+            if record_success is not None:
+                # model-only mode: success is already computed
+                is_success = bool(record_success)
+            else:
+                # full mode: check the flag from the verdict
+                is_success = bool(
+                    challenge_id in expected_flags and flag == expected_flags[challenge_id]
                 )
-                slot["attempts"] += 1
-                if is_success:
-                    slot["successes"] += 1
+            stats["attempts"] += 1
+            if not (record.get("metadata") or {}).get("pilot", {}).get("facts"):
+                # a flag found with zero LLM facts measures lictor's
+                # deterministic harvest, not the model: surface it
+                stats["attempts_without_llm_facts"] += 1
+            if is_success:
+                stats["successes"] += 1
+            slot = stats["per_challenge"].setdefault(challenge_id, {"attempts": 0, "successes": 0})
+            slot["attempts"] += 1
+            if is_success:
+                slot["successes"] += 1
     if stats["attempts"]:
         stats["success_rate"] = stats["successes"] / stats["attempts"]
     else:

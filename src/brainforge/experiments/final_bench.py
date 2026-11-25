@@ -74,6 +74,17 @@ LICTOR_LAB_PORTS: dict[str, int] = {
     "callme-eval2": 20007,
     "srop-eval2": 20008,
     "fmtstr-eval2": 20009,
+    # the MR7 technique targets (lictor feat/builder-nul-channel): one
+    # clean challenge per NEW capability class (brop, one_gadget,
+    # got_partial_overwrite, ret2partial_overwrite, jop, ret2vdso,
+    # setcontext_srop). Never in any training dataset. Ports 20100-20106.
+    "brop": 20100,
+    "one_gadget": 20101,
+    "got_partial_overwrite": 20102,
+    "ret2partial_overwrite": 20103,
+    "jop": 20104,
+    "ret2vdso": 20105,
+    "setcontext_srop": 20106,
 }
 
 

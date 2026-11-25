@@ -59,7 +59,7 @@ def extract_prompt_completion(records: list[dict]) -> list[dict]:
     assistant message is the completion. With ``completion_only_loss`` the
     training signal lands on the answer only - with the previous messages
     format and ``assistant_only_loss=False`` the loss covered the whole
-    sequence, so on long CTF prompts (~90% of the tokens) the model learned
+    sequence, so on long prompts (~90% of the tokens) the model learned
     to predict challenges instead of answers (measured on the 26-record
     holdout: perplexity -37% while generation behavior stayed base-like).
     """

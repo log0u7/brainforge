@@ -120,6 +120,14 @@ def _load_ground_truth(paths: list[Path] | None = None) -> dict[str, str]:
                 for fact in obj.get("facts", []) or []:
                     if fact.get("name") == "vuln" and fact.get("value"):
                         truth.setdefault(binary, fact["value"])
+                # MR11 ReAct wrapper: facts live as Prolog lines inside
+                # ``action_input.predicates`` (ctf-lictor facts dataset).
+                if not obj.get("facts"):
+                    for pred in (obj.get("action_input") or {}).get("predicates") or []:
+                        match = _VULN_FACT_RE.search(pred)
+                        if match:
+                            truth.setdefault(binary, match.group(1))
+                            break
                 continue
             # Prolog completions (MR9/MR10): plain ``vuln("sof").`` lines.
             match = _VULN_FACT_RE.search(completion)

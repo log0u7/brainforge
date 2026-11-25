@@ -4,8 +4,8 @@ Implements the sleep cycle of ADR-0020 (wake/sleep shape credited to the
 Sleep framework, arXiv:2606.03979). One round:
 
 1. *Ingest* the pilot's execution-verified trajectories into the
-   cumulative dataset (merged by id, the sidecar carries the flag the
-   service read - never the model's guess).
+   cumulative dataset (merged by id, the pack's sidecar carries the
+   ground truth it ingests).
 2. *Replay mix*: a stratified sample of the prior corpus (one record per
    source group until the ``replay_ratio`` share of the mix is old data),
    excluding contaminated records (``recitation_risk`` true) and any id
@@ -32,9 +32,6 @@ from typing import Any
 
 from brainforge.errors import BrainforgeError
 
-#: metrics that gate acceptance (regression = any of these got worse)
-GATE_METRICS = ("flag_accuracy", "cwe_accuracy", "accuracy")
-
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.is_file():
@@ -54,15 +51,16 @@ def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
     )
 
 
-def gate_ok(current: dict[str, Any], previous: dict[str, Any]) -> bool:
-    """Cheap per-round gate: not worse than the previous round.
+def gate_ok(current: dict[str, Any], previous: dict[str, Any], metrics: tuple[str, ...]) -> bool:
+    """Cheap per-round gate: not worse than the previous round on the
+    pack's gate metrics.
 
     A metric missing on either side is ignored: the holdout may carry a
     metric the earlier gate never computed (and vice versa - a different
     domain split computes different keys). The first round has no
     previous - accepted.
     """
-    for metric in GATE_METRICS:
+    for metric in metrics:
         prev = previous.get(metric)
         curr = current.get(metric)
         if prev is None or curr is None:
@@ -136,14 +134,16 @@ def consolidate(
     train_fn: Callable[..., dict[str, Any]] | None = None,
     gate_fn: Callable[[Path, Path], dict[str, Any]] | None = None,
     seed: int = 42,
+    domain: str | None = None,
 ) -> dict[str, Any]:
     """Run one consolidation round; returns the round journal as a dict.
 
     Nothing is silently defaulted: without a gate dataset the gate cannot
     run, and a round without a gate is a training run, not a sleep cycle.
     """
-    from brainforge.dataset.flag_ground_truth import ingest_trajectories
+    from brainforge.domains.registry import get_or_generic
 
+    pack = get_or_generic(domain or getattr(config, "domain", "") or "")
     if not trajectories.is_file():
         raise BrainforgeError(f"trajectories file not found: {trajectories}")
     if gate_dataset is None or not gate_dataset.is_file():
@@ -174,25 +174,7 @@ def consolidate(
     if cases_dir.is_dir():
         for path in sorted(cases_dir.glob("*.json")):
             cases.append(json.loads(path.read_text(encoding="utf-8")))
-    # the pilot's execution-verified flag rides the trajectory's assistant
-    # verdict (JSON with a "flag" key); cases from the lab dir take
-    # precedence, trajectory-extracted flags fill the gap
-    known_case_ids = {case.get("id") for case in cases}
-    for record in new_records:
-        if record.get("id") in known_case_ids:
-            continue
-        messages = record.get("messages") or []
-        if not messages or messages[-1].get("role") != "assistant":
-            continue
-        content = messages[-1].get("content", "")
-        try:
-            data = json.loads(content[content.find("{") :])
-        except (ValueError, TypeError):
-            continue
-        flag = data.get("flag")
-        if isinstance(flag, str) and flag.strip():
-            cases.append({"id": record.get("id"), "metadata": {"expected_flag": flag.strip()}})
-    rows, flags = ingest_trajectories(new_records, cases)
+    rows, sidecar_rows = pack.ingest_trajectories(new_records, cases)
     if not rows:
         raise BrainforgeError("no usable trajectories: nothing to consolidate")
 
@@ -208,13 +190,7 @@ def consolidate(
             merged[row["id"]] = row
     _write_jsonl(train_path, list(merged.values()))
 
-    flags_path = dataset_dir / "grpo_flags.jsonl"
-    known_flags: dict[str, dict[str, Any]] = {
-        entry["id"]: entry for entry in _read_jsonl(flags_path) if entry.get("id")
-    }
-    for entry in flags:
-        known_flags[entry["id"]] = entry
-    _write_jsonl(flags_path, list(known_flags.values()))
+    pack.merge_sidecar(dataset_dir, sidecar_rows)
 
     # --- 2. replay mix ---------------------------------------------------
     gate_ids = {row["id"] for row in _read_jsonl(gate_dataset) if row.get("id")}
@@ -247,7 +223,7 @@ def consolidate(
 
         gate = evaluate_model_on_records
     gate_result = gate(round_dir / "adapter", gate_dataset)
-    accepted = gate_ok(gate_result, previous_gate)
+    accepted = gate_ok(gate_result, previous_gate, pack.gate_metrics())
 
     # --- 5. journal ---------------------------------------------------------
     journal = {

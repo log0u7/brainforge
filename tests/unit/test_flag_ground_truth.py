@@ -32,7 +32,7 @@ def make_case(case_id: str, expected_flag: str | None, tier: str = "verified") -
 
 
 def test_enrich_stamps_verified_flag():
-    from brainforge.dataset.flag_ground_truth import enrich_flags
+    from brainforge.domains.ctf.flag_ground_truth import enrich_flags
 
     records = [make_record("ctf-lictor-fmtstr-001")]
     cases = [make_case("ctf-lictor-fmtstr-001", "FLAG{the_format_is_the_weapon}")]
@@ -43,7 +43,7 @@ def test_enrich_stamps_verified_flag():
 
 
 def test_enrich_skips_tier_b_and_mismatch():
-    from brainforge.dataset.flag_ground_truth import enrich_flags
+    from brainforge.domains.ctf.flag_ground_truth import enrich_flags
 
     tier_b = make_record("ctf-wqb-raw-001")
     cases = [make_case("ctf-wqb-raw-001", None, tier="unverified")]
@@ -53,7 +53,7 @@ def test_enrich_skips_tier_b_and_mismatch():
 
 
 def test_enrich_leaves_existing_flag_alone():
-    from brainforge.dataset.flag_ground_truth import enrich_flags
+    from brainforge.domains.ctf.flag_ground_truth import enrich_flags
 
     record = make_record("ctf-lictor-orw-001", flag="FLAG{orw_reads_the_flag}")
     cases = [make_case("ctf-lictor-orw-001", "FLAG{orw_reads_the_flag}")]
@@ -64,7 +64,7 @@ def test_enrich_leaves_existing_flag_alone():
 def test_enrich_rejects_conflicting_existing_flag():
     """A record that already claims a different flag is a data defect, not
     something enrichment silently overwrites."""
-    from brainforge.dataset.flag_ground_truth import enrich_flags
+    from brainforge.domains.ctf.flag_ground_truth import enrich_flags
     from brainforge.errors import BrainforgeError
 
     record = make_record("ctf-lictor-fmtstr-001", flag="FLAG{wrong}")
@@ -79,7 +79,7 @@ def test_ingest_trajectories_builds_grpo_rows_and_flags():
     prompt by popping the trailing assistant verdict), and the flags
     sidecar carries the flag the SERVICE read - the execution is the
     ground truth, never the model's guess."""
-    from brainforge.dataset.flag_ground_truth import ingest_trajectories
+    from brainforge.domains.ctf.flag_ground_truth import ingest_trajectories
 
     record = {
         "id": "ctf-lictor-orw-001",
@@ -117,7 +117,7 @@ def test_ingest_trajectories_merges_by_id_replacing_stale_rows():
     """Re-ingesting a challenge replaces its stale row (a new pilot run's
     trajectory is the fresh one) - the merge stays id-keyed, the
     sidecar follows."""
-    from brainforge.dataset.flag_ground_truth import ingest_trajectories
+    from brainforge.domains.ctf.flag_ground_truth import ingest_trajectories
 
     old = {"id": "ctf-1", "messages": [{"role": "user", "content": "old"}], "metadata": {}}
     new = {"id": "ctf-1", "messages": [{"role": "user", "content": "new"}], "metadata": {}}

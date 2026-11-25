@@ -301,12 +301,18 @@ def ask_facts(provider: Any, model: str, material: str) -> list[str]:
     """
     from brainforge.providers.base import ChatMessage, ChatRequest
 
+    base_url = getattr(getattr(provider, "config", None), "base_url", "") or ""
+    extra_body: dict[str, Any]
+    if "openrouter" in base_url:
+        extra_body = {"reasoning": {"effort": "low"}}
+    else:
+        extra_body = {"chat_template_kwargs": {"enable_thinking": False}}
     response = provider.complete(
         ChatRequest(
             messages=[ChatMessage(role="user", content=FACT_PROMPT.format(material=material))],
             temperature=0.2,
-            max_tokens=512,
-            extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+            max_tokens=2048,
+            extra_body=extra_body,
             response_format=FACT_RESPONSE_FORMAT,
         ),
         model,
@@ -362,7 +368,11 @@ def run_lictor(
             if isinstance(parsed, dict):
                 return parsed
     text = result.stdout or ""
-    outcome: dict[str, Any] = {"status": "done", "stdout": text[-400:]}
+    # the FULL stdout, not a tail: the plan's augure ranking sits near the
+    # START of a multi-KB stdout (measured mr15: the stdout[-400:] tail
+    # erased the ranking, the build walk saw ranked=[] and ran unpinned);
+    # the walk parses this text, the trajectory keeps it whole
+    outcome: dict[str, Any] = {"status": "done", "stdout": text}
     status_match = re.search(r"^status:\s+(\S+)", text, re.MULTILINE)
     if status_match:
         outcome["status"] = status_match.group(1)
@@ -402,6 +412,14 @@ def _run_one_target(
     # it into the facts (the demo harvests; the pilot skipped it and
     # the orw build failed on "no leaked_address(input) fact")
     runner(tgt, ["harvest", target, "--facts", "target.facts"])
+    # The target-context facts: every pilot target is the lab's socat
+    # service (host:port) whose smoke test verified the oracle. The
+    # engine schema carries both; the remote-class packs (brop) gate on
+    # them and neither the profiler nor the LLM owns this knowledge.
+    tgt_facts = tgt / "target.facts"
+    if tgt_facts.exists():
+        with tgt_facts.open("a", encoding="utf-8") as fh:
+            fh.write('remote("true").\nverified("remote").\n')
     facts = ask_facts(provider, model, material)
     if facts:
         merged = runner(tgt, ["suggest", "target.facts", "\n".join(facts), "-o", "target.facts"])
@@ -429,7 +447,15 @@ def _run_one_target(
     drawn = re.search(r"selected:\s+(\S+)", stdout)
     rank_line = re.search(r"ranking:\s+(.+)", stdout)
     ranked = [t.strip() for t in rank_line.group(1).split(">")] if rank_line else []
+    # the walk heads the pin accepts: the run's walk starts at the
+    # ranking's first entry, the plan's Thompson draw may sit elsewhere
+    # (augure separates ranking [prior-mean] from selected [draw] -
+    # measured ret2vdso rep0 mr18: the built technique ranked first in
+    # the walk but the pin compared it against the drawn head only and
+    # the payload never travelled)
+    walk_heads = set(ranked[:1])
     if drawn:
+        walk_heads.add(drawn.group(1))
         ranked = [drawn.group(1)] + [t for t in ranked if t != drawn.group(1)]
     build_failures: list[dict[str, Any]] = []
     built: dict[str, Any] = {}
@@ -483,14 +509,33 @@ def _run_one_target(
         seed,
         "--flag-regex",
         re.escape(expected_flag) if expected_flag else "FLAG\\{[^}]+\\}",
+        # the scaffold auto: a rank whose technique has no exploit gets
+        # one drafted from the built payload (run.rb: binary &&
+        # repo_dir gate the scaffold; without these the rank stays
+        # dead - measured mr18: got_overwrite ranked first on 4
+        # families with no exploit and no scaffold possible)
+        "--bin",
+        binary,
+        "--repo-dir",
+        str(tgt),
     ]
-    if (tgt / "payload.bin").is_file():
+    # the payload rides ONLY with the pin: an unpinned run walks the
+    # ranking, and the payload on disk was built for whichever
+    # technique the build's internal draw picked - handing it to a
+    # banner-derived exploit corrupts its chain (measured mr17:
+    # callme-eval 0/3, 'the chain did not print a flag', the 10-rep
+    # baseline flagged 9/10 unpinned and payload-less)
+    if built_technique and built_technique in walk_heads and (tgt / "payload.bin").is_file():
         run_args += ["--payload", "payload.bin"]
-    # the run's own bandit draw could pick a technique whose exploit
-    # recipe differs from the payload the build just produced
-    # (measured: the shellcode run drew ret2libc, no exploit exists
-    # for it -> handoff x4) - the run executes the built technique
-    if built_technique:
+    # the run executes the built technique ONLY when the built
+    # technique IS the ranking head: a build failure must not demote a
+    # higher-ranked technique that is runnable without a payload
+    # (measured mr16: callme-eval and setcontext_srop regressed 0/3 -
+    # their exploits read the banner, the build walk pinned the rank-2
+    # buildable and the rank-1 technique never ran). When the head
+    # builds, the pin keeps the payload/technique pairing that the
+    # handoff-x4 measurement demanded.
+    if built_technique and built_technique in walk_heads:
         run_args += ["--technique", built_technique]
     outcome: dict[str, Any] = runner(tgt, run_args)
     outcome["built_technique"] = built_technique

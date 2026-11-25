@@ -1,3 +1,5 @@
+import json
+from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import BaseModel
@@ -13,6 +15,8 @@ from brainforge.domains.base import (
     format_previous_results,
     format_rag_context,
 )
+from brainforge.domains.ctf import flag_ground_truth
+from brainforge.domains.ctf.rewards import flag_reward  # noqa: F401  (registers "ctf_flag")
 from brainforge.domains.ctf.schemas import CtfTeacherAnalysis, CtfVerdict
 from brainforge.types import Mode, RoleKind
 
@@ -107,6 +111,98 @@ class CtfPack(DomainPack):
     def grpo_reward(self) -> str | None:
         return "ctf_flag"
 
+    def grpo_dataset_columns(self) -> tuple[str, ...]:
+        """The reward-server columns (port, flag, facts) ride the row: TRL
+        passes every extra dataset column to the reward function as kwargs."""
+        return ("port", "flag", "facts")
+
+    def grpo_sidecar(self, dataset_dir: Path) -> dict[str, dict[str, str]]:
+        """Optional grpo_flags.jsonl sidecar next to the dataset: id ->
+        the expected flag the SERVICE read (the execution is the ground
+        truth, never the model's guess)."""
+        sidecar = Path(dataset_dir) / "grpo_flags.jsonl"
+        if not sidecar.exists():
+            return {}
+        flags: dict[str, dict[str, str]] = {}
+        for line in sidecar.open(encoding="utf-8"):
+            if not line.strip():
+                continue
+            entry = json.loads(line)
+            if entry.get("id") and entry.get("expected_flag"):
+                flags[entry["id"]] = {"expected_flag": str(entry["expected_flag"])}
+        return flags
+
+    def merge_sidecar(self, dataset_dir: Path, entries: list[dict]) -> None:
+        """Merge the ingest's flags into the cumulative grpo_flags.jsonl
+        sidecar (id-keyed, a re-ingested id replaces its stale row)."""
+        sidecar = Path(dataset_dir) / "grpo_flags.jsonl"
+        known: dict[str, dict] = {}
+        if sidecar.is_file():
+            for line in sidecar.read_text(encoding="utf-8").splitlines():
+                if not line.strip():
+                    continue
+                entry = json.loads(line)
+                if entry.get("id"):
+                    known[entry["id"]] = entry
+        for entry in entries:
+            if entry.get("id"):
+                known[entry["id"]] = entry
+        sidecar.parent.mkdir(parents=True, exist_ok=True)
+        sidecar.write_text(
+            "".join(json.dumps(entry, ensure_ascii=False) + "\n" for entry in known.values()),
+            encoding="utf-8",
+        )
+
+    def ingest_trajectories(
+        self, records: list[dict], cases: list[dict]
+    ) -> tuple[list[dict], list[dict]]:
+        """The pilot's execution-verified trajectories become GRPO dataset
+        material. Cases from the lab dir take precedence; the pilot's
+        execution-verified flag rides the trajectory's assistant verdict
+        (JSON with a "flag" key) and fills the gap.
+        """
+        cases = [dict(case) for case in cases if isinstance(case, dict)]
+        known_case_ids = {case.get("id") for case in cases}
+        for record in records:
+            if record.get("id") in known_case_ids:
+                continue
+            messages = record.get("messages") or []
+            if not messages or messages[-1].get("role") != "assistant":
+                continue
+            content = messages[-1].get("content", "")
+            try:
+                data = json.loads(content[content.find("{") :])
+            except (ValueError, TypeError):
+                continue
+            flag = data.get("flag")
+            if isinstance(flag, str) and flag.strip():
+                cases.append(
+                    {
+                        "id": record.get("id"),
+                        "metadata": {"expected_flag": flag.strip()},
+                    }
+                )
+        return flag_ground_truth.ingest_trajectories(records, cases)
+
+    def gate_metrics(self) -> tuple[str, ...]:
+        return ("flag_accuracy", "cwe_accuracy", "accuracy")
+
+    def arbitrate(self, case: "Case", canonical: dict, teacher_results: dict) -> bool:
+        """Resolve a teacher/judge disagreement by verification, not by discard.
+
+        The judge said "insufficient_information" but the case carries ground
+        truth (metadata.expected_flag, verified tier): if the correct flag
+        appears in the teacher outputs or the judge reasoning, the
+        disagreement is resolved - the verified flag wins and the case trains
+        instead of being thrown away. Returns True when arbitration accepts
+        the case.
+        """
+        expected_flag = str(case.metadata.get("expected_flag") or "").strip() if case else ""
+        if not expected_flag:
+            return False
+        haystack = json.dumps(canonical, default=str) + json.dumps(teacher_results, default=str)
+        return expected_flag.lower() in haystack.lower()
+
     def quality_gate(
         self,
         kind: RoleKind,
@@ -183,6 +279,53 @@ class CtfPack(DomainPack):
         if not data.get("reasoning"):
             reasons.append("missing reasoning")
         return reasons
+
+    def eval_shape(self, data: dict) -> dict:
+        """CTF eval shape: the judge verdict kept verbatim
+        (solved / partial / insufficient_information) with the flag."""
+        return {
+            "verdict": data.get("verdict"),
+            "abstain": data.get("verdict") == "insufficient_information",
+            "flag": data.get("flag"),
+        }
+
+    def eval_unparseable(self) -> dict:
+        return {"verdict": None, "abstain": False, "flag": None}
+
+    def eval_score(self, prediction: dict, expected: dict) -> dict | None:
+        """CTF keeps the verdict classes verbatim (solved / partial / abstain /
+        unparseable) so a partial solve does not pass as a full one; a miss
+        on a solved case is a false negative."""
+        predicted = self._eval_answer_class(prediction)
+        actual = self._eval_answer_class(expected)
+        if predicted == actual:
+            outcome = "correct"
+        elif actual == "solved":
+            outcome = "false_negative"
+        else:
+            outcome = "false_positive"
+        return {"predicted": predicted, "actual": actual, "outcome": outcome}
+
+    def eval_secondary_metrics(self, pairs: list[tuple[dict, dict]]) -> dict:
+        """flag_accuracy compares predicted flags wherever both sides carry
+        one; the judge flag is the gate-checked ground truth on verified-tier
+        records."""
+        flag_correct = 0
+        flag_compared = 0
+        for prediction, expected in pairs:
+            expected_flag = expected.get("flag")
+            predicted_flag = prediction.get("flag")
+            if expected_flag is not None and predicted_flag is not None:
+                flag_compared += 1
+                if predicted_flag == expected_flag:
+                    flag_correct += 1
+        return {"flag_accuracy": (flag_correct / flag_compared) if flag_compared else None}
+
+    def _eval_answer_class(self, side: dict) -> str:
+        if side.get("abstain"):
+            return "abstain"
+        verdict = side.get("verdict")
+        return "unparseable" if verdict is None else str(verdict)
 
     def student_input(self, case: "Case") -> str:
         task = case.input.question or "Solve the following CTF challenge."

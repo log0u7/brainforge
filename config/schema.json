@@ -401,10 +401,61 @@
           "title": "Grpo Reward",
           "type": "string"
         },
+        "domain": {
+          "default": "",
+          "title": "Domain",
+          "type": "string"
+        },
+        "grpo_loss_type": {
+          "default": "dapo",
+          "enum": [
+            "grpo",
+            "bnpo",
+            "dr_grpo",
+            "dapo"
+          ],
+          "title": "Grpo Loss Type",
+          "type": "string"
+        },
+        "grpo_epsilon_high": {
+          "default": 0.28,
+          "exclusiveMinimum": 0.2,
+          "title": "Grpo Epsilon High",
+          "type": "number"
+        },
+        "grpo_scale_rewards": {
+          "default": false,
+          "title": "Grpo Scale Rewards",
+          "type": "boolean"
+        },
+        "grpo_beta": {
+          "default": 0.0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Grpo Beta",
+          "type": "number"
+        },
         "gkd_teacher": {
           "default": "",
           "title": "Gkd Teacher",
           "type": "string"
+        },
+        "opd_teacher_url": {
+          "default": "",
+          "title": "Opd Teacher Url",
+          "type": "string"
+        },
+        "opd_max_scored_tokens": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Opd Max Scored Tokens",
+          "type": "integer"
+        },
+        "grpo_max_completion_length": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Grpo Max Completion Length",
+          "type": "integer"
         },
         "gkd_lmbda": {
           "default": 1.0,
@@ -592,7 +643,15 @@
         "quantization": "auto",
         "strategy": "qlora",
         "grpo_reward": "",
+        "domain": "",
+        "grpo_loss_type": "dapo",
+        "grpo_epsilon_high": 0.28,
+        "grpo_scale_rewards": false,
+        "grpo_beta": 0.0,
         "gkd_teacher": "",
+        "opd_teacher_url": "",
+        "opd_max_scored_tokens": 0,
+        "grpo_max_completion_length": 0,
         "gkd_lmbda": 1.0,
         "gkd_beta": 1.0,
         "gkd_seq_kd": false,

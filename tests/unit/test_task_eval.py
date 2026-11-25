@@ -142,9 +142,19 @@ def test_score_task_counts_abstention():
     assert metrics["abstain_rate"] == 2 / 3
 
 
-def test_run_task_eval_rejects_non_security():
+def test_run_task_eval_rejects_pack_without_eval_score():
     records = [make_record("confirmed", domain="coding")]
-    with pytest.raises(BrainforgeError, match="domain"):
+    with pytest.raises(BrainforgeError, match="does not implement eval_score"):
+        run_task_eval(records, generate=lambda messages: ["{}"] * len(messages))
+
+
+def test_run_task_eval_rejects_unknown_domain_with_generic_pack():
+    # an unregistered domain falls back to a GenericPack, which does not
+    # implement the eval_score hook: the explicit error names the pack
+    records = [make_record("confirmed", domain="kubernetes")]
+    with pytest.raises(
+        BrainforgeError, match="domain pack 'kubernetes' does not implement eval_score"
+    ):
         run_task_eval(records, generate=lambda messages: ["{}"] * len(messages))
 
 
@@ -391,3 +401,14 @@ def test_generation_budget_accepts_generous_limit():
         ],
     }
     assert _budget_warning([record], 2048) is None
+
+
+def test_score_task_rejects_pack_without_eval_score():
+    pairs = [
+        (
+            {"vulnerability_found": True, "abstain": False, "cwe": "CWE-78"},
+            {"vulnerability_found": True, "abstain": False, "cwe": "CWE-78"},
+        ),
+    ]
+    with pytest.raises(BrainforgeError, match="does not implement eval_score"):
+        score_task(pairs, domain="coding")

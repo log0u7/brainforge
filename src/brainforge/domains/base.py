@@ -1,5 +1,6 @@
 import json
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import BaseModel, Field
@@ -111,6 +112,89 @@ class DomainPack(ABC):
         domain has no reinforcement-learning signal (see
         brainforge.training.rewards registry)."""
         return None
+
+    def grpo_dataset_columns(self) -> tuple[str, ...]:
+        """Dataset columns the pack's GRPO reward consumes: they ride the
+        training rows so TRL passes them to the reward function as kwargs
+        (ADR-0022). Default: none - the reward scores completions only."""
+        return ()
+
+    def grpo_sidecar(self, dataset_dir: Path) -> dict[str, dict[str, str]]:
+        """Per-id reward kwargs loaded from the pack's optional sidecar
+        file next to the dataset (ADR-0022). Default: no sidecar - the
+        reward needs no ground truth beyond the dataset columns."""
+        return {}
+
+    def merge_sidecar(self, dataset_dir: Path, entries: list[dict]) -> None:
+        """Merge the consolidation ingest's sidecar rows into the pack's
+        cumulative sidecar file (id-keyed, a re-ingested id replaces its
+        stale row). Default: no sidecar - a no-op."""
+        return None
+
+    def ingest_trajectories(
+        self, records: list[dict], cases: list[dict]
+    ) -> tuple[list[dict], list[dict]]:
+        """Consolidation ingest hook: map the pilot's execution-verified
+        trajectories to dataset rows plus sidecar rows (each sidecar row
+        is an id-keyed dict carrying the pack's ground truth). Default:
+        the records ARE the rows, with no sidecar."""
+        return records, []
+
+    def gate_metrics(self) -> tuple[str, ...]:
+        """Metrics that gate consolidation acceptance (a regression on any
+        of these keeps the previous checkpoint). Default: accuracy only."""
+        return ("accuracy",)
+
+    def eval_score(self, prediction: dict, expected: dict) -> dict | None:
+        """Task-eval scoring hook: compute the verdict of one attempt on one
+        case (ADR-0022). ``prediction`` and ``expected`` are the domain's
+        eval shapes (see eval_shape). Returns the per-case scoring view
+        score_task aggregates:
+        ``{"predicted": <class>, "actual": <class>,
+        "outcome": "correct" | "false_negative" | "false_positive"}``
+        where "abstain" is a reserved class name. Default: None — the
+        domain does not support task-level evaluation, and task_eval
+        rejects it with an explicit error ("domain pack X does not
+        implement eval_score")."""
+        return None
+
+    def eval_shape(self, data: dict) -> dict:
+        """Map a parsed judge/model verdict JSON to the domain's eval shape.
+        Default: the security shape (vulnerability_found / abstain / cwe),
+        the historic default of task evaluation."""
+        return {
+            "vulnerability_found": data.get("verdict") == "confirmed",
+            "abstain": data.get("verdict") == "insufficient_information",
+            "cwe": data.get("cwe"),
+        }
+
+    def eval_unparseable(self) -> dict:
+        """The eval shape for an answer that yielded no JSON (a miss whose
+        direction is unknown). Default: the security shape."""
+        return {"vulnerability_found": None, "abstain": False, "cwe": None}
+
+    def eval_secondary_metrics(self, pairs: list[tuple[dict, dict]]) -> dict:
+        """Domain-specific secondary metric over the eval pairs, merged into
+        the score_task report. Default: the security CWE accuracy (compared
+        only where the judge confirmed the vulnerability and classified a
+        CWE)."""
+        cwe_correct = 0
+        cwe_compared = 0
+        for prediction, expected in pairs:
+            if expected.get("vulnerability_found") and expected.get("cwe"):
+                cwe_compared += 1
+                if prediction.get("cwe") == expected.get("cwe"):
+                    cwe_correct += 1
+        return {"cwe_accuracy": (cwe_correct / cwe_compared) if cwe_compared else None}
+
+    def arbitrate(self, case: "Case", canonical: dict, teacher_results: dict) -> bool:
+        """Resolve a teacher/judge disagreement with domain ground truth.
+
+        Default: no verification material - the disagreement stands and the
+        gate decides. Packs with curated ground truth override this to
+        accept the case when verification proves one of the two was right.
+        """
+        return False
 
     @abstractmethod
     def output_schema(self, kind: RoleKind) -> type[BaseModel]:
