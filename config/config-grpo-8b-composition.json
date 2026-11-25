@@ -181,7 +181,7 @@
     "output_dir": "experiments/run-8b-comp",
     "strategy": "grpo",
     "grpo_reward": "teacher_kl,ctf_flag*2",
-    "opd_teacher_url": "http://192.168.1.26:9934",
+    "opd_teacher_url": "${OPD_TEACHER_URL:http://localhost:9934}",
     "domain": "ctf",
     "epochs": 1,
     "opd_max_scored_tokens": 48,
