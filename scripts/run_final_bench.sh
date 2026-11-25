@@ -3,8 +3,8 @@
 #
 # Two arms:
 #   full   - model + augure + lictor (the production system)
-#   model  - model alone, no augure/lictor: the model must solve the
-#            challenge from source code alone
+#   model  - model alone, no augure/lictor: classification only - the model
+#            classifies the vulnerability, it does not solve from source
 #
 # WHY THIS SCRIPT EXISTS (lesson from run-20261104-mr6-10rep, 2026-11-04):
 #   the re-bench was launched by hand WITHOUT the committed protocol
