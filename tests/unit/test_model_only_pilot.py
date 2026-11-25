@@ -105,16 +105,18 @@ class TestGroundTruthDerivation:
         assert m.expected_vuln("orw-002", paths=paths) == "sof"
         assert m.expected_vuln("fmtstr-002", paths=paths) == "fmtstr"
 
-    def test_live_mr10_dataset_provides_orw_ground_truth(self) -> None:
-        # The real regression: with the live datasets, MR10 (Prolog, orw=sof)
-        # must win over MR8 (JSON envelope, orw=fmtstr) for the orw labels.
+    def test_live_mr11_dataset_provides_orw_ground_truth(self) -> None:
+        # The live facts dataset is MR11 (ReAct wrapper, orw-001 only):
+        # the vuln fact must be recovered from inside action_input.predicates,
+        # not lost to the MR8 JSON-envelope / MR10 Prolog-only parsers.
         from brainforge.experiments.model_only_pilot import _facts_dataset_paths
 
         paths = _facts_dataset_paths()
         if not paths:
             pytest.skip("live facts datasets absent (gitignored artifact, CI)")
         assert m.expected_vuln("orw", paths) == "sof"
-        assert m.expected_vuln("orw-002", paths) == "sof"
+        # orw-002 has no record in MR11 and no fallback: honest None.
+        assert m.expected_vuln("orw-002", paths) is None
 
     def test_uaf_heap_preserved_by_document_fallback(self) -> None:
         # uaf_heap has no facts record in any dataset; the fallback keeps
