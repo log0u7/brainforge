@@ -14,13 +14,13 @@ import torch
 from transformers import AutoTokenizer
 from peft import AutoPeftModelForCausalLM
 
-rows = [
-    json.loads(l) for l in open("/home/logout/projets/datasets/grpo-eval-expansion/train.jsonl")
-]
-flags = {
-    json.loads(l)["id"]: json.loads(l)["expected_flag"]
-    for l in open("/home/logout/projets/datasets/grpo-eval-expansion/grpo_flags.jsonl")
-}
+with open("/home/logout/projets/datasets/grpo-eval-expansion/train.jsonl") as _f:
+    rows = [json.loads(line) for line in _f]
+flags = {}
+with open("/home/logout/projets/datasets/grpo-eval-expansion/grpo_flags.jsonl") as _f:
+    for line in _f:
+        rec = json.loads(line)
+        flags[rec["id"]] = rec["expected_flag"]
 seen, sel = set(), []
 for r in rows:
     if r["id"] not in seen:
@@ -76,7 +76,8 @@ def run(tag, out_path):
             )
     out = pathlib.Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
-    json.dump(results, open(out, "w"), indent=1)
+    with open(out, "w") as _f:
+        json.dump(results, _f, indent=1)
     n = len(sel)
     print(
         tag,
