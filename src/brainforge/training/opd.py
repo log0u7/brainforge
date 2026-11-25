@@ -29,7 +29,7 @@ from typing import Any
 from brainforge.errors import BrainforgeError
 
 
-def _urlopen(req: urllib.request.Request, timeout: int = 60):
+def _urlopen(req: urllib.request.Request, timeout: int = 60) -> Any:
     return urllib.request.urlopen(req, timeout=timeout)
 
 
@@ -86,10 +86,12 @@ def make_teacher_kl_reward(
             method="POST",
         )
         with _urlopen(req) as resp:
-            return json.loads(resp.read().decode("utf-8"))
+            data: dict[str, Any] = json.loads(resp.read().decode("utf-8"))
+            return data
 
     def _tokenize(text: str) -> list[int]:
-        return _post("/tokenize", {"content": text})["tokens"]
+        tokens: list[int] = _post("/tokenize", {"content": text})["tokens"]
+        return tokens
 
     def _score_one(prompt: Any, completion: str) -> float:
         rendered = _render_prompt(prompt, render)
@@ -130,6 +132,10 @@ def make_teacher_kl_reward(
                         f"completion_probabilities at token {i}/{len(completion_ids)} "
                         f"(raw response: {json.dumps(data)[:300]})"
                     )
+            if not top:
+                raise BrainforgeError(
+                    "teacher_kl reward: no completion_probabilities from teacher"
+                )
             top = top[0]["top_logprobs"]
             lp = next(
                 (e["logprob"] for e in top if e["id"] == student_id),

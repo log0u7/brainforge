@@ -121,7 +121,8 @@ def train_student(
     if getattr(training, "strategy", "") == "grpo":
         # the domain pack resolves the reward hook and the sidecar
         # columns inside train_grpo; the other strategies have no pack
-        return train_fn(training, dataset_dir, output_dir, resume=resume,
+        from brainforge.training.grpo import train_grpo as train_grpo_fn
+        return train_grpo_fn(training, dataset_dir, output_dir, resume=resume,
             domain=getattr(training, "domain", "") or None)
     return train_fn(training, dataset_dir, output_dir, resume=resume)
 

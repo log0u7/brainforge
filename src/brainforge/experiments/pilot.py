@@ -302,6 +302,7 @@ def ask_facts(provider: Any, model: str, material: str) -> list[str]:
     from brainforge.providers.base import ChatMessage, ChatRequest
 
     base_url = getattr(getattr(provider, "config", None), "base_url", "") or ""
+    extra_body: dict[str, Any]
     if "openrouter" in base_url:
         extra_body = {"reasoning": {"effort": "low"}}
     else:

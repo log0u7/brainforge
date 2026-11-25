@@ -1,8 +1,15 @@
-import json, re, time, torch, pathlib, sys
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
-from peft import AutoPeftModelForCausalLM
+import json
+import pathlib
+import re
+import sys
+import time
 
-rows = [json.loads(l) for l in open("datasets/eval/grpo-expanded.jsonl")]
+import torch
+from peft import AutoPeftModelForCausalLM
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+
+with open("datasets/eval/grpo-expanded.jsonl") as _f:
+    rows = [json.loads(line) for line in _f]
 print("n_records:", len(rows))
 
 VULN_RE = re.compile(r'vuln\s*\(\s*"(\w+)"\s*\)')
@@ -59,9 +66,7 @@ def run(tag, load, out_path):
             return_tensors="pt",
         )["input_ids"].to(mod.device)
         n_prompt = ids.shape[1]
-        gen = mod.generate(
-            ids, max_new_tokens=256, do_sample=False, pad_token_id=tok.eos_token_id
-        )
+        gen = mod.generate(ids, max_new_tokens=256, do_sample=False, pad_token_id=tok.eos_token_id)
         text = tok.decode(gen[0][n_prompt:], skip_special_tokens=True)
         vulns = VULN_RE.findall(text)
         flags = FLAG_RE.findall(text)
@@ -77,13 +82,13 @@ def run(tag, load, out_path):
                 "new_vuln": [v for v in vulns if v != sv],
                 "flags": flags,
                 "flag": r.get("flag", ""),
-                "flag_exact": bool(flags)
-                and any(f == r.get("flag", "") for f in flags),
+                "flag_exact": bool(flags) and any(f == r.get("flag", "") for f in flags),
                 "text_head": text[:220],
             }
         )
     pathlib.Path(out_path).parent.mkdir(parents=True, exist_ok=True)
-    json.dump(results, open(out_path, "w"), indent=1)
+    with open(out_path, "w") as _f:
+        json.dump(results, _f, indent=1)
     n = len(results)
     uaf_rows = [x for x in results if x["static_vuln"] is None]
     stat_rows = [x for x in results if x["static_vuln"] is not None]

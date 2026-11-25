@@ -93,7 +93,7 @@ def _run_over_targets(
     models, which keeps the comparison paired."""
     stats = {"attempts": 0, "successes": 0, "attempts_without_llm_facts": 0, "per_challenge": {}}  # type: dict
 
-    def _attempt_one(rep: int, entry: tuple):
+    def _attempt_one(rep: int, entry: tuple) -> tuple[int, tuple, list[dict]]:
         challenge_id = entry[0]
         # the progress lines: the MR6-v2 hang made a stuck challenge
         # invisible for hours (the protocol pipes the output through

@@ -12,6 +12,7 @@ the prompt is the rendered conversation minus the final assistant turn.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
@@ -47,7 +48,7 @@ def _resolve_teacher_kl(
     opd_teacher_url: str = "",
     base_model: str = "",
     max_scored_tokens: int = 0,
-):
+) -> Callable[..., list[float]] | None:
     """Resolve the teacher_kl (OPD dense reward) spec into a reward fn.
 
     The URL is config-driven and mandatory: nothing is silently defaulted.
@@ -72,18 +73,19 @@ def _resolve_teacher_kl(
         from transformers import AutoTokenizer
 
         @lru_cache(maxsize=1)
-        def _load_tokenizer(name: str):
+        def _load_tokenizer(name: str) -> AutoTokenizer:
             return AutoTokenizer.from_pretrained(name)
 
         def render(messages: Any) -> str:
-            return _load_tokenizer(base_model).apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=True
+            return str(
+                _load_tokenizer(base_model).apply_chat_template(
+                    messages, tokenize=False, add_generation_prompt=True
+                )
             )
 
     return make_teacher_kl_reward(
         opd_teacher_url, render=render, max_scored_tokens=max_scored_tokens
     )
-
 
 
 def train_grpo(
@@ -113,9 +115,7 @@ def train_grpo(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     train_path = dataset_dir / "train.jsonl"
-    records = [
-        json.loads(line) for line in train_path.open(encoding="utf-8") if line.strip()
-    ]
+    records = [json.loads(line) for line in train_path.open(encoding="utf-8") if line.strip()]
 
     domain = domain or getattr(config, "domain", "") or None
     pack = get_or_generic(domain) if domain else None
@@ -148,7 +148,7 @@ def train_grpo(
         # weighted composition including the OPD dense reward: the
         # registry does not hold teacher_kl (it needs the teacher URL
         # and the student tokenizer), so route it through a resolver
-        def _teacher_kl_resolver(name: str):
+        def _teacher_kl_resolver(name: str) -> Callable[..., list[float]] | None:
             if name == "teacher_kl":
                 return _resolve_teacher_kl(
                     name,
@@ -160,12 +160,16 @@ def train_grpo(
 
         reward_fn = compose_reward(spec, resolver=_teacher_kl_resolver)
     elif "teacher_kl" in spec:
-        reward_fn = _resolve_teacher_kl(
+        # spec contains teacher_kl, so the resolver returns a fn
+        # (its None branch only fires when teacher_kl is absent)
+        resolved = _resolve_teacher_kl(
             spec,
             opd_url,
             base_model=config.base_model,
             max_scored_tokens=getattr(config, "opd_max_scored_tokens", 0),
         )
+        assert resolved is not None
+        reward_fn = resolved
     elif "," in spec or "*" in spec:
         reward_fn = compose_reward(spec)
     else:
@@ -174,8 +178,7 @@ def train_grpo(
     grpo_config = GRPOConfig(
         output_dir=str(output_dir),
         max_completion_length=(
-            getattr(config, "grpo_max_completion_length", 0)
-            or min(512, config.max_length)
+            getattr(config, "grpo_max_completion_length", 0) or min(512, config.max_length)
         ),
         model_init_kwargs=load_kwargs,
         per_device_train_batch_size=config.batch_size,
@@ -225,7 +228,5 @@ def train_grpo(
         "n_prompts": len(rows),
         "output_dir": str(output_dir),
     }
-    (output_dir / "train_summary.json").write_text(
-        json.dumps(summary, indent=2), encoding="utf-8"
-    )
+    (output_dir / "train_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary

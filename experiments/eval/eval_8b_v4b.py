@@ -1,12 +1,20 @@
-import json, re, time, torch, sys, pathlib
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
-from peft import AutoPeftModelForCausalLM
+import json
+import pathlib
+import re
+import sys
+import time
 
-rows = [json.loads(l) for l in open("datasets/grpo-mr22-compact/train.jsonl")]
-flags = {
-    json.loads(l)["id"]: json.loads(l)["expected_flag"]
-    for l in open("datasets/grpo-mr22-compact/grpo_flags.jsonl")
-}
+import torch
+from peft import AutoPeftModelForCausalLM
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+
+with open("datasets/grpo-mr22-compact/train.jsonl") as _f:
+    rows = [json.loads(line) for line in _f]
+flags = {}
+with open("datasets/grpo-mr22-compact/grpo_flags.jsonl") as _f:
+    for line in _f:
+        rec = json.loads(line)
+        flags[rec["id"]] = rec["expected_flag"]
 seen, sel = set(), []
 for r in rows:
     if r["id"] not in seen:
@@ -60,7 +68,8 @@ def run(tag, load, out_path):
             )
     out = pathlib.Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
-    json.dump(results, open(out, "w"), indent=1)
+    with open(out, "w") as _f:
+        json.dump(results, _f, indent=1)
     n = len(sel)
     print(
         tag,
@@ -114,9 +123,7 @@ def adapter_kl():
 
 
 def adapter_comp():
-    tok = AutoTokenizer.from_pretrained(
-        "experiments/run-8b-comp/run-20261119-195013-071662"
-    )
+    tok = AutoTokenizer.from_pretrained("experiments/run-8b-comp/run-20261119-195013-071662")
     mod = AutoPeftModelForCausalLM.from_pretrained(
         "experiments/run-8b-comp/run-20261119-195013-071662", device_map="cuda:0"
     )

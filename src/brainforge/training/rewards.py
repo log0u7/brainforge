@@ -61,9 +61,9 @@ def compose_reward(spec: str, resolver: Callable[[str], RewardFn | None] | None 
         if not token:
             continue
         if "*" in token:
-            name, weight = token.rsplit("*", 1)
+            name, weight_s = token.rsplit("*", 1)
             name = name.strip()
-            weight = float(weight)
+            weight = float(weight_s)
         else:
             name, weight = token, 1.0
         fn = resolver(name) if resolver else None
