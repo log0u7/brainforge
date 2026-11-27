@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Eval V7 (GRPO 8B post-training, composition adapter, 16-record held-out expansion set, adapter trained on these same records): flag_exact 3/16 (unchanged vs V6 composition), vuln_emitted regressed 12/16 -> 7/16. GRPO on the expansion records does not improve one-shot transfer to held-out lab targets.
 - Eval expansion committed: results-2026-11-20.md (teacher-pilot data article for the 16-record held-out set) and the V5 grpo-expanded eval set (13 records, ctf-lictor ids).
 
 - Eval V6 (16-record held-out expansion dataset, zero train overlap, 3 arms): base 3/16 vuln, 3/16 flag exact; teacher_kl 8/16 vuln, 2/16 flag exact; composition 12/16 vuln, 3/16 flag exact. Composition transfers vuln-class emission to held-out lab targets best; flag_exact uninformative (flag strings not derivable one-shot).
