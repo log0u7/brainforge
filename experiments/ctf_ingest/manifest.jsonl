@@ -14,6 +14,7 @@
 {"source": "lictor-lab", "id": "ctf-lictor-orw-002-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
 {"source": "lictor-lab", "id": "ctf-lictor-orw-eval-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
 {"source": "lictor-lab", "id": "ctf-lictor-orw-eval2-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
+{"source": "lictor-lab", "id": "ctf-lictor-ret2csu-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
 {"source": "lictor-lab", "id": "ctf-lictor-ret2func-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
 {"source": "lictor-lab", "id": "ctf-lictor-ret2func-002-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}
 {"source": "lictor-lab", "id": "ctf-lictor-ret2func-eval-001", "tier": "verified", "expected_flag": true, "expected_technique": true, "url": "https://github.com/log0u7/lictor"}

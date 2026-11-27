@@ -105,11 +105,15 @@ class TestRunBenchLabOrchestration:
             "trained-snapshot",
             "trained-snapshot",
         ]
-        # both models see the exact same unseen challenge list (one target per call)
-        base_targets = [t[0] for c in calls if c["model"] == "base-snapshot" for t in c["targets"]]
-        trained_targets = [
+        # both models see the exact same unseen challenge list (one target
+        # per call); under the thread pool the launch order within a rep
+        # is not deterministic, the recorded results order is
+        base_targets = sorted(
+            t[0] for c in calls if c["model"] == "base-snapshot" for t in c["targets"]
+        )
+        trained_targets = sorted(
             t[0] for c in calls if c["model"] == "trained-snapshot" for t in c["targets"]
-        ]
+        )
         assert base_targets == ["chal-unseen-1", "chal-unseen-2"]
         assert trained_targets == ["chal-unseen-1", "chal-unseen-2"]
         assert result["repetitions"] == 1
@@ -572,8 +576,8 @@ class TestBenchAttemptWatchdog:
     """The MR6-v2 re-bench froze for 67 minutes: a hung attempt blocked
     the whole bench (the provider guard never fired, nothing bounded the
     attempt). Every attempt runs under a wall-clock cap: a blocked
-    attempt becomes an explicit TIMEOUT miss and the bench moves on to
-    the next challenge."""
+    attempt becomes an explicit TIMEOUT miss and the bench keeps running
+    (the remaining attempts launch concurrently, none of them blocked)."""
 
     def test_blocked_attempt_times_out_and_bench_continues(self, tmp_path: Path, capsys):
         release = threading.Event()
@@ -599,7 +603,14 @@ class TestBenchAttemptWatchdog:
         )
         out = capsys.readouterr().out
         # the bench survived the blocked attempt and ran every next one
-        assert calls == ["chal-unseen-1", "chal-unseen-2", "chal-unseen-1", "chal-unseen-2"]
+        # (the pool launches them concurrently: launch order is not
+        # deterministic, the TIMEOUT cap keeps the bench moving)
+        assert sorted(calls) == [
+            "chal-unseen-1",
+            "chal-unseen-1",
+            "chal-unseen-2",
+            "chal-unseen-2",
+        ]
         # the blocked attempt is announced as a TIMEOUT miss, never silent
         assert "[bench base rep 1/1] chal-unseen-1: TIMEOUT" in out
 

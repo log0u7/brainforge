@@ -272,10 +272,11 @@ class TestCommittedWiring:
             assert case_id not in skipped
 
     def test_committed_eval_set_live_targets(self) -> None:
-        """The live lictor lab holds 29 targets: the 17 clean-protocol
+        """The live lictor lab holds 46 targets: the 17 clean-protocol
         eval challenges, the 10 MR6 eval twins (clean by construction,
-        commit 1028b7c), and the 2 MR6 training twins (training
-        material, never eval)."""
+        commit 1028b7c), the 10 MR6 eval2 twins (restored by commit
+        27f6f08), the 7 MR7 technique targets (27f6f08), and the 2 MR6
+        training twins (training material, never eval)."""
         repo = Path(__file__).resolve().parents[2]
         challenges, _skipped = load_verified_challenges(
             repo / "experiments" / "ctf_ingest" / "manifest.jsonl",
@@ -316,6 +317,26 @@ class TestCommittedWiring:
             # NOT eval challenges (they never enter the eval set)
             "ctf-lictor-uaf_train_a-001",
             "ctf-lictor-uaf_train_b-001",
+            # the MR6 eval2 twins: restored corpus copies (27f6f08), one
+            # per capability class plus the two UAF class-transfer targets
+            "ctf-lictor-callme-eval2-001",
+            "ctf-lictor-fmtstr-eval2-001",
+            "ctf-lictor-orw-eval2-001",
+            "ctf-lictor-ret2func-eval2-001",
+            "ctf-lictor-ret2libc-eval2-001",
+            "ctf-lictor-ret2plt-eval2-001",
+            "ctf-lictor-shellcode-eval2-001",
+            "ctf-lictor-srop-eval2-001",
+            "ctf-lictor-uaf-eval2-001-001",
+            "ctf-lictor-uaf-eval2-002-001",
+            # the MR7 technique targets: seven new remote-style classes
+            "ctf-lictor-brop-001",
+            "ctf-lictor-got_partial_overwrite-001",
+            "ctf-lictor-jop-001",
+            "ctf-lictor-one_gadget-001",
+            "ctf-lictor-ret2partial_overwrite-001",
+            "ctf-lictor-ret2vdso-001",
+            "ctf-lictor-setcontext_srop-001",
         }
 
 

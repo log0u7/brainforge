@@ -95,7 +95,9 @@ def _run_over_targets(
     for rep in range(repetitions):
         seed = str(seed_base + rep)
 
-        def _attempt_one(entry):
+        def _attempt_one(
+            entry: tuple, rep: int = rep, seed: str = seed
+        ) -> tuple[tuple, list[dict]]:
             challenge_id = entry[0]
             # the progress lines: the MR6-v2 hang made a stuck challenge
             # invisible for hours (the protocol pipes the output through

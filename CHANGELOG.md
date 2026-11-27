@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Final bench: the per-repetition loop runs under a thread pool (BENCH_WORKERS tunes the width, default 4 - the pilot is a subprocess, one core no longer pins the bench), and the live target set grows to 46 ported challenges: the 7 MR7 technique targets (brop, got_partial_overwrite, jop, one_gadget, ret2partial_overwrite, ret2vdso, setcontext_srop) and the 10 restored eval2 twins join, with the ret2csu manifest entry restored (the MR7 manifest regeneration had dropped it).
 ### Added
 
 - Bench: the canonical bench runs are now committed
